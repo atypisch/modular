@@ -22,8 +22,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     
-    if (strlen($password) < 6) {
-        $_SESSION['error'] = 'Password must be at least 6 characters long';
+    // Enhanced password validation
+    if (strlen($password) < 12) {
+        $_SESSION['error'] = 'Password must be at least 12 characters long';
+        header('Location: /modular/admin/auth/register.php');
+        exit;
+    }
+    
+    if (!preg_match('/[A-Z]/', $password)) {
+        $_SESSION['error'] = 'Password must contain at least one uppercase letter';
+        header('Location: /modular/admin/auth/register.php');
+        exit;
+    }
+    
+    if (!preg_match('/[a-z]/', $password)) {
+        $_SESSION['error'] = 'Password must contain at least one lowercase letter';
+        header('Location: /modular/admin/auth/register.php');
+        exit;
+    }
+    
+    if (!preg_match('/[0-9]/', $password)) {
+        $_SESSION['error'] = 'Password must contain at least one number';
+        header('Location: /modular/admin/auth/register.php');
+        exit;
+    }
+    
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        $_SESSION['error'] = 'Password must contain at least one special character';
         header('Location: /modular/admin/auth/register.php');
         exit;
     }
@@ -37,15 +62,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     
-    // Create new user
+    // Generate confirmation token
+    $confirmation_token = bin2hex(random_bytes(32));
+    
+    // Create new user with confirmation token
     $userData->createUser([
         'name' => $name,
         'email' => $email,
         'password' => password_hash($password, PASSWORD_DEFAULT),
-        'role' => 'user'
+        'role' => 'user',
+        'confirmation_token' => $confirmation_token,
+        'is_confirmed' => 0
     ]);
     
-    $_SESSION['success'] = 'Registration successful! Please login.';
+    // Send confirmation email
+    $confirmation_link = SITE_URL . '/admin/auth/confirm.php?token=' . $confirmation_token;
+    $to = $email;
+    $subject = 'Confirm your Modular CMS account';
+    $message = "Hello {$name},\n\n";
+    $message .= "Thank you for registering with Modular CMS. Please click the following link to confirm your account:\n\n";
+    $message .= $confirmation_link . "\n\n";
+    $message .= "If you did not register for this account, please ignore this email.\n\n";
+    $message .= "Best regards,\nModular CMS Team";
+    
+    $headers = 'From: noreply@modular.com' . "\r\n" .
+               'Reply-To: noreply@modular.com' . "\r\n" .
+               'X-Mailer: PHP/' . phpversion();
+    
+    mail($to, $subject, $message, $headers);
+    
+    $_SESSION['success'] = 'Registration successful! Please check your email to confirm your account.';
     header('Location: /modular/admin/auth/login.php');
     exit;
 } else {

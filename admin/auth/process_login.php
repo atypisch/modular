@@ -11,6 +11,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = $userData->getUserByEmail($email);
     
     if ($user && password_verify($password, $user['password'])) {
+        if (!$user['is_confirmed']) {
+            $_SESSION['error'] = 'Please confirm your email address before logging in.';
+            header('Location: /modular/admin/auth/login.php');
+            exit;
+        }
+        
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = $user['name'];
         $_SESSION['user_role'] = $user['role'];
