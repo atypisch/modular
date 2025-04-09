@@ -9,26 +9,25 @@ $additional_styles = $additional_styles ?? '';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($page_title); ?> - Modular CMS</title>
-    <link rel="stylesheet" href="/modular/admin/assets/css/app.css">
-    <style>
-        /* Base styles */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 0;
-            background-color: #f8f9fa;
-            min-height: 100vh;
-        }
-        
-        /* Additional styles from the page */
-        <?php echo $additional_styles; ?>
-    </style>
+    <title><?php echo isset($page_title) ? $page_title . ' - Modular CMS' : 'Modular CMS'; ?></title>
+    
+    <!-- Base CSS -->
+    <link rel="stylesheet" href="/modular/admin/assets/css/base.css">
+    <link rel="stylesheet" href="/modular/admin/assets/css/responsive.css">
+    
+    <?php 
+    // Load additional styles if defined
+    if (isset($additional_styles)) {
+        echo $additional_styles;
+    }
+    ?>
 </head>
 <body>
-    <main>
-        <?php echo $content; ?>
-    </main>
+    <?php 
+    // Load the main content
+    if (isset($content)) {
+        echo $content;
+    }
+    ?>
 </body>
 </html> 
