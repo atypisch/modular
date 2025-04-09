@@ -18,6 +18,12 @@ $page_title = 'Dashboard';
 $additional_styles = '
     <link rel="stylesheet" href="' . ADMIN_CSS_PATH . '/dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="' . ADMIN_CSS_PATH . '/profile.css">
+';
+
+// Set additional scripts
+$additional_scripts = '
+    <script src="' . ADMIN_URL . '/js/profile.js"></script>
 ';
 
 // Set content
@@ -69,7 +75,7 @@ $content = '
                     </a>
                 </li>
                 <li>
-                    <a href="#">
+                    <a href="/modular/admin/profile.php">
                         <i class="fas fa-user"></i>
                         <span>Profile</span>
                     </a>
@@ -183,3 +189,9 @@ $content = '
 
 // Load the theme
 require_once dirname(dirname(__FILE__)) . '/public/themes/default/index.php';
+
+// Include additional scripts
+if (isset($additional_scripts)) {
+    echo $additional_scripts;
+}
+?>
