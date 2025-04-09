@@ -1,7 +1,7 @@
 <?php
 session_start();
+require_once dirname(dirname(__FILE__)) . '/data/init.php';
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
-require_once dirname(__FILE__) . '/data/UserData.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'] ?? '';

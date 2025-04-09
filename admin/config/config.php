@@ -22,8 +22,8 @@ define('ADMIN_CSS_PATH', ADMIN_ASSETS_PATH . '/css');
 
 // Database configuration
 define('DB_HOST', 'localhost');
-define('DB_USER', 'marten');
-define('DB_PASS', 'currents');
+define('DB_USER', 'root');
+define('DB_PASS', 'root');
 define('DB_NAME', 'modular');
 
 // Create database connection with error handling

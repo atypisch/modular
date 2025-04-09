@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once dirname(dirname(__FILE__)) . '/config.php';
-require_once dirname(__FILE__) . '/data/UserData.php';
+require_once dirname(dirname(__FILE__)) . '/data/init.php';
 
 $token = $_GET['token'] ?? '';
 
@@ -11,7 +11,7 @@ if (empty($token)) {
     exit;
 }
 
-$userData = new UserData();
+$userData = new userdata();
 $user = $userData->getUserByConfirmationToken($token);
 
 if (!$user) {

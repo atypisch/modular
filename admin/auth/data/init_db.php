@@ -1,7 +1,7 @@
 <?php
-require_once 'UserData.php';
+require_once dirname(__FILE__) . '/../../data/init.php';
 
-$userData = new UserData();
+$userData = new userdata();
 
 // Check if admin user exists
 $admin = $userData->getUserByEmail('admin@modular.com');

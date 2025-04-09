@@ -2,7 +2,7 @@
 // Start session and check if user is logged in
 session_start();
 require_once 'config/config.php';
-require_once 'auth/data/UserData.php';
+require_once dirname(__FILE__) . '/../data/init.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-$userData = new UserData();
+$userData = new userdata();
 $totalUsers = count($userData->getAllUsers());
 
 // Set page title and additional styles
