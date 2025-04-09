@@ -2,12 +2,16 @@
 // Start session and check if user is logged in
 session_start();
 require_once 'config.php';
+require_once 'auth/data/UserData.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header('Location: /modular/admin/auth/login.php');
     exit;
 }
+
+$userData = new UserData();
+$totalUsers = count($userData->getAllUsers());
 
 $page_title = 'Dashboard';
 $content = '
@@ -23,7 +27,7 @@ $content = '
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="dashboard-card">
                 <h3 class="dashboard-label">Total Users</h3>
-                <p class="dashboard-stat">1</p>
+                <p class="dashboard-stat">' . $totalUsers . '</p>
             </div>
             <div class="dashboard-card">
                 <h3 class="dashboard-label">Total Pages</h3>
