@@ -1,16 +1,24 @@
 <?php
-session_start();
-require_once dirname(dirname(__FILE__)) . '/data/init.php';
-require_once dirname(dirname(__FILE__)) . '/config/config.php';
+// Start output buffering to prevent header errors
+ob_start();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+session_start();
+
+// First include config to set up database connection
+require_once dirname(__DIR__) . '/config/config.php';
+
+// Then include init which depends on the database connection
+require_once __DIR__ . '/data/init.php';
+
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
     
     // Validate input
     if (empty($email) || empty($password)) {
-        $_SESSION['error'] = 'Please fill in all fields';
-        header('Location: /modular/admin/auth/login.php');
+        $_SESSION['error'] = 'Email and password are required';
+        header('Location: login.php');
+        ob_end_flush();
         exit;
     }
 
@@ -22,7 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$user || !password_verify($password, $user['password'])) {
             $_SESSION['error'] = 'Invalid email or password';
-            header('Location: /modular/admin/auth/login.php');
+            header('Location: login.php');
+            ob_end_flush();
             exit;
         }
 
@@ -34,14 +43,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Redirect to dashboard
         header('Location: /modular/admin/');
+        ob_end_flush();
         exit;
 
     } catch(PDOException $e) {
         $_SESSION['error'] = 'An error occurred. Please try again later.';
-        header('Location: /modular/admin/auth/login.php');
+        header('Location: login.php');
+        ob_end_flush();
         exit;
     }
 } else {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: login.php');
+    ob_end_flush();
     exit;
 } 
+
+// Clean output buffer
+ob_end_flush();

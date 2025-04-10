@@ -1,6 +1,4 @@
 <?php
-require_once __DIR__ . '/init.php';
-
 class userdata {
     private $db;
     private $table = 'users';
