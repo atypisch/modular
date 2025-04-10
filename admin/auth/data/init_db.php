@@ -1,5 +1,5 @@
 <?php
-require_once dirname(__FILE__) . '/../../data/init.php';
+require_once dirname(__FILE__) . '/init.php';
 
 $userData = new userdata();
 
@@ -16,4 +16,4 @@ if (!$admin) {
     echo "Admin user created successfully!\n";
 } else {
     echo "Admin user already exists.\n";
-} 
+}

@@ -3,31 +3,26 @@
 $page_title = $page_title ?? 'Modular CMS';
 $content = $content ?? '';
 $additional_styles = $additional_styles ?? '';
+$additional_scripts = $additional_scripts ?? '';
+
+// Get current path for active navigation
+$current_path = $_SERVER['REQUEST_URI'];
+
+// Include header
+require_once __DIR__ . '/../../admin/templates/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo isset($page_title) ? $page_title . ' - Modular CMS' : 'Modular CMS'; ?></title>
-    
-    <!-- Base CSS -->
-    <link rel="stylesheet" href="/modular/admin/assets/css/base.css">
-    <link rel="stylesheet" href="/modular/admin/assets/css/responsive.css">
-    
-    <?php 
-    // Load additional styles if defined
-    if (isset($additional_styles)) {
-        echo $additional_styles;
-    }
-    ?>
-</head>
-<body>
-    <?php 
-    // Load the main content
-    if (isset($content)) {
-        echo $content;
-    }
-    ?>
-</body>
-</html> 
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <?php 
+        // Load the main content
+        if (isset($content)) {
+            echo $content;
+        }
+        ?>
+    </main>
+
+<?php
+// Include footer
+require_once __DIR__ . '/../../admin/templates/footer.php';
+?>

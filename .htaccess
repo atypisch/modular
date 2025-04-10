@@ -1,0 +1,33 @@
+# Enable URL rewriting
+RewriteEngine On
+
+# Redirect /admin to /admin/structure/dashboard/
+RewriteRule ^admin/?$ admin/structure/dashboard/ [L]
+
+# Handle clean URLs for admin pages
+RewriteRule ^admin/profile/?$ admin/structure/profile/ [L]
+RewriteRule ^admin/users/?$ admin/structure/users/ [L]
+RewriteRule ^admin/auth/logout/?$ admin/auth/logout.php [L]
+
+# Handle other admin pages
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^admin/([^/]+)/?$ admin/structure/$1/ [L]
+
+# Handle module URLs
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^modules/([^/]+)/?$ public/modules/$1/index.php [L]
+
+# Handle theme URLs
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^themes/([^/]+)/?$ public/themes/$1/index.php [L]
+
+# Handle uploads
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^uploads/(.*)$ public/uploads/$1 [L]
+
+# Handle 404 errors
+ErrorDocument 404 /modular/public/themes/default/404.php

@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/userdata.php';
+require_once dirname(__FILE__) . '/userdata.php';
 
 class DatabaseInitializer {
     private $db;

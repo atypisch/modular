@@ -1,7 +1,7 @@
 <?php
 session_start();
+require_once dirname(dirname(__FILE__)) . '/admin/data/init.php';
 require_once dirname(dirname(__FILE__)) . '/config.php';
-require_once dirname(dirname(__FILE__)) . '/data/init.php';
 
 $token = $_GET['token'] ?? '';
 
