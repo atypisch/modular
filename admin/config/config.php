@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 // Define base paths
-define('MODULAR_PATH', dirname(__DIR__));
+define('MODULAR_PATH', dirname(dirname(__DIR__)));
 define('ADMIN_PATH', MODULAR_PATH . '/admin');
 define('PUBLIC_PATH', MODULAR_PATH . '/public');
 define('THEMES_PATH', MODULAR_PATH . '/public/themes');

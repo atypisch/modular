@@ -8,7 +8,7 @@ session_start();
 require_once dirname(__DIR__) . '/config/config.php';
 
 // Then include init which depends on the database connection
-require_once dirname(__DIR__) . '/admin/data/init.php';
+require_once ADMIN_PATH . '/data/init.php';
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'] ?? '';

@@ -34,5 +34,21 @@ $content = '
 unset($_SESSION['error']);
 unset($_SESSION['success']);
 
-// Load the theme with additional styles from config
-require_once dirname(dirname(dirname(__FILE__))) . '/public/themes/' . DEFAULT_THEME . '/index.php'; 
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo $page_title; ?> - Modular CMS</title>
+    <!-- Link to admin stylesheets -->
+    <link rel="stylesheet" href="../assets/css/base.css">
+    <link rel="stylesheet" href="../assets/css/form.css">
+    <link rel="stylesheet" href="../assets/css/responsive.css">
+</head>
+<body>
+    <div class="login-container">
+        <?php echo $content; // Output the login form content ?>
+    </div>
+</body>
+</html>

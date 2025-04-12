@@ -29,13 +29,10 @@ $profile_active = is_active('/modular/admin/profile');
     
     <!-- Base CSS -->
     <link rel="stylesheet" href="/modular/admin/assets/css/base.css">
+    <link rel="stylesheet" href="/modular/admin/assets/css/form.css">
+    <link rel="stylesheet" href="/modular/admin/assets/css/layout.css">
+    <link rel="stylesheet" href="/modular/admin/assets/css/components.css">
     <link rel="stylesheet" href="/modular/admin/assets/css/responsive.css">
-    <link rel="stylesheet" href="/modular/admin/assets/css/dashboard.css">
-    <link rel="stylesheet" href="/modular/admin/assets/css/profile.css">
-    <link rel="stylesheet" href="/modular/admin/assets/css/settings.css">
-    <link rel="stylesheet" href="/modular/admin/assets/css/types.css">
-    <link rel="stylesheet" href="/modular/admin/assets/css/users.css">
-    <link rel="stylesheet" href="/modular/admin/assets/css/media.css">
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -43,13 +40,15 @@ $profile_active = is_active('/modular/admin/profile');
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
+    <!-- Vue.js -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
     <!-- Admin Scripts -->
-    <script src="/modular/admin/assets/js/dashboard.js"></script>
-    <script src="/modular/admin/assets/js/profile.js"></script>
-    <script src="/modular/admin/assets/js/settings.js"></script>
-    <script src="/modular/admin/assets/js/types.js"></script>
-    <script src="/modular/admin/assets/js/users.js"></script>
-    <script src="/modular/admin/assets/js/media.js"></script>
+    <script src="/modular/admin/assets/js/base.js"></script>
+    <script src="/modular/admin/assets/js/components.js"></script>
+    <script src="/modular/admin/assets/js/forms.js"></script>
+    <script src="/modular/admin/assets/js/tables.js"></script>
+    <script src="/modular/admin/assets/js/charts.js"></script>
 </head>
 <body>
     <!-- Toolbar -->

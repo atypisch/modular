@@ -1,0 +1,183 @@
+/* Form Styles */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.form-select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.form-text {
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    color: #6c757d;
+}
+
+.form-check {
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.form-check-label {
+    margin-left: 0.5rem;
+}
+
+.form-check-input {
+    position: relative;
+    margin-right: 0.5rem;
+}
+
+/* Error states */
+.has-error .form-control,
+.has-error .form-select {
+    border-color: #dc3545;
+}
+
+.has-error .form-text {
+    color: #dc3545;
+}
+
+/* Success states */
+.has-success .form-control,
+.has-success .form-select {
+    border-color: #28a745;
+}
+
+.has-success .form-text {
+    color: #28a745;
+}
+
+/* Button styles */
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+.btn-success {
+    background-color: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
+}
+
+/* Form layout */
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-right: -5px;
+    margin-left: -5px;
+}
+
+.form-row > .col,
+.form-row > [class*="col-"] {
+    padding-right: 5px;
+    padding-left: 5px;
+}
+
+/* Form validation */
+.form-validation {
+    position: relative;
+}
+
+.form-validation .form-control {
+    padding-right: 2.5rem;
+}
+
+.form-validation .form-control-feedback {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 0.5rem;
+    pointer-events: none;
+}
+
+/* Form actions */
+.form-actions {
+    margin-top: 2rem;
+    text-align: right;
+}
+
+/* Form groups */
+.form-group-inline {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 1rem;
+}
+
+/* Form sizes */
+.form-control-lg {
+    padding: 0.75rem;
+    font-size: 1.25rem;
+}
+
+.form-control-sm {
+    padding: 0.25rem;
+    font-size: 0.875rem;
+}

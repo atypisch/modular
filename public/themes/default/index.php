@@ -9,7 +9,7 @@ $additional_scripts = $additional_scripts ?? '';
 $current_path = $_SERVER['REQUEST_URI'];
 
 // Include header
-require_once __DIR__ . '/../../admin/templates/header.php';
+require_once ADMIN_PATH . '/templates/header.php';
 ?>
 
     <!-- Main Content -->
