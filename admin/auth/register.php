@@ -8,9 +8,6 @@ $success = $_SESSION['success'] ?? '';
 unset($_SESSION['error']);
 unset($_SESSION['success']);
 
-// Load the theme with additional styles from config
-require_once dirname(dirname(dirname(__FILE__))) . '/public/themes/' . DEFAULT_THEME . '/index.php';
-
 $page_title = 'Register';
 $content = '
     <div class="auth-container">
@@ -72,9 +69,13 @@ $content = '
     </div>
 ';
 
-// Render the page
+// Include header
+require_once dirname(dirname(__FILE__)) . '/templates/header.php';
+
+// Output content
 echo $content;
 ?>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const password = document.getElementById('password');
@@ -105,51 +106,56 @@ echo $content;
             }
         }
 
-        function checkPasswordMatch() {
+        function validatePassword() {
+            const value = password.value;
+            let isValid = true;
+
+            for (const [requirement, regex] of Object.entries(requirements)) {
+                const requirementValid = regex.test(value);
+                updateRequirement(requirement, requirementValid);
+                if (!requirementValid) isValid = false;
+            }
+
+            return isValid;
+        }
+
+        function validateConfirmPassword() {
+            const isMatch = password.value === confirmPassword.value && password.value !== '';
+            matchElement.style.display = confirmPassword.value ? 'block' : 'none';
+            
             const icon = matchElement.querySelector('.icon');
             const text = matchElement.querySelector('.text');
             
-            // Only show the match element if confirm password has been touched
-            if (confirmPassword.value.length > 0) {
-                matchElement.style.display = 'block';
-                const passwordsMatch = password.value === confirmPassword.value && password.value !== '';
-
-                if (passwordsMatch) {
-                    icon.textContent = '✓';
-                    icon.style.color = '#28a745';
-                    text.style.color = '#28a745';
-                    text.textContent = 'Passwords match';
-                } else {
-                    icon.textContent = '✗';
-                    icon.style.color = '#dc3545';
-                    text.style.color = '#dc3545';
-                    text.textContent = 'Passwords do not match';
-                }
-
-                return passwordsMatch;
+            if (isMatch) {
+                icon.textContent = '✓';
+                icon.style.color = '#28a745';
+                text.textContent = 'Passwords match';
+                text.style.color = '#28a745';
             } else {
-                matchElement.style.display = 'none';
-                return false;
+                icon.textContent = '✗';
+                icon.style.color = '#dc3545';
+                text.textContent = 'Passwords do not match';
+                text.style.color = '#dc3545';
             }
-        }
 
-        function validatePassword() {
-            let allValid = true;
-            for (const [requirement, regex] of Object.entries(requirements)) {
-                const isValid = regex.test(password.value);
-                updateRequirement(requirement, isValid);
-                if (!isValid) allValid = false;
-            }
-            return allValid;
+            return isMatch;
         }
 
         function updateSubmitButton() {
-            const passwordValid = validatePassword();
-            const passwordsMatch = checkPasswordMatch();
-            submitBtn.disabled = !(passwordValid && passwordsMatch);
+            submitBtn.disabled = !(validatePassword() && validateConfirmPassword());
         }
 
-        password.addEventListener('input', updateSubmitButton);
-        confirmPassword.addEventListener('input', updateSubmitButton);
+        password.addEventListener('input', () => {
+            validatePassword();
+            if (confirmPassword.value) validateConfirmPassword();
+            updateSubmitButton();
+        });
+
+        confirmPassword.addEventListener('input', () => {
+            validateConfirmPassword();
+            updateSubmitButton();
+        });
     });
-</script> 
+</script>
+</body>
+</html>

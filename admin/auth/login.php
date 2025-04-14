@@ -34,21 +34,11 @@ $content = '
 unset($_SESSION['error']);
 unset($_SESSION['success']);
 
+// Include header
+require_once dirname(dirname(__FILE__)) . '/templates/header.php';
+
+// Output content
+echo $content;
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title; ?> - Modular CMS</title>
-    <!-- Link to admin stylesheets -->
-    <link rel="stylesheet" href="../assets/css/base.css">
-    <link rel="stylesheet" href="../assets/css/form.css">
-    <link rel="stylesheet" href="../assets/css/responsive.css">
-</head>
-<body>
-    <div class="login-container">
-        <?php echo $content; // Output the login form content ?>
-    </div>
 </body>
 </html>

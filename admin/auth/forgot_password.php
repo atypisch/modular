@@ -29,5 +29,11 @@ $content = '
 unset($_SESSION['error']);
 unset($_SESSION['success']);
 
-// Load the theme with additional styles from config
-require_once dirname(dirname(dirname(__FILE__))) . '/public/themes/' . DEFAULT_THEME . '/index.php'; 
+// Include header
+require_once dirname(dirname(__FILE__)) . '/templates/header.php';
+
+// Output content
+echo $content;
+?>
+</body>
+</html>

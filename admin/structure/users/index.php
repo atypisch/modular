@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../data/init.php';
+require_once dirname(__DIR__) . '/config/config.php';
+require_once dirname(__DIR__) . '/data/init.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -96,12 +96,12 @@ $content = '
 ';
 
 // Include header
-require_once __DIR__ . '/../../templates/header.php';
+require_once dirname(__DIR__) . '/templates/header.php';
 ?>
 
 <?php echo $content; ?>
 
 <?php
 // Include footer
-require_once __DIR__ . '/../../templates/footer.php';
+require_once dirname(__DIR__) . '/templates/footer.php';
 ?>

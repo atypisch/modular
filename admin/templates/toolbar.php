@@ -6,7 +6,7 @@
             </a>
         </div>
         <div class="toolbar-right">
-            <a href="/modular/admin/auth/logout" class="toolbar-link">
+            <a href="/modular/admin/auth/logout.php" class="toolbar-link">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </a>
         </div>

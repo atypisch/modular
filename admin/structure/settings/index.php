@@ -20,151 +20,67 @@ $page_title = 'Settings';
 // Set content
 $content = '
 <div class="dashboard">
-    <!-- Top Navigation Bar -->
-    <nav class="top-nav">
-        <div class="nav-left">
-            <a href="/modular" target="_blank" class="nav-link">
-                <i class="fas fa-home"></i> Visit Site
-            </a>
-        </div>
-        <div class="nav-right">
-            <a href="/modular/admin/auth/logout" class="nav-link">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </a>
-        </div>
-    </nav>
-
-    <!-- Main Content -->
-    <main class="main-content">
-        <div class="content-header">
-            <h1>Settings</h1>
-            <p>Configure your website settings</p>
-        </div>
-
-        <div class="grid grid-cols-1 gap-6">
-            <!-- General Settings -->
-            <div class="col-span-1">
-                <div class="card">
-                    <h2>General Settings</h2>
-                    <div class="mt-4">
-                        <form action="/modular/admin/settings/save" method="POST" class="space-y-6">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Site Title</label>
-                                <input type="text" name="site_title" value="Modular CMS" 
-                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Site Description</label>
-                                <textarea name="site_description" rows="3" 
-                                          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                    Welcome to Modular CMS
-                                </textarea>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Timezone</label>
-                                <select name="timezone" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                    <option value="Europe/Amsterdam">Europe/Amsterdam</option>
-                                    <option value="UTC">UTC</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <button type="submit" class="btn btn-primary w-full">
-                                    <i class="fas fa-save"></i> Save Settings
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Appearance Settings -->
-            <div class="col-span-1">
-                <div class="card">
-                    <h2>Appearance</h2>
-                    <div class="mt-4">
-                        <form action="/modular/admin/settings/appearance" method="POST" class="space-y-6">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Theme</label>
-                                <select name="theme" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                    <option value="light">Light</option>
-                                    <option value="dark">Dark</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Layout</label>
-                                <select name="layout" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                    <option value="boxed">Boxed</option>
-                                    <option value="full-width">Full Width</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <button type="submit" class="btn btn-primary w-full">
-                                    <i class="fas fa-paint-brush"></i> Update Appearance
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Security Settings -->
-            <div class="col-span-1">
-                <div class="card">
-                    <h2>Security</h2>
-                    <div class="mt-4">
-                        <form action="/modular/admin/settings/security" method="POST" class="space-y-6">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Password Requirements</label>
-                                <div class="mt-2 space-y-2">
-                                    <div class="flex items-center">
-                                        <input type="checkbox" name="require_uppercase" id="require_uppercase" 
-                                               class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                                        <label for="require_uppercase" class="ml-2 block text-sm text-gray-700">
-                                            Require uppercase letters
-                                        </label>
-                                    </div>
-                                    <div class="flex items-center">
-                                        <input type="checkbox" name="require_special_chars" id="require_special_chars" 
-                                               class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                                        <label for="require_special_chars" class="ml-2 block text-sm text-gray-700">
-                                            Require special characters
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Login Attempts</label>
-                                <input type="number" name="max_login_attempts" value="3" min="1" 
-                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            </div>
-
-                            <div>
-                                <button type="submit" class="btn btn-primary w-full">
-                                    <i class="fas fa-shield-alt"></i> Update Security
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+    <div class="grid grid-cols-1 gap-6">
+        <!-- General Settings -->
+        <div class="col-span-1">
+            <div class="card">
+                <h2>General Settings</h2>
+                <div class="mt-4">
+                    <form action="/modular/admin/settings/general" method="POST" class="space-y-6">
+                        <div class="form-group">
+                            <label for="site_name" class="form-label">Site Name</label>
+                            <input type="text" id="site_name" name="site_name" class="form-input" value="' . htmlspecialchars($settings['site_name'] ?? '') . '" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="site_description" class="form-label">Site Description</label>
+                            <textarea id="site_description" name="site_description" class="form-input" rows="3" required>' . htmlspecialchars($settings['site_description'] ?? '') . '</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="admin_email" class="form-label">Admin Email</label>
+                            <input type="email" id="admin_email" name="admin_email" class="form-input" value="' . htmlspecialchars($settings['admin_email'] ?? '') . '" required>
+                        </div>
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary">Save General Settings</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
-    </main>
+
+        <!-- Security Settings -->
+        <div class="col-span-1">
+            <div class="card">
+                <h2>Security</h2>
+                <div class="mt-4">
+                    <form action="/modular/admin/settings/security" method="POST" class="space-y-6">
+                        <div class="form-group">
+                            <label for="enable_2fa" class="form-label">Two-Factor Authentication</label>
+                            <div class="form-toggle">
+                                <input type="checkbox" id="enable_2fa" name="enable_2fa" class="toggle-input" ' . (($settings['enable_2fa'] ?? false) ? 'checked' : '') . '>
+                                <label for="enable_2fa" class="toggle-label"></label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="session_timeout" class="form-label">Session Timeout (minutes)</label>
+                            <input type="number" id="session_timeout" name="session_timeout" class="form-input" value="' . htmlspecialchars($settings['session_timeout'] ?? '30') . '" min="5" max="1440" required>
+                        </div>
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary">Save Security Settings</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 ';
 
 // Include header
 require_once __DIR__ . '/../../templates/header.php';
-?>
 
-<?php echo $content; ?>
+// Output content
+echo $content;
 
-<?php
 // Include footer
 require_once __DIR__ . '/../../templates/footer.php';
 ?>

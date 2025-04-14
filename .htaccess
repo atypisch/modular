@@ -1,2 +1,27 @@
-Options +FollowSymLinks -MultiViews
-AddType application/x-httpd-php .php
+RewriteEngine On
+RewriteBase /modular/
+
+# Allow direct access to existing files
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Redirect admin section URLs to structure folder
+RewriteRule ^admin/settings/?$ admin/structure/settings/index.php [L]
+RewriteRule ^admin/types/?$ admin/structure/types/index.php [L]
+RewriteRule ^admin/media/?$ admin/structure/media/index.php [L]
+RewriteRule ^admin/profile/?$ admin/structure/profile/index.php [L]
+RewriteRule ^admin/users/?$ admin/structure/users/index.php [L]
+
+# Handle admin subsections
+RewriteRule ^admin/settings/([^/]+)/?$ admin/structure/settings/$1/index.php [L]
+RewriteRule ^admin/types/([^/]+)/?$ admin/structure/types/$1/index.php [L]
+RewriteRule ^admin/media/([^/]+)/?$ admin/structure/media/$1/index.php [L]
+RewriteRule ^admin/profile/([^/]+)/?$ admin/structure/profile/$1/index.php [L]
+RewriteRule ^admin/users/([^/]+)/?$ admin/structure/users/$1/index.php [L]
+
+# Handle auth pages
+RewriteRule ^admin/auth/([^/]+)/?$ admin/auth/$1.php [L]
+
+# Handle main admin page
+RewriteRule ^admin/?$ admin/index.php [L]
