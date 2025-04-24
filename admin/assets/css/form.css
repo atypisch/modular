@@ -13,7 +13,7 @@
 
 .form-control {
     float: left;
-    width: 100%;
+    width: calc(100% - 1rem);
     padding: 0.5rem;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -27,7 +27,7 @@
 }
 
 .form-select {
-    width: 100%;
+    width: calc(100% - 1rem);
     padding: 0.5rem;
     border: 1px solid #ddd;
     border-radius: 4px;

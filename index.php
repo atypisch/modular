@@ -1,56 +1,57 @@
+<?php
+require_once __DIR__ . '/core/config-check.php';
+
+// Check if Modular is installed
+$isInstalled = file_exists(__DIR__ . '/admin/config/config.php');
+
+// Only redirect if accessing setup directly and already installed
+if ($isInstalled && strpos($_SERVER['REQUEST_URI'], '/admin/setup/') !== false) {
+    header('Location: ../index.php');
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modular CMS</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 0;
-            background: #f5f5f5;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        .card {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 1rem;
-        }
-        p {
-            color: #666;
-            margin-bottom: 1.5rem;
-        }
-        .btn {
-            display: inline-block;
-            background: #007bff;
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            text-decoration: none;
-        }
-        .btn:hover {
-            background: #0056b3;
-        }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="container">
-        <div class="card">
-            <h1>Welcome to Modular CMS</h1>
-            <p>This is a simple content management system built with PHP.</p>
-            <a href="/modular/admin" class="btn">Go to Admin Panel</a>
+<body class="bg-gray-50">
+    <div class="min-h-screen flex items-center justify-center">
+        <?php if (!$isInstalled): ?>
+        <div class="max-w-md w-full mx-4">
+            <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 mx-auto text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-4">Welcome to Modular CMS</h1>
+                <p class="text-gray-600 mb-8">It looks like Modular CMS hasn't been installed yet. Click below to start the installation process.</p>
+                <a href="admin/setup/step1.php" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                    Install Modular
+                    <svg class="ml-2 -mr-1 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                    </svg>
+                </a>
+            </div>
         </div>
+        <?php else: ?>
+        <div class="max-w-md w-full mx-4">
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <h1 class="text-2xl font-bold text-gray-900 mb-4">Welcome to Modular CMS</h1>
+                <p class="text-gray-600 mb-6">This is a simple content management system built with PHP.</p>
+                <a href="admin/" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                    Go to Admin Panel
+                    <svg class="ml-2 -mr-1 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                    </svg>
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </body>
 </html> 
