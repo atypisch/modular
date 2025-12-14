@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
 
 // Enable error reporting for debugging

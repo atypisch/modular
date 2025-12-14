@@ -42,3 +42,77 @@
 2. Updated `/admin/auth/` logic for confirmation and secure token use
 3. Base admin template and minimal dashboard structure
 4. Include CSS from `/admin/assets/css/` via `templates/header.php`
+
+# Modular CMS Tasks
+
+## Completed Features
+- ✓ Two-Step CMS Setup Flow
+- ✓ User Authentication System
+- ✓ Base Admin Template Design
+
+## Post Type System Development
+
+### Task 1: Create new Post Types (MODULAR-POST-TYPE-CREATE)
+- [ ] Create database table for storing post type definitions
+- [ ] Implement Post Type class with basic attributes:
+  - Name (e.g., "Article")
+  - Nicename/slug (e.g., "article")
+  - Single name (e.g., "Article")
+  - Plural name (e.g., "Articles")
+- [ ] Create admin interface for managing post types
+- [ ] Implement CRUD operations for post types
+- [ ] Add validation and sanitization
+
+### Task 2: Add Taxonomies (MODULAR-TAXONOMY-CREATE)
+- [ ] Create database table for taxonomy definitions
+- [ ] Implement Taxonomy class with attributes:
+  - Name
+  - Slug
+  - Hierarchical flag (true/false)
+  - Associated post types
+- [ ] Create admin interface for managing taxonomies
+- [ ] Implement CRUD operations for taxonomies
+- [ ] Add term management interface
+
+### Task 3: Add Custom Fields (MODULAR-CUSTOM-FIELD-CREATE)
+- [ ] Create database table for custom field definitions
+- [ ] Implement CustomField class with attributes:
+  - Field name
+  - Field type
+  - Field options
+  - Associated post type
+- [ ] Create admin interface for managing custom fields
+- [ ] Implement basic field types:
+  - Text
+  - Textarea
+  - WYSIWYG
+  - Select
+  - Radio
+  - Checkbox
+  - File upload
+- [ ] Add validation per field type
+- [ ] Implement field rendering system
+
+### Task 4: Add Post Type Relations (MODULAR-RELATION-CREATE)
+- [ ] Create database table for post type relations
+- [ ] Implement Relation class with attributes:
+  - Source post type
+  - Target post type
+  - Relation type (one-to-one, one-to-many, many-to-many)
+- [ ] Create admin interface for managing relations
+- [ ] Implement relation data storage
+- [ ] Add relation query/fetch functionality
+
+## Implementation Timeline
+- Task 1: 2 days
+- Task 2: 3 days
+- Task 3: 4 days
+- Task 4: 5 days
+
+Total estimated time: 14 days
+
+## Next Steps
+1. Database schema design for all new tables
+2. Core classes implementation
+3. Admin interface development
+4. Testing and validation

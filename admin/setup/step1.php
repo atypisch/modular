@@ -3,7 +3,9 @@
 // After the form is submitted, it will test the DB connection and write the details to /admin/config/database.php.
 // If successful, it will redirect to step2.php. 
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once __DIR__ . '/../../core/config-check.php';
 
 // Check if config already exists and redirect if it does

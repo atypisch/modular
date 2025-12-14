@@ -1,0 +1,318 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Modular CMS API",
+    "version": "1.0.0",
+    "description": "REST API for Modular CMS"
+  },
+  "servers": [
+    {
+      "url": "/modular",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {"type": "string", "format": "email"},
+                  "password": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {"type": "string"},
+                    "user": {"type": "object"}
+                  }
+                }
+              }
+            }
+          },
+          "401": {"description": "Invalid credentials"}
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "summary": "Register new user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {"type": "string", "format": "email"},
+                  "password": {"type": "string", "minLength": 8},
+                  "username": {"type": "string"},
+                  "first_name": {"type": "string"},
+                  "last_name": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "User created"},
+          "400": {"description": "Validation error"},
+          "409": {"description": "User already exists"}
+        }
+      }
+    },
+    "/api/v1/post-types": {
+      "get": {
+        "summary": "List post types",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "List of post types",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {"$ref": "#/components/schemas/PostType"}
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create post type",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/PostTypeInput"}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Post type created"},
+          "400": {"description": "Validation error"}
+        }
+      }
+    },
+    "/api/v1/post-types/{id}": {
+      "get": {
+        "summary": "Get post type",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {"type": "integer"}
+        }],
+        "responses": {
+          "200": {"description": "Post type"},
+          "404": {"description": "Not found"}
+        }
+      },
+      "put": {
+        "summary": "Update post type",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {"type": "integer"}
+        }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/PostTypeInput"}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Updated"},
+          "404": {"description": "Not found"}
+        }
+      },
+      "delete": {
+        "summary": "Delete post type",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {"type": "integer"}
+        }],
+        "responses": {
+          "200": {"description": "Deleted"}
+        }
+      }
+    },
+    "/api/v1/posts": {
+      "get": {
+        "summary": "List posts",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{
+          "name": "post_type_id",
+          "in": "query",
+          "schema": {"type": "integer"}
+        }],
+        "responses": {
+          "200": {
+            "description": "List of posts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {"$ref": "#/components/schemas/Post"}
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create post",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/PostInput"}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Post created"},
+          "400": {"description": "Validation error"}
+        }
+      }
+    },
+    "/api/v1/posts/{id}": {
+      "get": {
+        "summary": "Get post",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {"type": "integer"}
+        }],
+        "responses": {
+          "200": {"description": "Post"},
+          "404": {"description": "Not found"}
+        }
+      },
+      "put": {
+        "summary": "Update post",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {"type": "integer"}
+        }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/PostInput"}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Updated"}
+        }
+      },
+      "delete": {
+        "summary": "Delete post",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {"type": "integer"}
+        }],
+        "responses": {
+          "200": {"description": "Deleted"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "PostType": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "name": {"type": "string"},
+          "slug": {"type": "string"},
+          "description": {"type": "string"},
+          "public": {"type": "boolean"},
+          "show_in_menu": {"type": "boolean"},
+          "supports": {"type": "array", "items": {"type": "string"}},
+          "settings": {"type": "object"}
+        }
+      },
+      "PostTypeInput": {
+        "type": "object",
+        "required": ["name", "slug"],
+        "properties": {
+          "name": {"type": "string"},
+          "slug": {"type": "string"},
+          "description": {"type": "string"},
+          "public": {"type": "boolean"},
+          "show_in_menu": {"type": "boolean"},
+          "supports": {"type": "array", "items": {"type": "string"}},
+          "settings": {"type": "object"}
+        }
+      },
+      "Post": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "post_type_id": {"type": "integer"},
+          "slug": {"type": "string"},
+          "title": {"type": "string"},
+          "status": {"type": "string"},
+          "component_data": {"type": "object"},
+          "meta_data": {"type": "object"},
+          "published_at": {"type": "string", "format": "date-time"}
+        }
+      },
+      "PostInput": {
+        "type": "object",
+        "required": ["post_type_id", "title"],
+        "properties": {
+          "post_type_id": {"type": "integer"},
+          "title": {"type": "string"},
+          "slug": {"type": "string"},
+          "status": {"type": "string", "enum": ["draft", "published", "archived"]},
+          "component_data": {"type": "object"},
+          "meta_data": {"type": "object"}
+        }
+      }
+    }
+  }
+}
+

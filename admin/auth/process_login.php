@@ -2,7 +2,9 @@
 // Start output buffering to prevent header errors
 ob_start();
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // First include config to set up database connection
 require_once dirname(__DIR__) . '/config/config.php';
@@ -41,8 +43,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         $_SESSION['user_name'] = $user['name'];
         $_SESSION['user_role'] = $user['role'];
 
-        // Redirect to dashboard
-        header('Location: /modular/admin/');
+        // Redirect to intended page or dashboard
+        $redirect = $_SESSION['redirect_after_login'] ?? '/modular/admin/';
+        unset($_SESSION['redirect_after_login']);
+        
+        header('Location: ' . $redirect);
         ob_end_flush();
         exit;
 

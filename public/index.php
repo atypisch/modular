@@ -19,6 +19,5 @@ $content = '
         </ul>
     </div>
 ';
-
 // Load the theme
 require THEMES_PATH . '/' . DEFAULT_THEME . '/index.php'; 

@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
 
 $page_title = 'Login';
@@ -11,19 +13,19 @@ $content = '
             ' . (isset($_SESSION['success']) ? '<div class="alert alert-success">' . $_SESSION['success'] . '</div>' : '') . '
             <form action="/modular/admin/auth/process_login.php" method="POST" class="auth-form">
                 <div class="form-group">
-                    <label for="email" class="form-label">Email</label>
+                    <label for="email">Email</label>
                     <input type="email" id="email" name="email" class="form-input" required>
                 </div>
                 <div class="form-group">
-                    <label for="password" class="form-label">Password</label>
+                    <label for="password">Password</label>
                     <input type="password" id="password" name="password" class="form-input" required>
                 </div>
                 <div class="form-group">
-                    <button type="submit" class="btn btn-primary w-full">Login</button>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
                 </div>
                 <div class="auth-links">
-                    <a href="/modular/admin/auth/forgot_password.php" class="text-blue-600 hover:text-blue-800">Forgot Password?</a>
-                    <a href="/modular/admin/auth/register.php" class="text-blue-600 hover:text-blue-800">Create an account</a>
+                    <a href="/modular/admin/auth/forgot_password.php">Forgot Password?</a>
+                    <a href="/modular/admin/auth/register.php">Create an account</a>
                 </div>
             </form>
         </div>

@@ -1,24 +1,95 @@
 <?php
+// Start the session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Load required files if not already loaded
+if (!defined('ADMIN_PATH')) {
+    require_once dirname(__DIR__) . '/config/config.php';
+}
+require_once CORE_PATH . '/functions/admin.php';
+require_once CORE_PATH . '/functions/database.php';
+
+// Check database installation status (only if not on install page)
+$db_install_needed = false;
+if (strpos($_SERVER['REQUEST_URI'], '/install.php') === false && isset($GLOBALS['db'])) {
+    try {
+        $tableCheck = check_database_tables();
+        // Only show install banner if critical tables are missing (users, post_types)
+        $criticalTables = ['users', 'post_types'];
+        $criticalMissing = array_intersect($criticalTables, $tableCheck['missing']);
+        $db_install_needed = !empty($criticalMissing);
+    } catch (Exception $e) {
+        // If check fails, don't show banner (might be a temporary issue)
+        $db_install_needed = false;
+        error_log("Database check error: " . $e->getMessage());
+    }
+}
+
 // Ensure $page_title is set
 $page_title = $page_title ?? 'Modular CMS';
 
 // Get current path for active navigation
 $current_path = $_SERVER['REQUEST_URI'];
 
-// Function to check if a link should be active
-function is_active($path) {
-    global $current_path;
-    // Check if we're on the exact path
-    return $current_path === $path;
+// Get active states for navigation
+// Determine which top-level menu item should be active (only ONE can be active)
+// Priority order: posts > post_types > dashboard > media > forms > users > settings > profile > actions
+
+// First check if we're on a posts page (highest priority)
+// Respect if $posts_active is already set, otherwise detect it
+if (!isset($posts_active)) {
+    $posts_active = is_posts_page();
+} else {
+    // If already set, ensure it's boolean
+    $posts_active = (bool)$posts_active;
 }
 
-// Set active states for navigation
-$dashboard_active = is_active('/modular/admin');
-$types_active = is_active('/modular/admin/types');
-$media_active = is_active('/modular/admin/media');
-$users_active = is_active('/modular/admin/users');
-$settings_active = is_active('/modular/admin/settings');
-$profile_active = is_active('/modular/admin/profile');
+// Only check other pages if NOT on posts page
+if (!$posts_active) {
+    // Check post types (but not if we're on posts page)
+    // Also exclude if we're on a posts page (double check)
+    $post_types_active = !$posts_active && (is_post_types_page() || strpos($current_path, '/modular/admin/taxonomies') !== false);
+    
+    // Only check dashboard if not on post types or posts
+    if (!$post_types_active) {
+        if (!isset($dashboard_active)) {
+            $dashboard_active = check_active_path('/modular/admin/dashboard') || check_active_path('/modular/admin') || (strpos($current_path, '/modular/admin/dashboard') !== false);
+        }
+    } else {
+        $dashboard_active = false;
+    }
+    
+    // Check other pages only if none of the above are active
+    if (!$post_types_active && !$dashboard_active) {
+        $media_active = is_media_page();
+        $users_active = is_users_page();
+        $settings_active = is_settings_page();
+        $profile_active = is_profile_page();
+        $forms_active = is_forms_page();
+        $actions_active = is_actions_page();
+    } else {
+        $media_active = false;
+        $users_active = false;
+        $settings_active = false;
+        $profile_active = false;
+        $forms_active = false;
+        $actions_active = false;
+    }
+} else {
+    // On posts page - deactivate all other top-level items
+    $post_types_active = false;
+    if (!isset($dashboard_active)) {
+        $dashboard_active = false;
+    }
+    $media_active = false;
+    $users_active = false;
+    $settings_active = false;
+    $profile_active = false;
+    $forms_active = false;
+    $actions_active = false;
+}
 
 // Check if this is an auth page
 $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
@@ -28,6 +99,9 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title><?php echo isset($page_title) ? $page_title . ' - Modular CMS' : 'Modular CMS'; ?></title>
     
     <!-- Base CSS -->
@@ -64,12 +138,31 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
     <?php if (!$is_auth_page): ?>
     <!-- Toolbar -->
     <?php require_once __DIR__ . '/toolbar.php'; ?>
-
+    
     <!-- Main Container -->
     <div class="main-container">
         <!-- Sidebar -->
         <?php require_once __DIR__ . '/sidebar.php'; ?>
-
-
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <?php if ($db_install_needed): ?>
+            <div class="alert alert-error" style="margin: var(--spacing-md); border-left: 4px solid var(--error-border);">
+                <div style="display: flex; align-items: start; gap: var(--spacing-md);">
+                    <div style="flex: 1;">
+                        <strong style="display: block; margin-bottom: var(--spacing-sm);">
+                            <i class="fas fa-exclamation-triangle"></i> Database Installation Required
+                        </strong>
+                        <p style="margin: 0; font-size: 0.9rem;">
+                            The database tables have not been created yet. Please install the database to continue using the CMS.
+                        </p>
+                    </div>
+                    <div>
+                        <a href="/modular/admin/install.php" class="btn btn-primary" style="white-space: nowrap;">
+                            <i class="fas fa-database"></i> Install Database
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
     <?php endif; ?>
-

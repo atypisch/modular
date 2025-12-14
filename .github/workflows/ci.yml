@@ -1,0 +1,65 @@
+<?php
+/**
+ * GitHub Actions CI/CD Workflow
+ */
+
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: modular
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+        extensions: pdo, pdo_mysql, gd, mbstring, openssl
+    
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+    
+    - name: Run migrations
+      run: php core/migrations/001_core_schema.php
+      env:
+        DB_HOST: 127.0.0.1
+        DB_USER: root
+        DB_PASS: root
+        DB_NAME: modular
+    
+    - name: Run PHPUnit tests
+      run: composer test
+      continue-on-error: true
+    
+    - name: Run linter
+      run: composer lint
+      continue-on-error: true
+    
+    - name: Run static analysis
+      run: composer stan
+      continue-on-error: true
+    
+    - name: Security scan
+      run: |
+        composer require --dev roave/security-advisories:dev-latest
+        composer audit
+      continue-on-error: true
+

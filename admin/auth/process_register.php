@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
 
 // Enable error reporting for debugging
@@ -60,10 +62,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
+        // Load userdata class
+        require_once dirname(dirname(__FILE__)) . '/data/init.php';
+        require_once dirname(dirname(__FILE__)) . '/data/userdata.php';
+        
+        $userData = new userdata();
+        
         // Check if email already exists
-        $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
-        $stmt->execute([$email]);
-        if ($stmt->fetch()) {
+        $existing = $userData->getUserByEmail($email);
+        if ($existing) {
             $_SESSION['error'] = 'Email already registered';
             header('Location: /modular/admin/auth/register.php');
             exit;
@@ -73,33 +80,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
         error_log("Password hashed successfully");
 
-        // Insert new user
-        $stmt = $db->prepare("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'user')");
-        error_log("Executing insert with values - Name: " . $name . ", Email: " . $email);
+        // Split full_name into first_name and last_name
+        $name_parts = explode(' ', $name, 2);
+        $first_name = $name_parts[0] ?? '';
+        $last_name = $name_parts[1] ?? '';
+        $username = $email; // Use email as username by default
+
+        // Create user using userdata class
+        $user_data = [
+            'username' => $username,
+            'email' => $email,
+            'password' => $hashed_password,
+            'first_name' => $first_name,
+            'last_name' => $last_name,
+            'role' => 'editor'
+        ];
         
-        try {
-            $result = $stmt->execute([$name, $email, $hashed_password]);
-            
-            if ($result) {
-                error_log("User registration successful");
-                $_SESSION['success'] = 'Registration successful! You can now login.';
-                header('Location: /modular/admin/auth/login.php');
-                exit;
-            } else {
-                error_log("Insert statement returned false");
-                throw new PDOException("Failed to create user");
-            }
-        } catch (PDOException $insertError) {
-            error_log("Insert error: " . $insertError->getMessage());
-            error_log("SQL State: " . $insertError->getCode());
-            error_log("Error Info: " . print_r($stmt->errorInfo(), true));
-            throw $insertError;
+        error_log("Creating user with data - First Name: " . $first_name . ", Last Name: " . $last_name . ", Email: " . $email);
+        
+        $new_user_id = $userData->createUser($user_data);
+        
+        if ($new_user_id) {
+            error_log("User registration successful, ID: " . $new_user_id);
+            $_SESSION['success'] = 'Registration successful! You can now login.';
+            header('Location: /modular/admin/auth/login.php');
+            exit;
+        } else {
+            throw new Exception("Failed to create user");
         }
 
-    } catch(PDOException $e) {
+    } catch(Exception $e) {
         error_log("Registration error: " . $e->getMessage());
-        error_log("SQL State: " . $e->getCode());
-        error_log("Error Info: " . print_r($stmt->errorInfo(), true));
         error_log("Stack trace: " . $e->getTraceAsString());
         $_SESSION['error'] = 'An error occurred during registration. Please try again.';
         header('Location: /modular/admin/auth/register.php');

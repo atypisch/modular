@@ -3,7 +3,9 @@
 // After the form is submitted, it will save the user into the database, with role = "admin", and email_verified = true.
 // It will then log the user in automatically (session-based) and redirect to /admin/dashboard.php. 
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once __DIR__ . '/../../core/config-check.php';
 
 // Check if config exists, if not redirect to step 1
