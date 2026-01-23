@@ -203,3 +203,4 @@ document.getElementById('slug').addEventListener('input', function() {
 
 <?php require_once ADMIN_PATH . '/templates/footer.php'; ?>
 
+

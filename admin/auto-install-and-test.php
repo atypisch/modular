@@ -213,3 +213,4 @@ echo "1. Visit /modular/admin/test-all-pages.php for detailed testing\n";
 echo "2. Visit /modular/admin/post-types to create post types\n";
 echo "3. Created post types will automatically appear in navigation\n";
 
+

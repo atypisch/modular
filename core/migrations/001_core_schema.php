@@ -398,6 +398,27 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     name VARCHAR(255) NOT NULL,
     executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Modules
+CREATE TABLE IF NOT EXISTS modules (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    slug VARCHAR(255) NOT NULL UNIQUE,
+    version VARCHAR(50) NOT NULL DEFAULT '1.0.0',
+    description TEXT,
+    author VARCHAR(255),
+    author_url VARCHAR(500),
+    module_url VARCHAR(500),
+    text_domain VARCHAR(100),
+    requires_php VARCHAR(20),
+    requires_modular VARCHAR(20),
+    active TINYINT(1) NOT NULL DEFAULT 0,
+    settings JSON,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    INDEX idx_active (active),
+    INDEX idx_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ";
 
 try {

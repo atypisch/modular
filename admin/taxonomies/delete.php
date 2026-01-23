@@ -39,3 +39,4 @@ try {
 header('Location: /modular/admin/taxonomies');
 exit;
 
+

@@ -69,6 +69,7 @@ if (!$posts_active) {
         $profile_active = is_profile_page();
         $forms_active = is_forms_page();
         $actions_active = is_actions_page();
+        $modules_active = is_modules_page();
     } else {
         $media_active = false;
         $users_active = false;
@@ -76,6 +77,7 @@ if (!$posts_active) {
         $profile_active = false;
         $forms_active = false;
         $actions_active = false;
+        $modules_active = false;
     }
 } else {
     // On posts page - deactivate all other top-level items
@@ -89,6 +91,7 @@ if (!$posts_active) {
     $profile_active = false;
     $forms_active = false;
     $actions_active = false;
+    $modules_active = false;
 }
 
 // Check if this is an auth page

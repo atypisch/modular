@@ -125,3 +125,4 @@
 
 All pages are now created with the new Japanese calm UX style. Every form input is properly styled with generous padding. All functionality should be working.
 
+

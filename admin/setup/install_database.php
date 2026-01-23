@@ -40,3 +40,4 @@ try {
     die("Installation failed: " . $e->getMessage() . "\n");
 }
 
+

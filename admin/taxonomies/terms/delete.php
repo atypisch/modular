@@ -37,3 +37,4 @@ try {
 header('Location: /modular/admin/taxonomies/terms.php?taxonomy_id=' . $taxonomy_id);
 exit;
 
+

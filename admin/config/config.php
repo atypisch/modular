@@ -3,6 +3,16 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Configure session settings for better persistence
+if (session_status() === PHP_SESSION_NONE) {
+    // Set session cookie parameters before starting session
+    ini_set('session.cookie_lifetime', 604800); // 7 days
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_samesite', 'Lax');
+    ini_set('session.gc_maxlifetime', 604800); // 7 days
+    ini_set('session.use_strict_mode', 1);
+}
+
 // Define base paths
 define('MODULAR_PATH', dirname(dirname(__DIR__)));
 define('ADMIN_PATH', MODULAR_PATH . '/admin');

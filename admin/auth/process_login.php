@@ -40,8 +40,56 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         // Set session variables
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_name'] = $user['name'];
-        $_SESSION['user_role'] = $user['role'];
+        $_SESSION['username'] = $user['username'] ?? $user['email'];
+        $_SESSION['user_name'] = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: ($user['username'] ?? $user['email']);
+        
+        // Get user role from database
+        try {
+            $roleStmt = $db->prepare("
+                SELECT r.name 
+                FROM user_roles ur 
+                INNER JOIN roles r ON ur.role_id = r.id 
+                WHERE ur.user_id = ? 
+                LIMIT 1
+            ");
+            $roleStmt->execute([$user['id']]);
+            $role = $roleStmt->fetchColumn();
+            $_SESSION['user_role'] = $role ?: 'user';
+        } catch (\PDOException $e) {
+            $_SESSION['user_role'] = 'user';
+            error_log("Error fetching user role: " . $e->getMessage());
+        }
+        
+        // Update last login
+        try {
+            $updateStmt = $db->prepare("
+                UPDATE users 
+                SET last_login = NOW(), 
+                    last_ip = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $updateStmt->execute([
+                $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0',
+                $user['id']
+            ]);
+        } catch (\PDOException $e) {
+            error_log("Error updating last login: " . $e->getMessage());
+        }
+        
+        // Regenerate session ID for security
+        session_regenerate_id(true);
+        
+        // Set session cookie parameters for better persistence
+        $cookieParams = session_get_cookie_params();
+        session_set_cookie_params([
+            'lifetime' => 86400 * 7, // 7 days
+            'path' => $cookieParams['path'],
+            'domain' => $cookieParams['domain'],
+            'secure' => isset($_SERVER['HTTPS']),
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
 
         // Redirect to intended page or dashboard
         $redirect = $_SESSION['redirect_after_login'] ?? '/modular/admin/';

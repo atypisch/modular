@@ -9,6 +9,7 @@ $users_active = $users_active ?? false;
 $settings_active = $settings_active ?? false;
 $forms_active = $forms_active ?? false;
 $actions_active = $actions_active ?? false;
+$modules_active = $modules_active ?? false;
 $profile_active = $profile_active ?? false;
 ?>
 <aside class="sidebar">
@@ -122,6 +123,12 @@ $profile_active = $profile_active ?? false;
                 <a href="/modular/admin/actions" class="<?php echo $actions_active ? 'active' : ''; ?>">
                     <i class="fas fa-bolt"></i>
                     Actions
+                </a>
+            </li>
+            <li>
+                <a href="/modular/admin/modules" class="<?php echo $modules_active ? 'active' : ''; ?>">
+                    <i class="fas fa-puzzle-piece"></i>
+                    Modules
                 </a>
             </li>
             <li>

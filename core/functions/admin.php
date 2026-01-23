@@ -84,6 +84,15 @@ if (!function_exists('is_actions_page')) {
     }
 }
 
+if (!function_exists('is_modules_page')) {
+    /**
+     * Check if we're on a modules admin page
+     */
+    function is_modules_page() {
+        return strpos($_SERVER['REQUEST_URI'], '/modular/admin/modules') !== false;
+    }
+}
+
 if (!function_exists('is_posts_page')) {
     /**
      * Check if we're on a posts admin page

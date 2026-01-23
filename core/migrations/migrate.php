@@ -38,3 +38,4 @@ foreach ($migrations as $file) {
 
 echo "All migrations completed.\n";
 
+
