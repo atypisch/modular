@@ -60,6 +60,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <button id="save-form-btn" class="btn btn-primary">Save Form</button>
             </div>
         </div>
+        <div id="form-builder-message" class="form-builder-message" role="status" aria-live="polite" style="display: none;"></div>
 
         <div class="form-builder-container" style="display: grid; grid-template-columns: 250px 1fr; gap: 1rem;">
             <!-- Field Palette -->
@@ -147,6 +148,8 @@ require_once ADMIN_PATH . '/templates/header.php';
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
     margin-bottom: 0.5rem;
 }
 
@@ -162,6 +165,34 @@ require_once ADMIN_PATH . '/templates/header.php';
 
 .form-field-instance .field-actions button:hover {
     background: #d0d0d0;
+}
+
+.form-field-instance .field-label-editable {
+    font-weight: 600;
+}
+
+.form-field-instance .field-type-badge {
+    font-size: 0.75rem;
+    color: #666;
+    font-weight: normal;
+}
+
+.form-builder-message {
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.form-builder-message.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+
+.form-builder-message.error {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
 }
 </style>
 
@@ -204,19 +235,18 @@ function setupDragAndDrop() {
 }
 
 function addField(type) {
+    const label = type.charAt(0).toUpperCase() + type.slice(1);
     const field = {
         id: 'field_' + Date.now(),
         type: type,
-        label: type.charAt(0).toUpperCase() + type.slice(1),
-        name: type + '_' + Date.now(),
+        label: label,
+        name: (type + '_' + Date.now()).toLowerCase().replace(/\s+/g, '_'),
         required: false,
         placeholder: '',
         options: []
     };
-    
     formFields.push(field);
     renderFormFields();
-    editField(field.id);
 }
 
 function removeField(id) {
@@ -227,13 +257,40 @@ function removeField(id) {
 function editField(id) {
     const field = formFields.find(f => f.id === id);
     if (!field) return;
-    
-    const newLabel = prompt('Field Label:', field.label);
-    if (newLabel !== null) {
-        field.label = newLabel;
-        field.name = newLabel.toLowerCase().replace(/\s+/g, '_');
+    const container = document.getElementById('form-fields-list');
+    const wrap = container.querySelector('[data-field-id="' + id + '"]');
+    if (!wrap) return;
+    const labelEl = wrap.querySelector('.field-label-editable');
+    const actionsEl = wrap.querySelector('.field-actions');
+    if (!labelEl || labelEl.querySelector('input')) return;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control field-label-input';
+    input.value = field.label;
+    input.style.width = '100%';
+    input.style.maxWidth = '240px';
+    labelEl.textContent = '';
+    labelEl.appendChild(input);
+    input.focus();
+    input.select();
+    function saveLabel() {
+        const newLabel = input.value.trim();
+        if (newLabel) {
+            field.label = newLabel;
+            field.name = newLabel.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        }
         renderFormFields();
     }
+    input.addEventListener('blur', saveLabel);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            input.blur();
+        }
+        if (e.key === 'Escape') {
+            renderFormFields();
+        }
+    });
 }
 
 function renderFormFields() {
@@ -247,13 +304,14 @@ function renderFormFields() {
             </div>
         `;
     } else {
-        container.innerHTML = formFields.map((field, index) => `
-            <div class="form-field-instance">
+        container.innerHTML = formFields.map((field) => `
+            <div class="form-field-instance" data-field-id="${field.id}">
                 <div class="field-header">
-                    <strong>${field.label} (${field.type})</strong>
+                    <span class="field-label-editable">${escapeHtml(field.label)}</span>
+                    <span class="field-type-badge">${escapeHtml(field.type)}</span>
                     <div class="field-actions">
-                        <button onclick="editField('${field.id}')" title="Edit">✎</button>
-                        <button onclick="removeField('${field.id}')" title="Delete">×</button>
+                        <button type="button" class="edit-field-btn" data-id="${field.id}" title="Edit label">✎</button>
+                        <button type="button" class="remove-field-btn" data-id="${field.id}" title="Delete">×</button>
                     </div>
                 </div>
                 <div class="field-preview">
@@ -261,7 +319,19 @@ function renderFormFields() {
                 </div>
             </div>
         `).join('');
+        container.querySelectorAll('.edit-field-btn').forEach(btn => {
+            btn.addEventListener('click', () => editField(btn.dataset.id));
+        });
+        container.querySelectorAll('.remove-field-btn').forEach(btn => {
+            btn.addEventListener('click', () => removeField(btn.dataset.id));
+        });
     }
+}
+
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
 }
 
 function renderFieldPreview(field) {
@@ -284,44 +354,73 @@ function renderFieldPreview(field) {
     }
 }
 
+function showFormMessage(type, text) {
+    const el = document.getElementById('form-builder-message');
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'form-builder-message ' + (type === 'error' ? 'error' : 'success');
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setTimeout(function() {
+        el.style.display = 'none';
+    }, 5000);
+}
+
 document.getElementById('save-form-btn').addEventListener('click', function() {
     const formData = {
-        name: document.getElementById('form-name').value,
-        slug: document.getElementById('form-slug').value,
+        name: document.getElementById('form-name').value.trim(),
+        slug: document.getElementById('form-slug').value.trim(),
         description: document.getElementById('form-description').value,
         fields: formFields,
         spam_protection: document.getElementById('form-spam-protection').checked
     };
-    
+
     if (!formData.name || !formData.slug) {
-        alert('Please fill in form name and slug');
+        showFormMessage('error', 'Please fill in form name and slug.');
         return;
     }
-    
+
     const url = '/modular/admin/api/index.php/api/v1/forms' + (<?php echo $formId ? "'/{$formId}'" : "''"; ?>);
     const method = <?php echo $formId ? "'PUT'" : "'POST'"; ?>;
-    
+
     fetch(url, {
         method: method,
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + getCookie('auth_token')
+            'X-Requested-With': 'XMLHttpRequest'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
+        credentials: 'same-origin'
     })
-    .then(response => response.json())
-    .then(result => {
+    .then(function(response) {
+        return response.text().then(function(text) {
+            var result;
+            try {
+                result = text ? JSON.parse(text) : {};
+            } catch (e) {
+                throw new Error('Server returned invalid response. Try again or check the console.');
+            }
+            if (!response.ok) {
+                var err = new Error(result.error || result.message || 'Request failed');
+                err.result = result;
+                err.status = response.status;
+                throw err;
+            }
+            return result;
+        });
+    })
+    .then(function(result) {
         if (result.error) {
-            alert('Error: ' + result.error);
+            showFormMessage('error', 'Error: ' + result.error);
         } else {
-            alert('Form saved successfully!');
+            showFormMessage('success', 'Form saved successfully.');
             if (result.id && !<?php echo $formId ? 'true' : 'false'; ?>) {
-                window.location.href = window.location.href + '&id=' + result.id;
+                window.location.href = window.location.pathname + '?id=' + result.id;
             }
         }
     })
-    .catch(error => {
-        alert('Error: ' + error.message);
+    .catch(function(error) {
+        showFormMessage('error', error.message || 'Request failed');
     });
 });
 

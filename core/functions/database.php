@@ -117,6 +117,52 @@ if (!function_exists('check_database_tables')) {
     }
 }
 
+if (!function_exists('run_pending_migrations')) {
+    /**
+     * Run any pending database migrations.
+     * Safe to call on every request; only runs migrations that have not been executed.
+     *
+     * @return array ['ran' => string[], 'error' => string|null]
+     */
+    function run_pending_migrations() {
+        if (!isset($GLOBALS['db'])) {
+            return ['ran' => [], 'error' => 'Database connection not available'];
+        }
+        if (!defined('CORE_PATH')) {
+            return ['ran' => [], 'error' => 'CORE_PATH not defined'];
+        }
+        $ran = [];
+        try {
+            require_once CORE_PATH . '/classes/Migration.php';
+            $migration = new \Modular\Migration($GLOBALS['db']);
+            $migrationsDir = CORE_PATH . '/migrations';
+            $files = glob($migrationsDir . '/*_*.php');
+            sort($files);
+            foreach ($files as $file) {
+                $basename = basename($file);
+                if (!preg_match('/^(\d+)_(.+)\.php$/', $basename, $matches)) {
+                    continue;
+                }
+                $version = $matches[1];
+                $name = $matches[2];
+                if ($migration->hasRun($version)) {
+                    continue;
+                }
+                ob_start();
+                try {
+                    require $file;
+                    $ran[] = $version . '_' . $name;
+                } finally {
+                    ob_end_clean();
+                }
+            }
+            return ['ran' => $ran, 'error' => null];
+        } catch (\Throwable $e) {
+            return ['ran' => $ran, 'error' => $e->getMessage()];
+        }
+    }
+}
+
 if (!function_exists('get_database_connection')) {
     /**
      * Get a database connection

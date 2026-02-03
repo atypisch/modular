@@ -1,54 +1,56 @@
-    <?php if (!$is_auth_page): ?>
         </main>
+        </div>
     </div>
+
+    <?php if (!$is_auth_page): ?>
+    <footer class="cms-footer">
+        <a href="/modular/public/" class="cms-footer-logo" title="Modular CMS">
+            <img src="/modular/ontwerp/logo_modular.svg" alt="Modular CMS" width="80" height="24">
+        </a>
+    </footer>
     <?php endif; ?>
-    
+
     <!-- Additional Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function() {
+            // Sidebar collapse toggle: persist state, works even if base.js fails (e.g. module export)
+            (function() {
+                var btn = document.getElementById('sidebar-toggle');
+                if (!btn) return;
+                var collapsed = localStorage.getItem('modular-sidebar-collapsed') === '1';
+                if (collapsed) document.body.classList.add('sidebar-collapsed');
+                btn.addEventListener('click', function() {
+                    document.body.classList.toggle('sidebar-collapsed');
+                    localStorage.setItem('modular-sidebar-collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
+                });
+            })();
+
             // Keep subnavs with active subpages expanded on page load
             $('.sub-nav').each(function() {
                 if ($(this).find('a.active').length > 0) {
                     $(this).addClass('active').show();
                 }
             });
-            
-            // Toggle sub-navigation
-            $('.sidebar-nav > ul > li').click(function(e) {
-                // Don't prevent if clicking on a link directly
-                if ($(e.target).is('a')) {
-                    return;
-                }
-                
-                e.preventDefault();
-                
-                var $subNav = $(this).find('.sub-nav');
+
+            // Main nav links always navigate to their href (first subpage when they have sub-nav).
+            $('.sidebar-nav > ul > li').each(function() {
+                var $li = $(this);
+                var $mainLink = $li.children('a').first();
+                var $subNav = $li.find('.sub-nav');
                 if ($subNav.length > 0) {
-                    // Close all other sub-navs
-                    $('.sub-nav').not($subNav).slideUp(100).removeClass('active');
-                    
-                    // Toggle this sub-nav with faster animation
-                    $subNav.slideToggle(100).toggleClass('active');
+                    var $firstSubLink = $subNav.find('a').first();
+                    if ($firstSubLink.length && $firstSubLink.attr('href')) {
+                        $mainLink.attr('href', $firstSubLink.attr('href'));
+                    }
                 }
-                
-                // Prevent link from being followed
-                return false;
             });
 
-            // Handle sub-nav links - allow navigation
-            $('.sub-nav a').click(function(e) {
-                e.stopPropagation();
-                // Allow normal navigation
-            });
-            
-            // Handle main nav links that have subnavs
-            $('.sidebar-nav > ul > li > a').click(function(e) {
-                var $li = $(this).closest('li');
-                var $subNav = $li.find('.sub-nav');
-                
-                // If there's a subnav, toggle it instead of navigating
-                if ($subNav.length > 0 && !$(this).hasClass('active')) {
+            // Optional: clicking the li (e.g. padding) toggles sub-nav; clicking the link navigates
+            $('.sidebar-nav > ul > li').click(function(e) {
+                if ($(e.target).closest('a').length) return;
+                var $subNav = $(this).find('.sub-nav');
+                if ($subNav.length > 0) {
                     e.preventDefault();
                     $('.sub-nav').not($subNav).slideUp(100).removeClass('active');
                     $subNav.slideToggle(100).toggleClass('active');

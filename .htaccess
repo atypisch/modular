@@ -6,19 +6,26 @@ RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# Redirect admin section URLs to structure folder
-RewriteRule ^admin/settings/?$ admin/structure/settings/index.php [L]
-RewriteRule ^admin/types/?$ admin/structure/types/index.php [L]
-RewriteRule ^admin/media/?$ admin/structure/media/index.php [L]
-RewriteRule ^admin/profile/?$ admin/structure/profile/index.php [L]
-RewriteRule ^admin/users/?$ admin/structure/users/index.php [L]
-
-# Handle admin subsections
-RewriteRule ^admin/settings/([^/]+)/?$ admin/structure/settings/$1/index.php [L]
-RewriteRule ^admin/types/([^/]+)/?$ admin/structure/types/$1/index.php [L]
-RewriteRule ^admin/media/([^/]+)/?$ admin/structure/media/$1/index.php [L]
-RewriteRule ^admin/profile/([^/]+)/?$ admin/structure/profile/$1/index.php [L]
-RewriteRule ^admin/users/([^/]+)/?$ admin/structure/users/$1/index.php [L]
+# Admin section URLs -> actual PHP paths
+RewriteRule ^admin/settings/?$ admin/settings/index.php [L]
+RewriteRule ^admin/settings/([^/]+)/?$ admin/settings/$1.php [L]
+RewriteRule ^admin/users/?$ admin/users/index.php [L]
+RewriteRule ^admin/users/([^/]+)/?$ admin/users/$1.php [L]
+RewriteRule ^admin/media/?$ admin/media/index.php [L]
+RewriteRule ^admin/media/([^/]+)/?$ admin/media/$1.php [L]
+RewriteRule ^admin/profile/?$ admin/profile/index.php [L]
+RewriteRule ^admin/profile/([^/]+)/?$ admin/profile/$1.php [L]
+RewriteRule ^admin/forms/?$ admin/forms/index.php [L]
+RewriteRule ^admin/forms/([^/]+)/?$ admin/forms/$1.php [L]
+RewriteRule ^admin/dashboard/?$ admin/dashboard/index.php [L]
+RewriteRule ^admin/dashboard/([^/]+)/?$ admin/dashboard/$1.php [L]
+RewriteRule ^admin/post-types/?$ admin/post-types/index.php [L]
+RewriteRule ^admin/post-types/([^/]+)/?$ admin/post-types/$1.php [L]
+RewriteRule ^admin/posts/?$ admin/posts/index.php [L]
+RewriteRule ^admin/posts/([^/]+)/?$ admin/posts/$1.php [L]
+RewriteRule ^admin/taxonomies/?$ admin/taxonomies/index.php [L]
+RewriteRule ^admin/actions/?$ admin/actions/index.php [L]
+RewriteRule ^admin/modules/?$ admin/modules/index.php [L]
 
 # Handle auth pages
 RewriteRule ^admin/auth/([^/]+)/?$ admin/auth/$1.php [L]

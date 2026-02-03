@@ -30,8 +30,8 @@ if (strpos($_SERVER['REQUEST_URI'], '/install.php') === false && isset($GLOBALS[
 // Ensure $page_title is set
 $page_title = $page_title ?? 'Modular CMS';
 
-// Get current path for active navigation
-$current_path = $_SERVER['REQUEST_URI'];
+// Get current path for active navigation (without query string)
+$current_path = strtok($_SERVER['REQUEST_URI'], '?');
 
 // Get active states for navigation
 // Determine which top-level menu item should be active (only ONE can be active)
@@ -54,9 +54,9 @@ if (!$posts_active) {
     
     // Only check dashboard if not on post types or posts
     if (!$post_types_active) {
-        if (!isset($dashboard_active)) {
-            $dashboard_active = check_active_path('/modular/admin/dashboard') || check_active_path('/modular/admin') || (strpos($current_path, '/modular/admin/dashboard') !== false);
-        }
+        // Dashboard only when path is exactly /modular/admin or starts with /modular/admin/dashboard
+        // (Do NOT use check_active_path('/modular/admin') - it matches every admin page)
+        $dashboard_active = ($current_path === '/modular/admin' || $current_path === '/modular/admin/' || strpos($current_path, '/modular/admin/dashboard') === 0);
     } else {
         $dashboard_active = false;
     }
@@ -106,6 +106,7 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title><?php echo isset($page_title) ? $page_title . ' - Modular CMS' : 'Modular CMS'; ?></title>
+    <link rel="icon" href="/modular/ontwerp/favicon_modular.svg" type="image/svg+xml">
     
     <!-- Base CSS -->
     <link rel="stylesheet" href="/modular/admin/assets/css/base.css">
@@ -127,7 +128,7 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
     <!-- Vue.js -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     
     <!-- Admin Scripts -->
     <script src="/modular/admin/assets/js/base.js"></script>
@@ -137,35 +138,34 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
     <script src="/modular/admin/assets/js/charts.js"></script>
     <?php endif; ?>
 </head>
-<body>
+<body class="<?php echo $is_auth_page ? 'auth-page' : ''; ?>">
     <?php if (!$is_auth_page): ?>
-    <!-- Toolbar -->
     <?php require_once __DIR__ . '/toolbar.php'; ?>
-    
-    <!-- Main Container -->
+    <?php endif; ?>
+
     <div class="main-container">
-        <!-- Sidebar -->
-        <?php require_once __DIR__ . '/sidebar.php'; ?>
-        
-        <!-- Main Content -->
-        <main class="main-content">
-            <?php if ($db_install_needed): ?>
-            <div class="alert alert-error" style="margin: var(--spacing-md); border-left: 4px solid var(--error-border);">
-                <div style="display: flex; align-items: start; gap: var(--spacing-md);">
-                    <div style="flex: 1;">
-                        <strong style="display: block; margin-bottom: var(--spacing-sm);">
-                            <i class="fas fa-exclamation-triangle"></i> Database Installation Required
-                        </strong>
-                        <p style="margin: 0; font-size: 0.9rem;">
-                            The database tables have not been created yet. Please install the database to continue using the CMS.
-                        </p>
-                    </div>
-                    <div>
-                        <a href="/modular/admin/install.php" class="btn btn-primary" style="white-space: nowrap;">
-                            <i class="fas fa-database"></i> Install Database
-                        </a>
+        <div class="main-body">
+            <?php if (!$is_auth_page): ?>
+            <?php require_once __DIR__ . '/sidebar.php'; ?>
+            <?php endif; ?>
+
+            <main class="main-content">
+                <?php if (!$is_auth_page && $db_install_needed): ?>
+                <div class="alert alert-error" style="margin: var(--spacing-md); border-left: 4px solid var(--error-border);">
+                    <div style="display: flex; align-items: start; gap: var(--spacing-md);">
+                        <div style="flex: 1;">
+                            <strong style="display: block; margin-bottom: var(--spacing-sm);">
+                                <i class="fas fa-exclamation-triangle"></i> Database Installation Required
+                            </strong>
+                            <p style="margin: 0; font-size: 0.9rem;">
+                                The database tables have not been created yet. Please install the database to continue using the CMS.
+                            </p>
+                        </div>
+                        <div>
+                            <a href="/modular/admin/install.php" class="btn btn-primary" style="white-space: nowrap;">
+                                <i class="fas fa-database"></i> Install Database
+                            </a>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <?php endif; ?>
-    <?php endif; ?>
+                <?php endif; ?>

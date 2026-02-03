@@ -39,13 +39,3 @@ function destroyChart(chart) {
         chart.destroy();
     }
 }
-
-// Export functions
-export {
-    initChart,
-    updateChartData,
-    addChartDataset,
-    removeChartDataset,
-    updateChartOptions,
-    destroyChart
-};

@@ -38,18 +38,12 @@ $posts = [];
 $message = '';
 
 try {
-    // Use email instead of username to avoid column errors
-    // Email is guaranteed to exist in users table
     $sql = "
         SELECT p.*, pt.name as post_type_name, pt.slug as post_type_slug,
-               COALESCE(
-                   u.email,
-                   CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')),
-                   'Unknown'
-               ) as author_name
+               COALESCE(u.username, u.name, u.email, 'Unknown') as author_name
         FROM posts p
         INNER JOIN post_types pt ON p.post_type_id = pt.id
-        LEFT JOIN users u ON p.author_id = u.id AND u.deleted_at IS NULL
+        LEFT JOIN users u ON p.author_id = u.id
         WHERE p.deleted_at IS NULL
     ";
     
@@ -72,13 +66,14 @@ try {
     $message = "Error loading posts: " . $e->getMessage();
     error_log($message);
     
-    // Fallback: try without user join
+    // Fallback: join users without deleted_at and use only email for author (works with minimal users table)
     try {
         $sql = "
             SELECT p.*, pt.name as post_type_name, pt.slug as post_type_slug,
-                   'Unknown' as author_name
+                   COALESCE(u.email, 'Unknown') as author_name
             FROM posts p
             INNER JOIN post_types pt ON p.post_type_id = pt.id
+            LEFT JOIN users u ON p.author_id = u.id
             WHERE p.deleted_at IS NULL
         ";
         

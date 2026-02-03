@@ -41,6 +41,5 @@ require_once dirname(dirname(__FILE__)) . '/templates/header.php';
 
 // Output content
 echo $content;
-?>
-</body>
-</html>
+
+require_once dirname(dirname(__FILE__)) . '/templates/footer.php';

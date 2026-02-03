@@ -20,8 +20,10 @@ $version = '001';
 $name = 'core_schema';
 
 if ($migration->hasRun($version)) {
-    echo "Migration {$version} already executed.\n";
-    exit(0);
+    if (php_sapi_name() === 'cli') {
+        echo "Migration {$version} already executed.\n";
+    }
+    return;
 }
 
 $sql = "

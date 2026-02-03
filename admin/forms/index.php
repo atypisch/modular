@@ -37,8 +37,8 @@ if (!$tableCheck['all_exist'] || in_array('forms', $tableCheck['missing'])) {
     try {
         $stmt = $db->query("
             SELECT f.*, 
-                   u1.username as created_by_name,
-                   u2.username as updated_by_name
+                   COALESCE(u1.username, u1.name) as created_by_name,
+                   COALESCE(u2.username, u2.name) as updated_by_name
             FROM forms f
             LEFT JOIN users u1 ON f.created_by = u1.id
             LEFT JOIN users u2 ON f.updated_by = u2.id
@@ -115,7 +115,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="card">
         <?php if (empty($forms)): ?>
             <div class="empty-state">
-                <i class="fas fa-wpforms"></i>
+                <i class="fas fa-clipboard-list"></i>
                 <h3>No Forms Found</h3>
                 <p>Create your first form to get started.</p>
                 <a href="/modular/admin/forms/builder.php" class="btn btn-primary mt-4">

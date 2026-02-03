@@ -42,13 +42,3 @@ function searchTable(table, searchTerm) {
 function sortTable(table, columnIndex, order) {
     table.order([columnIndex, order]).draw();
 }
-
-// Export functions
-export {
-    initDataTable,
-    addTableRow,
-    removeTableRow,
-    updateTableRow,
-    searchTable,
-    sortTable
-};

@@ -1,7 +1,7 @@
 <?php
 /**
  * Post Types API Controller
- * Handles CRUD operations for post types
+ * Handles CRUD operations for post types (including mode and schema)
  */
 
 namespace Modular\API;
@@ -16,8 +16,8 @@ class PostTypesController {
     public function index() {
         $stmt = $this->db->query("
             SELECT pt.*, 
-                   u1.username as created_by_name,
-                   u2.username as updated_by_name
+                   COALESCE(u1.username, u1.name, u1.email) as created_by_name,
+                   COALESCE(u2.username, u2.name, u2.email) as updated_by_name
             FROM post_types pt
             LEFT JOIN users u1 ON pt.created_by = u1.id
             LEFT JOIN users u2 ON pt.updated_by = u2.id
@@ -27,34 +27,49 @@ class PostTypesController {
         $postTypes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         
         foreach ($postTypes as &$pt) {
-            $pt['supports'] = json_decode($pt['supports'], true);
-            $pt['settings'] = json_decode($pt['settings'], true);
+            $this->decodePostTypeRow($pt);
         }
         
         return $postTypes;
     }
     
-    public function show($id) {
+    /**
+     * Get post type by id or slug.
+     */
+    public function show($idOrSlug) {
+        $byId = is_numeric($idOrSlug);
+        $col = $byId ? 'pt.id' : 'pt.slug';
         $stmt = $this->db->prepare("
             SELECT pt.*, 
-                   u1.username as created_by_name,
-                   u2.username as updated_by_name
+                   COALESCE(u1.username, u1.name, u1.email) as created_by_name,
+                   COALESCE(u2.username, u2.name, u2.email) as updated_by_name
             FROM post_types pt
             LEFT JOIN users u1 ON pt.created_by = u1.id
             LEFT JOIN users u2 ON pt.updated_by = u2.id
-            WHERE pt.id = ? AND pt.deleted_at IS NULL
+            WHERE {$col} = ? AND pt.deleted_at IS NULL
         ");
-        $stmt->execute([$id]);
+        $stmt->execute([$idOrSlug]);
         $postType = $stmt->fetch(\PDO::FETCH_ASSOC);
         
         if (!$postType) {
             return ['error' => 'Post type not found', 'code' => 404];
         }
         
-        $postType['supports'] = json_decode($postType['supports'], true);
-        $postType['settings'] = json_decode($postType['settings'], true);
-        
+        $this->decodePostTypeRow($postType);
         return $postType;
+    }
+    
+    private function decodePostTypeRow(array &$row): void {
+        if (isset($row['supports']) && is_string($row['supports'])) {
+            $row['supports'] = json_decode($row['supports'], true);
+        }
+        if (isset($row['settings']) && is_string($row['settings'])) {
+            $row['settings'] = json_decode($row['settings'], true);
+        }
+        if (isset($row['schema']) && is_string($row['schema'])) {
+            $row['schema'] = json_decode($row['schema'], true);
+        }
+        $row['mode'] = $row['mode'] ?? 'fixed';
     }
     
     public function create() {
@@ -68,6 +83,11 @@ class PostTypesController {
         $showInMenu = $input['show_in_menu'] ?? 1;
         $supports = json_encode($input['supports'] ?? ['title', 'editor', 'thumbnail']);
         $settings = json_encode($input['settings'] ?? []);
+        $mode = isset($input['mode']) ? (string) $input['mode'] : 'fixed';
+        if (!in_array($mode, ['fixed', 'modular'], true)) {
+            $mode = 'fixed';
+        }
+        $schema = isset($input['schema']) ? json_encode($input['schema']) : null;
         
         if (empty($name) || empty($slug)) {
             return ['error' => 'Name and slug are required', 'code' => 400];
@@ -82,25 +102,24 @@ class PostTypesController {
         
         $stmt = $this->db->prepare("
             INSERT INTO post_types 
-            (name, slug, description, public, show_in_menu, supports, settings, 
+            (name, slug, description, public, show_in_menu, supports, settings, mode, `schema`,
              created_by, updated_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         
         $stmt->execute([
-            $name, $slug, $description, $public, $showInMenu, $supports, $settings,
+            $name, $slug, $description, $public, $showInMenu, $supports, $settings, $mode, $schema,
             $userId, $userId
         ]);
         
         $id = $this->db->lastInsertId();
-        return $this->show($id);
+        return $this->show((string) $id);
     }
     
     public function update($id) {
         $input = json_decode(file_get_contents('php://input'), true);
         $userId = $GLOBALS['current_user']['user_id'] ?? 1;
         
-        // Get existing
         $existing = $this->show($id);
         if (isset($existing['error'])) {
             return $existing;
@@ -111,13 +130,20 @@ class PostTypesController {
         $description = $input['description'] ?? $existing['description'];
         $public = $input['public'] ?? $existing['public'];
         $showInMenu = $input['show_in_menu'] ?? $existing['show_in_menu'];
-        $supports = json_encode($input['supports'] ?? json_decode($existing['supports'], true));
-        $settings = json_encode($input['settings'] ?? json_decode($existing['settings'], true));
+        $supports = json_encode($input['supports'] ?? $existing['supports']);
+        $settings = json_encode($input['settings'] ?? $existing['settings']);
+        $mode = isset($input['mode']) ? (string) $input['mode'] : ($existing['mode'] ?? 'fixed');
+        if (!in_array($mode, ['fixed', 'modular'], true)) {
+            $mode = 'fixed';
+        }
+        $schema = array_key_exists('schema', $input) ? json_encode($input['schema']) : ($existing['schema'] ?? null);
+        if ($schema === null && isset($existing['schema']) && is_array($existing['schema'])) {
+            $schema = json_encode($existing['schema']);
+        }
         
-        // Check slug uniqueness if changed
         if ($slug !== $existing['slug']) {
             $stmt = $this->db->prepare("SELECT id FROM post_types WHERE slug = ? AND id != ?");
-            $stmt->execute([$slug, $id]);
+            $stmt->execute([$slug, $existing['id']]);
             if ($stmt->fetch()) {
                 return ['error' => 'Slug already exists', 'code' => 409];
             }
@@ -126,27 +152,31 @@ class PostTypesController {
         $stmt = $this->db->prepare("
             UPDATE post_types 
             SET name = ?, slug = ?, description = ?, public = ?, show_in_menu = ?,
-                supports = ?, settings = ?, updated_by = ?, updated_at = NOW()
+                supports = ?, settings = ?, mode = ?, `schema` = ?, updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
         
         $stmt->execute([
-            $name, $slug, $description, $public, $showInMenu, $supports, $settings,
-            $userId, $id
+            $name, $slug, $description, $public, $showInMenu, $supports, $settings, $mode, $schema,
+            $userId, $existing['id']
         ]);
         
-        return $this->show($id);
+        return $this->show((string) $existing['id']);
     }
     
     public function delete($id) {
         $userId = $GLOBALS['current_user']['user_id'] ?? 1;
+        $existing = $this->show($id);
+        if (isset($existing['error'])) {
+            return $existing;
+        }
         
         $stmt = $this->db->prepare("
             UPDATE post_types 
             SET deleted_at = NOW(), updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
-        $stmt->execute([$userId, $id]);
+        $stmt->execute([$userId, $existing['id']]);
         
         return ['message' => 'Post type deleted'];
     }

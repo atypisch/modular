@@ -20,7 +20,7 @@ class MediaController {
     
     public function index() {
         $stmt = $this->db->query("
-            SELECT m.*, u.username as uploaded_by_name
+            SELECT m.*, COALESCE(u.username, u.name) as uploaded_by_name
             FROM media m
             LEFT JOIN users u ON m.uploaded_by = u.id
             WHERE m.deleted_at IS NULL
@@ -32,7 +32,7 @@ class MediaController {
     
     public function show($id) {
         $stmt = $this->db->prepare("
-            SELECT m.*, u.username as uploaded_by_name
+            SELECT m.*, COALESCE(u.username, u.name) as uploaded_by_name
             FROM media m
             LEFT JOIN users u ON m.uploaded_by = u.id
             WHERE m.id = ? AND m.deleted_at IS NULL

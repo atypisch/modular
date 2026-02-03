@@ -16,8 +16,8 @@ class FormsController {
     public function index() {
         $stmt = $this->db->query("
             SELECT f.*, 
-                   u1.username as created_by_name,
-                   u2.username as updated_by_name
+                   COALESCE(u1.username, u1.name) as created_by_name,
+                   COALESCE(u2.username, u2.name) as updated_by_name
             FROM forms f
             LEFT JOIN users u1 ON f.created_by = u1.id
             LEFT JOIN users u2 ON f.updated_by = u2.id
@@ -37,8 +37,8 @@ class FormsController {
     public function show($id) {
         $stmt = $this->db->prepare("
             SELECT f.*, 
-                   u1.username as created_by_name,
-                   u2.username as updated_by_name
+                   COALESCE(u1.username, u1.name) as created_by_name,
+                   COALESCE(u2.username, u2.name) as updated_by_name
             FROM forms f
             LEFT JOIN users u1 ON f.created_by = u1.id
             LEFT JOIN users u2 ON f.updated_by = u2.id
@@ -65,9 +65,10 @@ class FormsController {
         $name = $input['name'] ?? '';
         $slug = $input['slug'] ?? $this->slugify($name);
         $description = $input['description'] ?? '';
-        $fields = json_encode($input['fields'] ?? []);
-        $settings = json_encode($input['settings'] ?? []);
-        $spamProtection = json_encode($input['spam_protection'] ?? ['enabled' => false]);
+        $fields = is_string($input['fields'] ?? null) ? $input['fields'] : json_encode($input['fields'] ?? []);
+        $settings = is_string($input['settings'] ?? null) ? $input['settings'] : json_encode($input['settings'] ?? []);
+        $spamProtectionRaw = $input['spam_protection'] ?? ['enabled' => false];
+        $spamProtection = is_bool($spamProtectionRaw) ? json_encode(['enabled' => $spamProtectionRaw]) : (is_string($spamProtectionRaw) ? $spamProtectionRaw : json_encode($spamProtectionRaw));
         
         if (empty($name) || empty($slug)) {
             return ['error' => 'Name and slug are required', 'code' => 400];
@@ -108,9 +109,12 @@ class FormsController {
         $name = $input['name'] ?? $existing['name'];
         $slug = $input['slug'] ?? $existing['slug'];
         $description = $input['description'] ?? $existing['description'];
-        $fields = json_encode($input['fields'] ?? $existing['fields']);
-        $settings = json_encode($input['settings'] ?? $existing['settings']);
-        $spamProtection = json_encode($input['spam_protection'] ?? $existing['spam_protection']);
+        $fieldsIn = $input['fields'] ?? $existing['fields'];
+        $fields = is_string($fieldsIn) ? $fieldsIn : json_encode($fieldsIn);
+        $settingsIn = $input['settings'] ?? $existing['settings'];
+        $settings = is_string($settingsIn) ? $settingsIn : json_encode($settingsIn);
+        $spamProtectionRaw = $input['spam_protection'] ?? $existing['spam_protection'];
+        $spamProtection = is_bool($spamProtectionRaw) ? json_encode(['enabled' => $spamProtectionRaw]) : (is_string($spamProtectionRaw) ? $spamProtectionRaw : json_encode($spamProtectionRaw));
         
         // Check slug uniqueness if changed
         if ($slug !== $existing['slug']) {

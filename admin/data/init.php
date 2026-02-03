@@ -6,13 +6,23 @@ class DatabaseInitializer {
     private $tables = [
         'users' => "CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
+            username VARCHAR(255) NOT NULL UNIQUE,
+            name VARCHAR(255) DEFAULT NULL,
             email VARCHAR(255) UNIQUE NOT NULL,
             password VARCHAR(255) NOT NULL,
+            first_name VARCHAR(255) DEFAULT NULL,
+            last_name VARCHAR(255) DEFAULT NULL,
             role VARCHAR(50) DEFAULT 'user',
+            status VARCHAR(20) NOT NULL DEFAULT 'active',
+            email_verified TINYINT(1) NOT NULL DEFAULT 0,
             confirmation_token VARCHAR(64) NULL,
             is_confirmed TINYINT(1) DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            deleted_at DATETIME DEFAULT NULL,
+            INDEX idx_email (email),
+            INDEX idx_status (status),
+            INDEX idx_deleted (deleted_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         
         'sessions' => "CREATE TABLE IF NOT EXISTS sessions (

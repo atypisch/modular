@@ -103,7 +103,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="grid grid-cols-2">
         <div class="card">
             <h3>Quick Actions</h3>
-            <div class="flex flex-col gap-2" style="margin-top: var(--spacing-md);">
+            <div class="quick-actions" style="margin-top: var(--spacing-md);">
                 <a href="/modular/admin/post-types/edit.php" class="btn btn-secondary">
                     <i class="fas fa-cube"></i> Create Post Type
                 </a>

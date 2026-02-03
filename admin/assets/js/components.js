@@ -128,11 +128,3 @@ const ModalComponent = {
         }
     }
 };
-
-// Export components
-export {
-    baseComponent,
-    FormComponent,
-    TableComponent,
-    ModalComponent
-};

@@ -95,12 +95,3 @@ function initForm(form, submitHandler) {
         }
     });
 }
-
-// Export functions
-export {
-    validateForm,
-    submitForm,
-    handleFileUpload,
-    resetForm,
-    initForm
-};

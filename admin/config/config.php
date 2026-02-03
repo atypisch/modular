@@ -47,7 +47,13 @@ try {
     
     // Make database connection available globally
     $GLOBALS['db'] = $db;
-    
+
+    // Run pending migrations so post_types.mode/schema, posts.data/layout etc. exist
+    require_once CORE_PATH . '/functions/database.php';
+    if (function_exists('run_pending_migrations')) {
+        run_pending_migrations();
+    }
+
 } catch(PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }

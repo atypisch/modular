@@ -80,12 +80,21 @@ async function ajaxRequest(method, url, data = null) {
     }
 }
 
-// Export functions for use in other modules
-export {
-    ready,
-    delegate,
-    validateForm,
-    showAlert,
-    setLoading,
-    ajaxRequest
-};
+// Sidebar collapse toggle: persist state, main content stretches with flex
+(function initSidebarToggle() {
+    function run() {
+        var btn = document.getElementById('sidebar-toggle');
+        if (!btn) return;
+        var collapsed = localStorage.getItem('modular-sidebar-collapsed') === '1';
+        if (collapsed) document.body.classList.add('sidebar-collapsed');
+        btn.addEventListener('click', function() {
+            document.body.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('modular-sidebar-collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', run);
+    } else {
+        run();
+    }
+})();

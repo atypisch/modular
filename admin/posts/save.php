@@ -1,6 +1,7 @@
 <?php
 /**
  * Posts Save Handler
+ * Supports schema-based field_data (saves to data/layout) and legacy component_data JSON.
  */
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -26,51 +27,108 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $db = $GLOBALS['db'];
 $userId = $_SESSION['user_id'] ?? 1;
 
-// Validate and sanitize input
-$postData = [
-    'post_type_id' => filter_input(INPUT_POST, 'post_type_id', FILTER_SANITIZE_NUMBER_INT),
-    'title' => filter_input(INPUT_POST, 'title', FILTER_SANITIZE_STRING) ?? '',
-    'slug' => filter_input(INPUT_POST, 'slug', FILTER_SANITIZE_STRING) ?? '',
-    'excerpt' => filter_input(INPUT_POST, 'excerpt', FILTER_SANITIZE_STRING) ?? '',
-    'status' => filter_input(INPUT_POST, 'status', FILTER_SANITIZE_STRING) ?? 'draft',
-    'component_data' => filter_input(INPUT_POST, 'component_data', FILTER_UNSAFE_RAW) ?? '[]'
-];
+$useSchemaForm = !empty($_POST['use_schema_form']);
+$postTypeId = filter_input(INPUT_POST, 'post_type_id', FILTER_SANITIZE_NUMBER_INT);
+$title = filter_input(INPUT_POST, 'title', FILTER_SANITIZE_STRING) ?? '';
+$slug = filter_input(INPUT_POST, 'slug', FILTER_SANITIZE_STRING) ?? '';
+$excerpt = filter_input(INPUT_POST, 'excerpt', FILTER_SANITIZE_STRING) ?? '';
+$status = filter_input(INPUT_POST, 'status', FILTER_SANITIZE_STRING) ?? 'draft';
 
-// Validate required fields
-if (empty($postData['title']) || empty($postData['post_type_id'])) {
+// Validate required
+if (empty($title) || empty($postTypeId)) {
     $_SESSION['error'] = 'Title and Post Type are required.';
     header('Location: /modular/admin/posts/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
     exit;
 }
 
 // Clean slug
-if (empty($postData['slug'])) {
-    $postData['slug'] = strtolower(preg_replace('/[^a-zA-Z0-9-]/', '', str_replace(' ', '-', $postData['title'])));
+if (empty($slug)) {
+    $slug = strtolower(preg_replace('/[^a-zA-Z0-9-]/', '', str_replace(' ', '-', $title)));
 } else {
-    $postData['slug'] = strtolower(preg_replace('/[^a-zA-Z0-9-]/', '', str_replace(' ', '-', $postData['slug'])));
+    $slug = strtolower(preg_replace('/[^a-zA-Z0-9-]/', '', str_replace(' ', '-', $slug)));
 }
 
-// Validate component_data JSON
-$componentData = json_decode($postData['component_data'], true);
-if (json_last_error() !== JSON_ERROR_NONE) {
-    $_SESSION['error'] = 'Invalid JSON in component data.';
-    header('Location: /modular/admin/posts/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
-    exit;
+$postId = isset($_POST['id']) ? filter_input(INPUT_POST, 'id', FILTER_SANITIZE_NUMBER_INT) : null;
+$dataJson = null;
+$layoutJson = null;
+$componentData = '[]';
+
+if ($useSchemaForm) {
+    require_once CORE_PATH . '/fields/FieldInterface.php';
+    require_once CORE_PATH . '/fields/LayoutFieldInterface.php';
+    require_once CORE_PATH . '/fields/FieldRegistry.php';
+    require_once CORE_PATH . '/fields/TextField.php';
+    require_once CORE_PATH . '/fields/TextareaField.php';
+    require_once CORE_PATH . '/fields/NumberField.php';
+    require_once CORE_PATH . '/fields/EmailField.php';
+    require_once CORE_PATH . '/fields/URLField.php';
+    require_once CORE_PATH . '/fields/PasswordField.php';
+    require_once CORE_PATH . '/fields/WysiwygField.php';
+    require_once CORE_PATH . '/fields/CodeField.php';
+    require_once CORE_PATH . '/fields/MarkdownField.php';
+    require_once CORE_PATH . '/fields/SelectField.php';
+    require_once CORE_PATH . '/fields/CheckboxField.php';
+    require_once CORE_PATH . '/fields/RadioField.php';
+    require_once CORE_PATH . '/fields/ButtonGroupField.php';
+    require_once CORE_PATH . '/fields/TrueFalseField.php';
+    require_once CORE_PATH . '/fields/PostObjectField.php';
+    require_once CORE_PATH . '/fields/RelationField.php';
+    require_once CORE_PATH . '/fields/TaxonomyField.php';
+    require_once CORE_PATH . '/fields/UserField.php';
+    require_once CORE_PATH . '/fields/ImageField.php';
+    require_once CORE_PATH . '/fields/FileField.php';
+    require_once CORE_PATH . '/fields/GalleryField.php';
+    require_once CORE_PATH . '/fields/AudioField.php';
+    require_once CORE_PATH . '/fields/VideoField.php';
+    require_once CORE_PATH . '/fields/EmbedField.php';
+    require_once CORE_PATH . '/fields/DatePickerField.php';
+    require_once CORE_PATH . '/fields/TimePickerField.php';
+    require_once CORE_PATH . '/fields/DateTimePickerField.php';
+    require_once CORE_PATH . '/fields/GroupField.php';
+    require_once CORE_PATH . '/fields/RepeaterField.php';
+    require_once CORE_PATH . '/fields/FlexibleContentField.php';
+    require_once CORE_PATH . '/fields/MessageField.php';
+    require_once CORE_PATH . '/fields/AccordionField.php';
+    require_once CORE_PATH . '/fields/TabField.php';
+    require_once CORE_PATH . '/fields/DividerField.php';
+    require_once CORE_PATH . '/functions/field-save.php';
+    $stmt = $db->prepare("SELECT mode, `schema` FROM post_types WHERE id = ? AND deleted_at IS NULL");
+    $stmt->execute([$postTypeId]);
+    $ptRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$ptRow || empty($ptRow['schema'])) {
+        $_SESSION['error'] = 'Post type schema not found. Save without schema form or configure fields first.';
+        header('Location: /modular/admin/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
+        exit;
+    }
+    $schema = is_string($ptRow['schema']) ? json_decode($ptRow['schema'], true) : $ptRow['schema'];
+    $schemaFields = $schema['fields'] ?? [];
+    $rawFieldData = isset($_POST['field_data']) && is_array($_POST['field_data']) ? $_POST['field_data'] : [];
+    $data = sanitize_field_data_from_schema($schemaFields, $rawFieldData);
+    $dataJson = json_encode($data);
+    $layoutJson = json_encode(build_layout_order_from_schema($schemaFields));
+    $componentData = json_encode(['data' => $data]);
+} else {
+    $rawComponent = filter_input(INPUT_POST, 'component_data', FILTER_UNSAFE_RAW) ?? '[]';
+    $decoded = json_decode($rawComponent, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        $_SESSION['error'] = 'Invalid JSON in component data.';
+        header('Location: /modular/admin/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
+        exit;
+    }
+    $componentData = json_encode($decoded);
 }
 
 try {
-    $postId = isset($_POST['id']) ? filter_input(INPUT_POST, 'id', FILTER_SANITIZE_NUMBER_INT) : null;
-    
     // Check if post type exists
     $stmt = $db->prepare("SELECT id FROM post_types WHERE id = ? AND deleted_at IS NULL");
-    $stmt->execute([$postData['post_type_id']]);
+    $stmt->execute([$postTypeId]);
     if (!$stmt->fetch()) {
         throw new Exception("Post type not found");
     }
-    
+
     // Check slug uniqueness
     $checkStmt = $db->prepare("SELECT id FROM posts WHERE slug = ? AND post_type_id = ?" . ($postId ? " AND id != ?" : ""));
-    $checkParams = [$postData['slug'], $postData['post_type_id']];
+    $checkParams = [$slug, $postTypeId];
     if ($postId) {
         $checkParams[] = $postId;
     }
@@ -78,45 +136,41 @@ try {
     if ($checkStmt->fetch()) {
         throw new Exception("A post with this slug already exists for this post type");
     }
-    
-    $publishedAt = ($postData['status'] === 'published') ? date('Y-m-d H:i:s') : null;
-    
+
+    $publishedAt = ($status === 'published') ? date('Y-m-d H:i:s') : null;
+
     if ($postId) {
-        // Update existing post
         $stmt = $db->prepare("
             UPDATE posts 
             SET post_type_id = ?, slug = ?, title = ?, excerpt = ?, status = ?, 
-                component_data = ?, published_at = ?, updated_by = ?, updated_at = NOW()
+                component_data = ?, data = ?, layout = ?, published_at = ?, updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
         $stmt->execute([
-            $postData['post_type_id'], $postData['slug'], $postData['title'], 
-            $postData['excerpt'], $postData['status'], json_encode($componentData),
-            $publishedAt, $userId, $postId
+            $postTypeId, $slug, $title, $excerpt, $status,
+            $componentData, $dataJson, $layoutJson, $publishedAt, $userId, $postId
         ]);
         $_SESSION['success'] = 'Post updated successfully.';
     } else {
-        // Create new post
         $stmt = $db->prepare("
             INSERT INTO posts 
-            (post_type_id, slug, title, excerpt, status, component_data,
+            (post_type_id, slug, title, excerpt, status, component_data, data, layout,
              author_id, created_by, updated_by, published_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         $stmt->execute([
-            $postData['post_type_id'], $postData['slug'], $postData['title'],
-            $postData['excerpt'], $postData['status'], json_encode($componentData),
+            $postTypeId, $slug, $title, $excerpt, $status, $componentData, $dataJson, $layoutJson,
             $userId, $userId, $userId, $publishedAt
         ]);
         $_SESSION['success'] = 'Post created successfully.';
     }
-    
-    header('Location: /modular/admin/posts?post_type_id=' . $postData['post_type_id']);
+
+    header('Location: /modular/admin/posts?post_type_id=' . $postTypeId);
     exit;
-    
+
 } catch (Exception $e) {
     $_SESSION['error'] = 'An error occurred: ' . $e->getMessage();
     error_log("Post save error: " . $e->getMessage());
-    header('Location: /modular/admin/posts/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+    header('Location: /modular/admin/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
     exit;
 }

@@ -1,4 +1,4 @@
-/* Layout Grid */
+/* Layout Grid - .main-content .container overridden in base.css for full width */
 .container {
     width: 100%;
     max-width: 1200px;
@@ -6,12 +6,24 @@
     padding: 0 1rem;
 }
 
-/* Grid System */
+.main-content .container {
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+/* Grid System - inside .main-content no negative margins (stay within 100% width) */
 .row {
     display: flex;
     flex-wrap: wrap;
     margin-left: -1rem;
     margin-right: -1rem;
+}
+
+.main-content .row {
+    margin-left: 0;
+    margin-right: 0;
 }
 
 .col {
@@ -34,7 +46,7 @@
 .col-2 { flex: 0 0 16.666667%; max-width: 16.666667%; }
 .col-1 { flex: 0 0 8.333333%; max-width: 8.333333%; }
 
-/* Card Layout */
+/* Card Layout - inside .main-content columns shrink so content fits (no overflow) */
 .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -42,12 +54,22 @@
     padding: 1rem;
 }
 
-/* Dashboard Layout */
+.main-content .card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+    min-width: 0;
+}
+
+/* Dashboard Layout - columns never force overflow; min based on available width */
 .dashboard-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.5rem;
     padding: 1rem;
+}
+
+.main-content .dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    min-width: 0;
 }
 
 /* Responsive Layout Breakpoints */

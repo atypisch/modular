@@ -159,5 +159,4 @@ echo $content;
         });
     });
 </script>
-</body>
-</html>
+<?php require_once dirname(dirname(__FILE__)) . '/templates/footer.php'; ?>
