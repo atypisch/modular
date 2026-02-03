@@ -220,6 +220,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
 <script>
 (function() {
+    function run() {
     const postTypeId = <?php echo (int)$id; ?>;
     const fieldLibrary = <?php echo json_encode($fieldLibrary); ?>;
     const categoryOrder = <?php echo json_encode($categoryOrder); ?>;
@@ -229,6 +230,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     const emptyEl = document.getElementById('active-fields-empty');
     const listEl = document.getElementById('active-fields-ul');
     const dropZone = document.getElementById('active-fields-list');
+    if (!dropZone || !listEl) return;
     const modal = document.getElementById('field-config-modal');
     const form = document.getElementById('field-config-form');
     const LIBRARY_DROP_TYPE = 'application/x-modular-field';
@@ -374,11 +376,13 @@ require_once ADMIN_PATH . '/templates/header.php';
         libraryEl.addEventListener('dragstart', function(e) {
             const item = e.target.closest('.field-library-item');
             if (!item) return;
-            e.dataTransfer.setData(LIBRARY_DROP_TYPE, JSON.stringify({
+            var payload = JSON.stringify({
                 type: item.dataset.type,
                 label: item.dataset.label || item.dataset.type,
                 icon: item.dataset.icon || 'fa-circle'
-            }));
+            });
+            e.dataTransfer.setData(LIBRARY_DROP_TYPE, payload);
+            e.dataTransfer.setData('text/plain', payload);
             e.dataTransfer.effectAllowed = 'copy';
             item.classList.add('dragging');
         });
@@ -400,19 +404,12 @@ require_once ADMIN_PATH . '/templates/header.php';
         });
     }
 
-    // —— Drop zone: prevent loop by throttling dragover and handling drop once ——
-    var dragoverScheduled = false;
+    // —— Drop zone: must preventDefault on dragover so drop fires ——
     function onDragover(e) {
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = 'copy';
-        if (!dragoverScheduled) {
-            dragoverScheduled = true;
-            dropZone.classList.add('drop-active');
-            requestAnimationFrame(function() {
-                dragoverScheduled = false;
-            });
-        }
+        dropZone.classList.add('drop-active');
     }
 
     function onDragleave(e) {
@@ -421,13 +418,19 @@ require_once ADMIN_PATH . '/templates/header.php';
         }
     }
 
+    function onDragEnter(e) {
+        e.preventDefault();
+        dropZone.classList.add('drop-active');
+    }
+
+    dropZone.addEventListener('dragenter', onDragEnter, false);
     dropZone.addEventListener('dragover', onDragover, false);
     dropZone.addEventListener('dragleave', onDragleave, false);
     dropZone.addEventListener('drop', function(e) {
         e.preventDefault();
         e.stopPropagation();
         dropZone.classList.remove('drop-active');
-        var raw = e.dataTransfer.getData(LIBRARY_DROP_TYPE);
+        var raw = e.dataTransfer.getData(LIBRARY_DROP_TYPE) || e.dataTransfer.getData('text/plain');
         if (!raw) return;
         var data;
         try {
@@ -444,6 +447,12 @@ require_once ADMIN_PATH . '/templates/header.php';
     }, false);
 
     renderActiveFields();
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', run);
+    } else {
+        run();
+    }
 })();
 </script>
 

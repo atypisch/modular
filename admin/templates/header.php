@@ -130,12 +130,12 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
     <!-- Vue.js -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     
-    <!-- Admin Scripts -->
-    <script src="/modular/admin/assets/js/base.js"></script>
-    <script src="/modular/admin/assets/js/components.js"></script>
-    <script src="/modular/admin/assets/js/forms.js"></script>
-    <script src="/modular/admin/assets/js/tables.js"></script>
-    <script src="/modular/admin/assets/js/charts.js"></script>
+    <!-- Admin Scripts (v=2: no export, classic script compatible) -->
+    <script src="/modular/admin/assets/js/base.js?v=2"></script>
+    <script src="/modular/admin/assets/js/components.js?v=2"></script>
+    <script src="/modular/admin/assets/js/forms.js?v=2"></script>
+    <script src="/modular/admin/assets/js/tables.js?v=2"></script>
+    <script src="/modular/admin/assets/js/charts.js?v=2"></script>
     <?php endif; ?>
 </head>
 <body class="<?php echo $is_auth_page ? 'auth-page' : ''; ?>">

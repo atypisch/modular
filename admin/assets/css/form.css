@@ -71,19 +71,57 @@
     color: #28a745;
 }
 
-/* Button colors inherited from base.css - green scheme, single-line text */
-.btn-success {
-    background: var(--btn-default-bg);
-    color: var(--btn-default-text);
-    border-color: var(--btn-default-bg);
+/* Button styles */
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-.btn-success:hover,
-.btn-success:focus-visible,
-.btn-success:active {
-    background: var(--btn-hover-bg);
-    border-color: var(--btn-hover-bg);
-    color: var(--btn-hover-text);
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+.btn-success {
+    background-color: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
 }
 
 /* Form layout */
