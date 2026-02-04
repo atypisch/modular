@@ -47,7 +47,7 @@ class PostTypeResolver
             SELECT p.*,
                    pt.slug as post_type_slug, pt.name as post_type_name,
                    pt.mode as post_type_mode, pt.`schema` as post_type_schema,
-                   COALESCE(u.username, u.name, u.email, 'Unknown') as author_name
+                   COALESCE(u.username, u.email, 'Unknown') as author_name
             FROM posts p
             INNER JOIN post_types pt ON p.post_type_id = pt.id
             LEFT JOIN users u ON p.author_id = u.id

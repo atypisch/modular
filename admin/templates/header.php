@@ -121,14 +121,20 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
     <link rel="stylesheet" href="/modular/admin/assets/css/responsive.css">
     
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <?php if (!$is_auth_page): ?>
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
-    <!-- Vue.js -->
+    <!-- SortableJS: stable drag & drop base for lists (Field Builder, future sortable UIs) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    
+    <!-- Vue 3 + PrimeVue (ACF-waardige Field Builder / admin UI primitives per spec) -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/primevue/umd/primevue.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/primevue/resources/primevue.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/primeicons/primeicons.css">
     
     <!-- Admin Scripts (v=2: no export, classic script compatible) -->
     <script src="/modular/admin/assets/js/base.js?v=2"></script>
@@ -136,6 +142,7 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
     <script src="/modular/admin/assets/js/forms.js?v=2"></script>
     <script src="/modular/admin/assets/js/tables.js?v=2"></script>
     <script src="/modular/admin/assets/js/charts.js?v=2"></script>
+    <script src="/modular/admin/assets/js/sortable.js?v=1"></script>
     <?php endif; ?>
 </head>
 <body class="<?php echo $is_auth_page ? 'auth-page' : ''; ?>">

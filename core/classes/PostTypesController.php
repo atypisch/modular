@@ -16,8 +16,8 @@ class PostTypesController {
     public function index() {
         $stmt = $this->db->query("
             SELECT pt.*, 
-                   COALESCE(u1.username, u1.name, u1.email) as created_by_name,
-                   COALESCE(u2.username, u2.name, u2.email) as updated_by_name
+                   COALESCE(u1.username, u1.email, 'Unknown') as created_by_name,
+                   COALESCE(u2.username, u2.email, 'Unknown') as updated_by_name
             FROM post_types pt
             LEFT JOIN users u1 ON pt.created_by = u1.id
             LEFT JOIN users u2 ON pt.updated_by = u2.id
@@ -41,8 +41,8 @@ class PostTypesController {
         $col = $byId ? 'pt.id' : 'pt.slug';
         $stmt = $this->db->prepare("
             SELECT pt.*, 
-                   COALESCE(u1.username, u1.name, u1.email) as created_by_name,
-                   COALESCE(u2.username, u2.name, u2.email) as updated_by_name
+                   COALESCE(u1.username, u1.email, 'Unknown') as created_by_name,
+                   COALESCE(u2.username, u2.email, 'Unknown') as updated_by_name
             FROM post_types pt
             LEFT JOIN users u1 ON pt.created_by = u1.id
             LEFT JOIN users u2 ON pt.updated_by = u2.id

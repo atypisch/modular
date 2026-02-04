@@ -1,0 +1,24 @@
+---
+description: Definitieve specificatie voor ACF-waardige Custom Fields in Modular CMS. Geen afwijking.
+globs: admin/field-builder/**/*, admin/post-types/field*.php, core/fields/**/*, core/functions/field*.php, docs/MODULAR_CUSTOM_FIELDS_SPEC.md
+---
+
+# Modular CMS — Custom Fields (leidend document)
+
+Bij alle wijzigingen aan Field Builder, post types fields, core/fields of field-form:
+
+1. **Leidend document:** `docs/MODULAR_CUSTOM_FIELDS_SPEC.md`. Afwijking = bug.
+
+2. **UI:** Alleen Vue 3 + PrimeVue als primitives (Input, Select, MultiSelect, Dialog, Tabs, Accordion). Geen PrimeVue theming, geen eigen kleur/layout-experimenten. Icons: FontAwesome (solid), functioneel.
+
+3. **Field contract (spec):** Elk type moet ondersteunen: `renderAdmin($field, $value)`, `renderPublic($field, $value)`, `sanitize($value)`, `validate($value)`. Geen conditionals in templates, geen fallback naar text/textarea.
+
+4. **Post type modes:** FIXED = vaste velden/volgorde; MODULAR = editors mogen velden toevoegen/herschikken; admin bepaalt toegestane types.
+
+5. **Field catalog:** Geen types weglaten of vereenvoudigen. Relationship, Repeater, Flexible Content volgens spec (geen simplificatie).
+
+6. **Field Builder UX:** Links = Field Library (search, accordion categories, drag handle). Rechts = Canvas (sortable, drop indicators, nesting). Field settings = inline panel met tabs (General, Validation, Display, Logic). Geen modal chaos.
+
+7. **Rendering:** Admin (edit post) en Frontend (theming) type-aware. Geen HTML-blobs; gestructureerde data.
+
+Vragen over scope of ontbrekende specificatie: niet invullen met aannames; aan gebruiker vragen.

@@ -61,8 +61,11 @@ if ($useSchemaForm) {
     require_once CORE_PATH . '/fields/TextareaField.php';
     require_once CORE_PATH . '/fields/NumberField.php';
     require_once CORE_PATH . '/fields/EmailField.php';
-    require_once CORE_PATH . '/fields/URLField.php';
-    require_once CORE_PATH . '/fields/PasswordField.php';
+require_once CORE_PATH . '/fields/URLField.php';
+require_once CORE_PATH . '/fields/PasswordField.php';
+require_once CORE_PATH . '/fields/RangeField.php';
+require_once CORE_PATH . '/fields/SearchField.php';
+require_once CORE_PATH . '/fields/HiddenField.php';
     require_once CORE_PATH . '/fields/WysiwygField.php';
     require_once CORE_PATH . '/fields/CodeField.php';
     require_once CORE_PATH . '/fields/MarkdownField.php';

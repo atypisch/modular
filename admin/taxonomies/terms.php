@@ -49,7 +49,7 @@ $message = '';
 try {
     $stmt = $db->prepare("
         SELECT t.*, 
-               COALESCE(u1.username, u1.name) as created_by_name,
+               COALESCE(u1.username, u1.email, 'Unknown') as created_by_name,
                pt.name as parent_name
         FROM terms t
         LEFT JOIN users u1 ON t.created_by = u1.id

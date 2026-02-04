@@ -124,6 +124,32 @@ Hooks::addFilter('render_component', function($output, $componentData, $componen
 }, 10);
 ```
 
+## Drag & Drop (Admin)
+
+The admin uses **SortableJS** as the shared drag-and-drop base for sortable lists (e.g. Field Builder, future builders).
+
+- **Script:** Loaded globally in admin header: `SortableJS` (CDN) and `admin/assets/js/sortable.js`.
+- **Convention:** Use a **drag handle** so only that element starts the drag (e.g. grip icon). In markup use the class `drag-handle` on the handle element.
+- **Helper:** `window.ModularSortable.create(containerEl, options)` creates a sortable with CMS defaults (handle: `.drag-handle`, animation, ghost/chosen classes). Merge your options (e.g. `onEnd`) with these defaults.
+- **Syncing data:** In `onEnd`, read the new order from the DOM (e.g. `data-index` on each item), update your data array, then re-render and call `ModularSortable.create` again if the list was recreated.
+
+Example (reorder list and sync array):
+
+```js
+activeListSortable = ModularSortable.create(listEl, {
+  onEnd: function() {
+    var rows = listEl.querySelectorAll('li.active-field-row');
+    var reordered = Array.prototype.slice.call(rows).map(function(li) {
+      return myData[parseInt(li.getAttribute('data-index'), 10)];
+    });
+    myData = reordered;
+    activeListSortable.destroy();
+    renderList();
+    activeListSortable = ModularSortable.create(listEl, { onEnd: ... });
+  }
+});
+```
+
 ## API Development
 
 ### Adding New Endpoints

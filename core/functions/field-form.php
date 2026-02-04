@@ -47,6 +47,11 @@ if (!function_exists('render_field_form')) {
         $inputName = $namePrefix === 'field_data' ? 'field_data[' . htmlspecialchars($name) . ']' : $namePrefix . '[' . htmlspecialchars($name) . ']';
         $id = 'field-' . preg_replace('/[^a-z0-9_-]/i', '-', $namePrefix . '-' . $name);
 
+        if ($type === 'hidden') {
+            render_field_input($type, $fieldDef, $value, $inputName, $id);
+            return;
+        }
+
         $label = $fieldDef['label'] ?? ucfirst($name);
         $required = !empty($fieldDef['required']);
         $instructions = $fieldDef['instructions'] ?? '';
@@ -90,6 +95,23 @@ if (!function_exists('render_field_form')) {
                 $step = isset($schema['step']) ? (float) $schema['step'] : '';
                 echo '<input type="number" name="' . $inputName . '" id="' . $id . '" class="form-control" value="' . htmlspecialchars((string)$val) . '"' .
                     ($min !== '' ? ' min="' . $min . '"' : '') . ($max !== '' ? ' max="' . $max . '"' : '') . ($step !== '' ? ' step="' . $step . '"' : '') . '>';
+                break;
+            case 'range':
+                $min = isset($schema['min']) ? (float) $schema['min'] : 0;
+                $max = isset($schema['max']) ? (float) $schema['max'] : 100;
+                $step = isset($schema['step']) ? (float) $schema['step'] : 1;
+                $rangeVal = $val !== null && $val !== '' ? (float) $val : $min;
+                echo '<input type="range" name="' . $inputName . '" id="' . $id . '" class="form-control" min="' . $min . '" max="' . $max . '" step="' . $step . '" value="' . htmlspecialchars((string)$rangeVal) . '">';
+                echo ' <span class="range-value">' . htmlspecialchars((string)$rangeVal) . '</span>';
+                break;
+            case 'search':
+                $max = isset($schema['maxlength']) ? (int) $schema['maxlength'] : '';
+                $ph = isset($schema['placeholder']) ? ' placeholder="' . htmlspecialchars($schema['placeholder']) . '"' : '';
+                echo '<input type="search" name="' . $inputName . '" id="' . $id . '" class="form-control" value="' . htmlspecialchars((string)$val) . '"' . ($max ? ' maxlength="' . $max . '"' : '') . $ph . '>';
+                break;
+            case 'hidden':
+                $hiddenVal = $val !== null && $val !== '' ? (string) $val : (isset($schema['default_value']) ? (string) $schema['default_value'] : '');
+                echo '<input type="hidden" name="' . $inputName . '" id="' . $id . '" value="' . htmlspecialchars($hiddenVal) . '">';
                 break;
             case 'textarea':
                 $rows = isset($schema['rows']) ? (int) $schema['rows'] : 4;

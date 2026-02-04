@@ -16,8 +16,8 @@ class FormsController {
     public function index() {
         $stmt = $this->db->query("
             SELECT f.*, 
-                   COALESCE(u1.username, u1.name) as created_by_name,
-                   COALESCE(u2.username, u2.name) as updated_by_name
+                   COALESCE(u1.username, u1.email, 'Unknown') as created_by_name,
+                   COALESCE(u2.username, u2.email, 'Unknown') as updated_by_name
             FROM forms f
             LEFT JOIN users u1 ON f.created_by = u1.id
             LEFT JOIN users u2 ON f.updated_by = u2.id
@@ -37,8 +37,8 @@ class FormsController {
     public function show($id) {
         $stmt = $this->db->prepare("
             SELECT f.*, 
-                   COALESCE(u1.username, u1.name) as created_by_name,
-                   COALESCE(u2.username, u2.name) as updated_by_name
+                   COALESCE(u1.username, u1.email, 'Unknown') as created_by_name,
+                   COALESCE(u2.username, u2.email, 'Unknown') as updated_by_name
             FROM forms f
             LEFT JOIN users u1 ON f.created_by = u1.id
             LEFT JOIN users u2 ON f.updated_by = u2.id

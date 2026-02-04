@@ -34,6 +34,23 @@ class FieldRegistry
     }
 
     /**
+     * Return a FieldContractInterface for the given type and schema.
+     * Uses adapter around existing FieldInterface when the field does not implement the contract.
+     */
+    public static function getContract(string $type, array $fieldSchema = []): ?FieldContractInterface
+    {
+        self::bootDefaultFields();
+        $field = self::$fields[$type] ?? null;
+        if ($field === null) {
+            return null;
+        }
+        if ($field instanceof FieldContractInterface) {
+            return $field;
+        }
+        return new FieldContractAdapter($field, $fieldSchema);
+    }
+
+    /**
      * List all registered types for admin Field Library.
      * Returns flat list (each item: type, label, icon, category, config_schema) for backward compat.
      */
@@ -129,6 +146,22 @@ class FieldRegistry
     }
 
     /**
+     * Load all field class files so that bootDefaultFields() can instantiate them.
+     * Called automatically from bootDefaultFields(); ensures API/post editor work without manual requires.
+     */
+    private static function loadAllFieldClasses(): void
+    {
+        $dir = __DIR__;
+        $base = ['FieldInterface', 'LayoutFieldInterface', 'FieldContractInterface', 'FieldContractAdapter', 'TextField', 'TextareaField', 'NumberField', 'EmailField', 'URLField', 'PasswordField', 'RangeField', 'SearchField', 'HiddenField', 'WysiwygField', 'CodeField', 'MarkdownField', 'SelectField', 'CheckboxField', 'RadioField', 'ButtonGroupField', 'TrueFalseField', 'PostObjectField', 'RelationField', 'TaxonomyField', 'UserField', 'ImageField', 'FileField', 'GalleryField', 'AudioField', 'VideoField', 'EmbedField', 'DatePickerField', 'TimePickerField', 'DateTimePickerField', 'GroupField', 'RepeaterField', 'FlexibleContentField', 'MessageField', 'AccordionField', 'TabField', 'DividerField'];
+        foreach ($base as $name) {
+            $path = $dir . '/' . $name . '.php';
+            if (is_file($path)) {
+                require_once $path;
+            }
+        }
+    }
+
+    /**
      * Register all built-in field types. Call once during bootstrap.
      */
     public static function bootDefaultFields(): void
@@ -137,6 +170,8 @@ class FieldRegistry
             return;
         }
 
+        self::loadAllFieldClasses();
+
         // Basic
         self::register('text', new TextField());
         self::register('textarea', new TextareaField());
@@ -144,6 +179,9 @@ class FieldRegistry
         self::register('email', new EmailField());
         self::register('url', new URLField());
         self::register('password', new PasswordField());
+        self::register('range', new RangeField());
+        self::register('search', new SearchField());
+        self::register('hidden', new HiddenField());
 
         // Content
         self::register('wysiwyg', new WysiwygField());
