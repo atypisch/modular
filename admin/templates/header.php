@@ -120,21 +120,36 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
     <?php endif; ?>
     <link rel="stylesheet" href="/modular/admin/assets/css/responsive.css">
     
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Font Awesome (local; run admin/assets/vendor/download-vendor.sh once) -->
+    <link rel="stylesheet" href="/modular/admin/assets/vendor/fontawesome/css/all.min.css">
     
     <?php if (!$is_auth_page): ?>
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- jQuery (local) -->
+    <script src="/modular/admin/assets/vendor/jquery/jquery-3.6.0.min.js"></script>
     
-    <!-- SortableJS: stable drag & drop base for lists (Field Builder, future sortable UIs) -->
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <!-- SortableJS (local) -->
+    <script src="/modular/admin/assets/vendor/sortablejs/Sortable.min.js"></script>
     
-    <!-- Vue 3 + PrimeVue (ACF-waardige Field Builder / admin UI primitives per spec) -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <script src="https://unpkg.com/primevue/umd/primevue.min.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/primevue/resources/primevue.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/primeicons/primeicons.css">
+    <!-- Vue 3 + PrimeVue (local; run admin/assets/vendor/download-vendor.sh for Quill if using Editor) -->
+    <script src="/modular/admin/assets/vendor/vue/vue.global.prod.js"></script>
+    <?php
+    $quill_js = ADMIN_PATH . '/assets/vendor/quill/quill.min.js';
+    $quill_css = ADMIN_PATH . '/assets/vendor/quill/quill.snow.css';
+    if (file_exists($quill_js)): ?>
+    <script src="/modular/admin/assets/vendor/quill/quill.min.js"></script>
+    <?php endif;
+    ?>
+    <script src="/modular/admin/assets/vendor/primevue/primevue.min.js"></script>
+    <link rel="stylesheet" href="/modular/admin/assets/vendor/primevue/primevue.min.css">
+    <?php
+    $aura_theme = ADMIN_PATH . '/assets/vendor/primevue/themes/aura.js';
+    if (file_exists($aura_theme)): ?>
+    <script src="/modular/admin/assets/vendor/primevue/themes/aura.js"></script>
+    <?php endif; ?>
+    <?php if (file_exists($quill_css)): ?>
+    <link rel="stylesheet" href="/modular/admin/assets/vendor/quill/quill.snow.css">
+    <?php endif; ?>
+    <link rel="stylesheet" href="/modular/admin/assets/vendor/primeicons/primeicons.css">
     
     <!-- Admin Scripts (v=2: no export, classic script compatible) -->
     <script src="/modular/admin/assets/js/base.js?v=2"></script>

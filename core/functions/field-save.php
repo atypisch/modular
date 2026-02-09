@@ -43,6 +43,12 @@ if (!function_exists('sanitize_field_data_from_schema')) {
                 $childSchema = $field->getChildSchema($fieldDef);
                 $subFields = $childSchema['fields'] ?? [];
                 $rawValue = $raw[$name] ?? null;
+                if (is_string($rawValue) && in_array($type, ['group', 'repeater', 'flexible_content'], true)) {
+                    $dec = json_decode($rawValue, true);
+                    if (is_array($dec)) {
+                        $rawValue = $dec;
+                    }
+                }
 
                 if ($type === 'group') {
                     $out[$name] = is_array($rawValue) ? sanitize_field_data_from_schema($subFields, $rawValue) : [];

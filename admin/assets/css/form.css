@@ -144,3 +144,188 @@
     padding: 0.25rem;
     font-size: 0.875rem;
 }
+
+/* WYSIWYG editor (admin, inspired by ACF Visual/Text) */
+.wysiwyg-wrapper {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+}
+.wysiwyg-tabs {
+    display: flex;
+    border-bottom: 1px solid #eee;
+    background: #f8f9fa;
+}
+.wysiwyg-tab {
+    flex: 0 0 auto;
+    padding: 0.4rem 0.75rem;
+    border: none;
+    background: none;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: #6c757d;
+}
+.wysiwyg-tab.active {
+    color: #212529;
+    font-weight: 600;
+    border-bottom: 2px solid #007bff;
+}
+.wysiwyg-toolbar {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid #eee;
+    background: #fdfdfd;
+}
+.wysiwyg-toolbar-btn {
+    border: 1px solid #ddd;
+    background: #fff;
+    border-radius: 3px;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+.wysiwyg-toolbar-btn:hover {
+    background: #f3f3f3;
+}
+.wysiwyg-visual {
+    min-height: 160px;
+    padding: 0.75rem;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    outline: none;
+}
+.wysiwyg-textarea-internal {
+    width: 100%;
+    border: none;
+    border-top: 1px solid #eee;
+    border-radius: 0;
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+.wysiwyg-mode-visual .wysiwyg-textarea-internal {
+    display: none;
+}
+.wysiwyg-mode-text .wysiwyg-visual {
+    display: none;
+}
+
+/* Relationship / Post Object UX */
+.relationship-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.relationship-search-input {
+    font-size: 0.85rem;
+}
+.relationship-selected {
+    display: none;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.15rem;
+}
+.relationship-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 999px;
+    background: #eef3ff;
+    font-size: 0.75rem;
+}
+.relationship-chip-remove {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+/* Field type wrappers (editor UX, ACF/PrimeVue-style) */
+.field-type-wysiwyg .form-control.wysiwyg-textarea {
+    min-height: 200px;
+    resize: vertical;
+}
+.field-type-image .form-control,
+.field-type-gallery .form-control {
+    max-width: 20em;
+}
+.field-type-relationship select[multiple],
+.field-type-post_object select {
+    min-height: 120px;
+}
+.required-asterisk { color: var(--error-text, #c00); }
+
+/* Utility: Accordion (collapsible section header) */
+.form-group-accordion {
+    margin-top: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+.field-accordion-header {
+    padding: 0.5rem 0.75rem;
+    background: var(--surface, #f8f9fa);
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 4px;
+    font-weight: 600;
+}
+.field-accordion-icon {
+    margin-right: 0.5rem;
+    color: var(--text-muted, #6c757d);
+}
+.field-accordion-hint { margin: 0.25rem 0 0; font-weight: normal; }
+
+/* Utility: Tab (section label) */
+.form-group-tab {
+    margin-top: 1.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid var(--primary-color, #2d8016);
+}
+.field-tab-label {
+    font-weight: 600;
+    font-size: 1rem;
+}
+.form-group-message .field-message-text {
+    padding: 0.75rem;
+    background: var(--surface, #f8f9fa);
+    border-radius: 4px;
+    border-left: 3px solid var(--primary-color, #2d8016);
+}
+.field-divider { margin: 1.25rem 0; }
+
+/* Field Builder: type hint in settings panel */
+.field-type-hint .help-text {
+    background: var(--surface, #f8f9fa) !important;
+    border-left-color: var(--primary-color, #2d8016) !important;
+}
+
+/* PrimeVue field mounts (post edit) */
+.pv-wysiwyg-root.pv-editor-mount,
+.pv-editor-wrapper {
+    width: 100%;
+    min-height: 200px;
+}
+.pv-editor-wrapper .p-editor-container,
+.pv-editor-wrapper .p-editor-content {
+    width: 100%;
+}
+.pv-relation-root {
+    width: 100%;
+    max-width: 100%;
+}
+.pv-relation-root .p-multiselect,
+.pv-relation-root .p-dropdown {
+    width: 100%;
+}
+.w-full { width: 100%; }
+
+/* Validation (field renderer) */
+.help-text.text-danger {
+    color: var(--error-text, #c00);
+    font-size: 0.875rem;
+}
+.form-group.is-invalid .p-inputtext,
+.form-group.is-invalid .p-inputnumber,
+.form-group.is-invalid .p-dropdown {
+    border-color: var(--error-border, #c00);
+}

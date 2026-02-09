@@ -7,6 +7,92 @@
 use Modular\Fields\FieldRegistry;
 use Modular\Fields\LayoutFieldInterface;
 
+if (!function_exists('get_posts_for_relational_field')) {
+    /**
+     * Load posts for post_object/relationship dropdowns. Filter by schema post_type (slugs). Limit 500.
+     *
+     * @param array $schema Field schema with optional 'post_type' => [slugs]
+     * @return array<array{id: int, title: string, post_type_slug: string}>
+     */
+    function get_posts_for_relational_field(array $schema): array
+    {
+        $db = $GLOBALS['db'] ?? null;
+        if (!$db) {
+            return [];
+        }
+        $allowedSlugs = $schema['post_type'] ?? [];
+        if (!is_array($allowedSlugs)) {
+            $allowedSlugs = [];
+        }
+        try {
+            $sql = "SELECT p.id, p.title, pt.slug AS post_type_slug
+                    FROM posts p
+                    INNER JOIN post_types pt ON p.post_type_id = pt.id
+                    WHERE p.deleted_at IS NULL AND pt.deleted_at IS NULL";
+            $params = [];
+            if (!empty($allowedSlugs)) {
+                $placeholders = implode(',', array_fill(0, count($allowedSlugs), '?'));
+                $sql .= " AND pt.slug IN ($placeholders)";
+                $params = array_values($allowedSlugs);
+            }
+            $sql .= " ORDER BY p.updated_at DESC, p.id DESC LIMIT 500";
+            $stmt = $params ? $db->prepare($sql) : $db->query($sql);
+            if ($stmt) {
+                if ($params) {
+                    $stmt->execute($params);
+                }
+                return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+        return [];
+    }
+}
+
+if (!function_exists('render_field_instruction_hint')) {
+    /**
+     * Default instruction hint per field type when instructions are empty (ACF/PrimeVue-style).
+     */
+    function render_field_instruction_hint(string $type, array $fieldDef): string
+    {
+        switch ($type) {
+            case 'wysiwyg':
+                return 'Rich text editor (like ACF Visual/Text or PrimeVue Editor). Toolbar and tabs are set in Field Builder → Display.';
+            case 'image':
+                return 'Media ID from the Media library. Upload in Media first, then paste the ID here. (PrimeVue: FileUpload for picker UX later.)';
+            case 'file':
+                return 'Media ID of the file from the Media library. (PrimeVue: FileUpload.)';
+            case 'gallery':
+                return 'Comma-separated Media IDs (e.g. 12,14,18). Upload in Media, then list IDs. (PrimeVue: FileUpload multiple.)';
+            case 'post_object':
+                return 'Select one linked post. Allowed post types in Field Builder → General. (PrimeVue: AutoComplete.)';
+            case 'relationship':
+            case 'relation':
+                return 'Select one or more posts. Allowed post types in Field Builder → General. (PrimeVue: AutoComplete multiple.)';
+            case 'taxonomy':
+                return 'Term IDs (comma-separated) or configure a term selector in Field Builder. (PrimeVue: TreeSelect.)';
+            case 'user':
+                return 'Select a user; stored as user ID. (PrimeVue: Dropdown or AutoComplete.)';
+            case 'date_picker':
+                return 'Pick a date. Stored as Y-m-d. (PrimeVue: Calendar.)';
+            case 'time_picker':
+                return 'Pick a time. Stored as H:i. (PrimeVue: Calendar timeOnly.)';
+            case 'date_time_picker':
+                return 'Pick date and time. Stored as Y-m-d H:i. (PrimeVue: Calendar with showTime.)';
+            case 'select':
+                return 'Choose one. Add choices in Field Builder → Display (one per line: value : Label). (PrimeVue: Dropdown.)';
+            case 'radio':
+            case 'button_group':
+                return 'Choose one. Configure choices in Field Builder → Display. (PrimeVue: RadioButton / SelectButton.)';
+            case 'checkbox':
+                return 'Check to enable, or add multiple options in Field Builder → Display: Choices. (PrimeVue: Checkbox.)';
+            default:
+                return '';
+        }
+    }
+}
+
 if (!function_exists('render_field_form')) {
     /**
      * Ensure FieldRegistry is booted and render a single field's form control.
@@ -55,11 +141,13 @@ if (!function_exists('render_field_form')) {
         $label = $fieldDef['label'] ?? ucfirst($name);
         $required = !empty($fieldDef['required']);
         $instructions = $fieldDef['instructions'] ?? '';
+        $typeHint = render_field_instruction_hint($type, $fieldDef);
+        $instructions = $instructions !== '' ? $instructions : $typeHint;
         ?>
-        <div class="form-group" data-field-type="<?php echo htmlspecialchars($type); ?>">
+        <div class="form-group field-type-<?php echo htmlspecialchars($type); ?>" data-field-type="<?php echo htmlspecialchars($type); ?>">
             <label for="<?php echo $id; ?>">
                 <?php echo htmlspecialchars($label); ?>
-                <?php if ($required): ?><span style="color: var(--error-text);">*</span><?php endif; ?>
+                <?php if ($required): ?><span class="required-asterisk" aria-label="Required">*</span><?php endif; ?>
             </label>
             <?php render_field_input($type, $fieldDef, $value, $inputName, $id); ?>
             <?php if ($instructions !== ''): ?>
@@ -119,7 +207,11 @@ if (!function_exists('render_field_form')) {
                 break;
             case 'wysiwyg':
                 $rows = isset($schema['rows']) ? (int) $schema['rows'] : 8;
-                echo '<textarea name="' . $inputName . '" id="' . $id . '" class="form-control wysiwyg-textarea" rows="' . $rows . '">' . htmlspecialchars((string)$val) . '</textarea>';
+                $wysiwygClass = 'form-control wysiwyg-textarea';
+                if (!empty($schema['toolbar']) && $schema['toolbar'] === 'basic') {
+                    $wysiwygClass .= ' wysiwyg-toolbar-basic';
+                }
+                echo '<textarea name="' . $inputName . '" id="' . $id . '" class="' . $wysiwygClass . '" rows="' . $rows . '" data-rows="' . $rows . '" data-tabs="' . htmlspecialchars($schema['tabs'] ?? 'all') . '" data-toolbar="' . htmlspecialchars($schema['toolbar'] ?? 'full') . '">' . htmlspecialchars((string)$val) . '</textarea>';
                 break;
             case 'code':
             case 'markdown':
@@ -189,9 +281,35 @@ if (!function_exists('render_field_form')) {
                     $idVal = $val['id'];
                 }
                 if (in_array($type, ['relationship', 'relation'], true) && is_array($val) && isset($val['ids'])) {
-                    $idVal = implode(',', $val['ids']);
+                    $idVal = $val['ids'];
                 }
-                echo '<input type="text" name="' . $inputName . '" id="' . $id . '" class="form-control" value="' . htmlspecialchars(is_array($idVal) ? implode(',', $idVal) : (string)$idVal) . '" placeholder="ID or comma-separated IDs">';
+                if (is_array($idVal)) {
+                    $selectedIds = array_map('intval', array_filter($idVal));
+                } else {
+                    $selectedIds = $idVal !== null && $idVal !== '' ? [ (int) $idVal ] : [];
+                }
+                $posts = $type === 'user' ? [] : get_posts_for_relational_field($schema);
+                $multiple = in_array($type, ['relationship', 'relation'], true);
+                $allowNull = !empty($schema['allow_null']);
+                if ($type === 'user') {
+                    echo '<input type="text" name="' . $inputName . '" id="' . $id . '" class="form-control" value="' . htmlspecialchars(is_array($selectedIds) ? implode(',', $selectedIds) : (string)($selectedIds[0] ?? '')) . '" placeholder="User ID">';
+                } elseif (empty($posts)) {
+                    echo '<input type="text" name="' . $inputName . ($multiple ? '[]' : '') . '" id="' . $id . '" class="form-control" value="' . htmlspecialchars($multiple ? implode(',', $selectedIds) : (string)($selectedIds[0] ?? '')) . '" placeholder="' . ($multiple ? 'Post IDs (comma-separated)' : 'Post ID') . '">';
+                } else {
+                    echo '<select name="' . $inputName . ($multiple ? '[]' : '') . '" id="' . $id . '" class="form-control"' . ($multiple ? ' multiple size="10"' : '') . '>';
+                    if (!$multiple && $allowNull) {
+                        echo '<option value="">— Select —</option>';
+                    }
+                    foreach ($posts as $p) {
+                        $pid = (int) $p['id'];
+                        $title = $p['title'] ?? ('Post #' . $pid);
+                        $slug = $p['post_type_slug'] ?? '';
+                        $label = htmlspecialchars($title) . ($slug ? ' (' . htmlspecialchars($slug) . ')' : '');
+                        $sel = $multiple ? in_array($pid, $selectedIds, true) : (($selectedIds[0] ?? null) === $pid);
+                        echo '<option value="' . $pid . '"' . ($sel ? ' selected' : '') . '>' . $label . '</option>';
+                    }
+                    echo '</select>';
+                }
                 break;
             case 'taxonomy':
                 $arrVal = is_array($val) ? $val : ($val !== null && $val !== '' ? [$val] : []);
@@ -229,10 +347,32 @@ if (!function_exists('render_field_form')) {
     {
         $type = $fieldDef['type'] ?? '';
         $label = $fieldDef['label'] ?? ucfirst($type);
+        $instructions = $fieldDef['instructions'] ?? '';
         if ($type === 'message') {
-            echo '<div class="form-group form-group-utility"><p class="help-text">' . nl2br(htmlspecialchars($label)) . '</p></div>';
+            echo '<div class="form-group form-group-utility form-group-message">';
+            echo '<p class="field-message-text">' . nl2br(htmlspecialchars($label)) . '</p>';
+            if ($instructions !== '') {
+                echo '<p class="help-text">' . htmlspecialchars($instructions) . '</p>';
+            }
+            echo '</div>';
         } elseif ($type === 'divider') {
-            echo '<hr class="section-divider">';
+            echo '<hr class="section-divider field-divider" aria-hidden="true">';
+        } elseif ($type === 'accordion') {
+            echo '<div class="form-group form-group-utility form-group-accordion" role="region" aria-label="' . htmlspecialchars($label) . '">';
+            echo '<div class="field-accordion-header">';
+            echo '<span class="field-accordion-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span>';
+            echo '<strong class="field-accordion-title">' . htmlspecialchars($label) . '</strong>';
+            if ($instructions !== '') {
+                echo '<p class="help-text field-accordion-hint">' . htmlspecialchars($instructions) . '</p>';
+            }
+            echo '</div></div>';
+        } elseif ($type === 'tab') {
+            echo '<div class="form-group form-group-utility form-group-tab" role="tablist" aria-label="Section">';
+            echo '<div class="field-tab-label">' . htmlspecialchars($label) . '</div>';
+            if ($instructions !== '') {
+                echo '<p class="help-text">' . htmlspecialchars($instructions) . '</p>';
+            }
+            echo '</div>';
         } else {
             echo '<div class="form-group form-group-utility"><strong>' . htmlspecialchars($label) . '</strong></div>';
         }

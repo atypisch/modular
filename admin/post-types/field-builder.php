@@ -59,6 +59,22 @@ if (is_string($schema)) {
 $schema = is_array($schema) ? $schema : ['fields' => []];
 $mode = $postType['mode'] ?? 'fixed';
 
+// Load all post types and taxonomies for relationship/post_object field settings (select from DB)
+$availablePostTypes = [];
+$availableTaxonomies = [];
+try {
+    $res = $db->query("SELECT id, name, slug FROM post_types WHERE deleted_at IS NULL ORDER BY name");
+    if ($res) {
+        $availablePostTypes = $res->fetchAll(PDO::FETCH_ASSOC);
+    }
+    $res = $db->query("SELECT id, name, slug FROM taxonomies WHERE deleted_at IS NULL ORDER BY name");
+    if ($res) {
+        $availableTaxonomies = $res->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Exception $e) {
+    // ignore
+}
+
 $page_title = 'Field Builder: ' . htmlspecialchars($postType['name']);
 $post_types_active = true;
 require_once ADMIN_PATH . '/templates/header.php';
@@ -72,7 +88,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <i class="fas fa-arrow-left"></i> Back to Post Type
                 </a>
                 <h1 style="margin: 0;"><?php echo $page_title; ?></h1>
-                <p style="margin: 0.5rem 0 0; color: var(--text-muted);">Drag fields from the library to the canvas, or click a library item to add it. Click a field to edit settings.</p>
+                <p style="margin: 0.5rem 0 0; color: var(--text-muted);">Configure which fields editors see when creating or editing a post of this type. Drag fields from the library to the canvas, or click to add. Click a field to edit its settings.</p>
             </div>
             <div class="flex gap-2 align-center">
                 <label class="flex align-center gap-2">
@@ -120,11 +136,12 @@ require_once ADMIN_PATH . '/templates/header.php';
 
         <!-- RIGHT: Active Schema (canvas) -->
         <div class="active-schema card">
-            <h3 class="active-schema-title">Active fields</h3>
+            <h3 class="active-schema-title">Active fields (configuration)</h3>
+            <p class="field-library-hint" style="margin: 0 0 0.5rem 0;">These fields will appear when editors create or edit a post of this type.</p>
             <div id="active-fields-list" class="active-fields-list" role="region" aria-label="Drop zone for fields">
                 <div id="active-fields-empty" class="empty-state">
                     <i class="fas fa-mouse-pointer" aria-hidden="true"></i>
-                    <p>Drag fields here or click a library item to add.</p>
+                    <p>No fields yet. Drag from the library or click a field type to add.</p>
                 </div>
                 <div class="active-fields-drop-hint" aria-hidden="true"><span>Drop here</span></div>
                 <ul id="active-fields-ul" class="active-fields-ul" style="list-style: none; margin: 0; padding: 0; display: none;"></ul>
@@ -133,7 +150,7 @@ require_once ADMIN_PATH . '/templates/header.php';
         </div>
     </div>
 
-    <!-- Slide-in settings panel (from left); overlay when open -->
+    <!-- Slide-in settings panel (from right); overlay when open -->
     <div id="field-settings-overlay" class="field-settings-overlay" aria-hidden="true"></div>
     <div id="field-settings-panel" class="field-settings-panel" aria-hidden="true">
         <div class="field-settings-panel-inner">
@@ -173,16 +190,16 @@ require_once ADMIN_PATH . '/templates/header.php';
 .active-fields-list { flex: 1; min-height: 240px; border: 2px dashed var(--border-color); border-radius: var(--radius-md); padding: var(--spacing-md); position: relative; transition: border-color 0.15s, background 0.15s; }
 .field-settings-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; opacity: 0; transition: opacity 0.2s; }
 .field-settings-overlay.visible { display: block; opacity: 1; }
-.field-settings-panel { position: fixed; left: 0; top: 0; bottom: 0; width: min(380px, 100vw); max-width: 100%; background: var(--surface); box-shadow: 2px 0 12px rgba(0,0,0,0.15); z-index: 1001; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow: hidden; }
+.field-settings-panel { position: fixed; right: 0; top: 0; bottom: 0; width: min(480px, 95vw); max-width: 100%; background: #fff; box-shadow: -2px 0 16px rgba(0,0,0,0.12); z-index: 1001; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow: hidden; }
 .field-settings-panel.open { transform: translateX(0); }
-.field-settings-panel-inner { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-.field-settings-header { padding: var(--spacing-md); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+.field-settings-panel-inner { display: flex; flex-direction: column; height: 100%; overflow: hidden; background: #fff; }
+.field-settings-header { padding: var(--spacing-md); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; background: #fff; }
 .field-settings-header-text { min-width: 0; flex: 1; }
 .field-settings-close { width: 2rem; height: 2rem; padding: 0; border: none; background: transparent; font-size: 1.5rem; line-height: 1; cursor: pointer; color: var(--text-muted); border-radius: var(--radius-sm); flex-shrink: 0; }
-.field-settings-close:hover { color: var(--text); background: var(--hover-bg); }
-.field-settings-tabs { display: flex; border-bottom: 1px solid var(--border-color); padding: 0 var(--spacing-md); flex-shrink: 0; }
-.field-settings-tab-content { flex: 1; overflow-y: auto; padding: var(--spacing-md); min-height: 0; }
-@media (max-width: 480px) { .field-settings-panel { width: 100vw; } }
+.field-settings-close:hover { color: var(--text); background: rgba(0,0,0,0.06); }
+.field-settings-tabs { display: flex; border-bottom: 1px solid var(--border-color); padding: 0 var(--spacing-md); flex-shrink: 0; background: #fff; }
+.field-settings-tab-content { flex: 1; overflow-y: auto; padding: var(--spacing-md); min-height: 0; background: #fff; }
+@media (max-width: 640px) { .field-settings-panel { width: 100vw; } }
 /* Library */
 .library-category-header {
     width: 100%;
@@ -248,6 +265,9 @@ require_once ADMIN_PATH . '/templates/header.php';
 .active-field-row:hover { background: var(--hover-bg); }
 .active-field-row.selected { border-color: var(--primary-color); background: rgba(45, 128, 22, 0.06); }
 .active-field-row .drag-handle { cursor: grab; color: var(--text-muted); flex-shrink: 0; }
+.active-field-row .field-row-collapse { width: 1.25rem; height: 1.25rem; padding: 0; margin: 0; border: none; background: none; cursor: pointer; color: var(--text-muted); flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; transition: color 0.15s; }
+.active-field-row .field-row-collapse:hover { color: var(--text); }
+.active-field-row .field-row-collapse i { font-size: 0.7rem; }
 .active-field-row .field-label { flex: 1; min-width: 0; font-weight: 500; display: flex; align-items: center; gap: 0.35rem; overflow: hidden; }
 .active-field-row .field-label i { color: var(--text-muted); flex-shrink: 0; }
 .active-field-row .field-type-badge {
@@ -344,6 +364,8 @@ require_once ADMIN_PATH . '/templates/header.php';
 .field-settings-tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 500; }
 .settings-tab-pane .form-group { margin-bottom: var(--spacing-md); }
 .settings-tab-pane .form-group label { display: block; margin-bottom: 0.25rem; font-size: 0.875rem; }
+.multi-select-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: 12rem; overflow-y: auto; padding: 0.25rem 0; }
+.multi-select-list .checkbox-label { display: flex; align-items: center; gap: 0.5rem; font-weight: normal; }
 .settings-icon-wrap {
     width: 36px;
     height: 36px;
@@ -365,11 +387,34 @@ require_once ADMIN_PATH . '/templates/header.php';
     const postTypeId = <?php echo (int)$id; ?>;
     const fieldLibrary = <?php echo json_encode($fieldLibrary); ?>;
     const categoryOrder = <?php echo json_encode($categoryOrder); ?>;
+    const availablePostTypes = <?php echo json_encode($availablePostTypes); ?>;
+    const availableTaxonomies = <?php echo json_encode($availableTaxonomies); ?>;
     const TAB_KEYS = {
         general: ['label', 'name', 'key', 'instructions', 'default_value', 'sub_fields', 'layouts', 'button_label'],
         validation: ['required', 'min', 'max', 'step', 'maxlength', 'pattern', 'allow_null', 'multiple'],
-        display: ['placeholder', 'prepend', 'append', 'rows', 'wrapper_class', 'input_class', 'ui', 'return_format', 'choices', 'layout'],
+        display: ['placeholder', 'prepend', 'append', 'rows', 'wrapper_class', 'input_class', 'ui', 'return_format', 'choices', 'layout', 'toolbar', 'media_upload', 'tabs', 'delay'],
         logic: ['conditional_logic']
+    };
+    const FIELD_TYPE_HINTS = {
+        wysiwyg: 'Renders as a rich text editor (like ACF / PrimeVue Editor). Set Toolbar (Full or Basic) and Tabs (Visual & Text, Visual only, Text only) in the Display tab.',
+        image: 'Stored as a single Media ID. Editors enter the ID from the Media library. For a media picker UX, use the Media library first and paste the ID here.',
+        gallery: 'Stored as multiple Media IDs (comma-separated). Editors add IDs from the Media library. Configure in Display if you add a custom picker later.',
+        file: 'Same as Image but for any file type. Stored as Media ID.',
+        post_object: 'Single post link. Choose allowed Post Types in General (checkboxes). Editors see a dropdown of posts; return format (ID or object) in Display.',
+        relationship: 'Multiple post links. Choose allowed Post Types and optional Taxonomy filter in General. Editors see a multi-select; return format in Display.',
+        taxonomy: 'Term reference(s). Link to a taxonomy and optionally limit terms. Stored as term IDs.',
+        user: 'Stored as user ID. Editors select from users.',
+        select: 'Single choice from a list. Add choices in Display (one per line: value : Label).',
+        radio: 'Single choice, shown as radio buttons. Add choices in Display.',
+        button_group: 'Single choice, shown as button group. Add choices in Display.',
+        checkbox: 'One or more options, or a single on/off toggle if no choices.',
+        accordion: 'Visual only: a collapsible section header in the editor. Use the Label as the section title. No data is stored.',
+        tab: 'Visual only: a section divider with a tab label. Use Label to name the tab. No data is stored.',
+        message: 'Visual only: instructions or notice for editors. Put your text in the Label. No data is stored.',
+        divider: 'Visual only: a horizontal line between fields. No data is stored.',
+        group: 'Nested fields. Add sub_fields in General (JSON array of field objects).',
+        repeater: 'Repeatable rows. Define sub_fields and optionally min/max rows, button label in General.',
+        flexible_content: 'Multiple layouts. Define layouts (each with sub_fields) in General.'
     };
 
     let activeFields = <?php echo json_encode($schema['fields'] ?? []); ?>;
@@ -522,6 +567,11 @@ require_once ADMIN_PATH . '/templates/header.php';
         const panes = { general: document.getElementById('tab-general'), validation: document.getElementById('tab-validation'), display: document.getElementById('tab-display'), logic: document.getElementById('tab-logic') };
         Object.keys(panes).forEach(t => { panes[t].innerHTML = ''; });
 
+        const typeHint = FIELD_TYPE_HINTS[field.type];
+        if (typeHint && panes.general) {
+            panes.general.insertAdjacentHTML('afterbegin', '<div class="field-type-hint" role="status"><p class="help-text" style="margin: 0 0 0.75rem 0; padding: 0.5rem 0.75rem; background: var(--surface); border-radius: 4px; border-left: 3px solid var(--primary-color);">' + escapeHtml(typeHint) + '</p></div>');
+        }
+
         for (const [key, meta] of Object.entries(schema)) {
             const tab = getTabForKey(key);
             const pane = panes[tab];
@@ -538,6 +588,24 @@ require_once ADMIN_PATH . '/templates/header.php';
             } else if (type === 'integer' || type === 'number') {
                 const v = val !== undefined && val !== '' ? val : (meta.default !== undefined ? meta.default : '');
                 input = '<input type="number" id="' + id + '" class="form-control" data-key="' + escapeHtml(key) + '" value="' + escapeHtml(String(v)) + '" step="' + (type === 'number' ? 'any' : '1') + '">';
+            } else if (key === 'post_type' && (field.type === 'post_object' || field.type === 'relationship')) {
+                const selected = Array.isArray(val) ? val : (val ? [val] : []);
+                input = '<div class="multi-select-list" data-key="' + escapeHtml(key) + '">';
+                (availablePostTypes || []).forEach(function(pt) {
+                    const slug = pt.slug || pt.id;
+                    const checked = selected.indexOf(slug) !== -1 || selected.indexOf(String(pt.id)) !== -1;
+                    input += '<label class="checkbox-label"><input type="checkbox" data-multi-key="' + escapeHtml(key) + '" value="' + escapeHtml(slug) + '" ' + (checked ? 'checked' : '') + '> ' + escapeHtml(pt.name || slug) + '</label>';
+                });
+                input += '</div><p class="help-text" style="margin-top: 0.25rem; font-size: 0.75rem;">Limit to these post types. Leave empty for all.</p>';
+            } else if (key === 'taxonomy' && (field.type === 'post_object' || field.type === 'relationship')) {
+                const selected = Array.isArray(val) ? val : (val ? [val] : []);
+                input = '<div class="multi-select-list" data-key="' + escapeHtml(key) + '">';
+                (availableTaxonomies || []).forEach(function(tax) {
+                    const slug = tax.slug || tax.id;
+                    const checked = selected.indexOf(slug) !== -1 || selected.indexOf(String(tax.id)) !== -1;
+                    input += '<label class="checkbox-label"><input type="checkbox" data-multi-key="' + escapeHtml(key) + '" value="' + escapeHtml(slug) + '" ' + (checked ? 'checked' : '') + '> ' + escapeHtml(tax.name || slug) + '</label>';
+                });
+                input += '</div><p class="help-text" style="margin-top: 0.25rem; font-size: 0.75rem;">Filter by taxonomy. Leave empty for none.</p>';
             } else if (key === 'choices') {
                 const v = choicesToLines(val);
                 input = '<textarea id="' + id + '" class="form-control" data-key="' + escapeHtml(key) + '" rows="6" placeholder="red : Red&#10;green : Green">' + escapeHtml(v) + '</textarea><p class="help-text" style="margin-top: 0.25rem; font-size: 0.75rem;">One per line: <code>value : Label</code></p>';
@@ -547,6 +615,15 @@ require_once ADMIN_PATH . '/templates/header.php';
             } else if (key === 'layouts') {
                 const v = typeof val === 'object' && val !== null ? JSON.stringify(val, null, 2) : (Array.isArray(val) ? JSON.stringify(val, null, 2) : '[]');
                 input = '<textarea id="' + id + '" class="form-control" data-key="' + escapeHtml(key) + '" rows="8" style="font-family: monospace; font-size: 0.8rem;">' + escapeHtml(v) + '</textarea><p class="help-text" style="margin-top: 0.25rem; font-size: 0.75rem;">Allowed layouts: array of <code>{"name":"...","label":"...","sub_fields":[...]}</code></p>';
+            } else if (key === 'return_format' && (field.type === 'post_object' || field.type === 'relationship')) {
+                const v = val !== undefined && val !== null ? val : 'id';
+                input = '<select id="' + id + '" class="form-control" data-key="return_format"><option value="id"' + (v === 'id' ? ' selected' : '') + '>Post ID(s)</option><option value="object"' + (v === 'object' ? ' selected' : '') + '>Post object(s)</option></select>';
+            } else if (key === 'toolbar' && field.type === 'wysiwyg') {
+                const v = val !== undefined && val !== null ? val : 'full';
+                input = '<select id="' + id + '" class="form-control" data-key="toolbar"><option value="full"' + (v === 'full' ? ' selected' : '') + '>Full</option><option value="basic"' + (v === 'basic' ? ' selected' : '') + '>Basic</option></select>';
+            } else if (key === 'tabs' && field.type === 'wysiwyg') {
+                const v = val !== undefined && val !== null ? val : 'all';
+                input = '<select id="' + id + '" class="form-control" data-key="tabs"><option value="all"' + (v === 'all' ? ' selected' : '') + '>Visual &amp; Text</option><option value="visual"' + (v === 'visual' ? ' selected' : '') + '>Visual only</option><option value="text"' + (v === 'text' ? ' selected' : '') + '>Text only</option></select>';
             } else if (type === 'object' || type === 'array') {
                 const v = typeof val === 'object' && val !== null ? JSON.stringify(val, null, 2) : (val || '');
                 input = '<textarea id="' + id + '" class="form-control" data-key="' + escapeHtml(key) + '" rows="4" style="font-family: monospace; font-size: 0.8rem;">' + escapeHtml(typeof v === 'string' ? v : JSON.stringify(v)) + '</textarea>';
@@ -600,9 +677,19 @@ require_once ADMIN_PATH . '/templates/header.php';
     function collectSettingsFromPanel() {
         if (selectedIndex < 0 || selectedIndex >= activeFields.length) return;
         const field = activeFields[selectedIndex];
+        // Collect post_type and taxonomy from multi-select checkboxes
+        ['post_type', 'taxonomy'].forEach(function(key) {
+            const checked = panelEl.querySelectorAll('input[data-multi-key="' + key + '"]:checked');
+            if (checked.length) {
+                field[key] = Array.from(checked).map(function(c) { return c.value; });
+            } else {
+                field[key] = [];
+            }
+        });
         panelEl.querySelectorAll('[data-key]').forEach(el => {
             const key = el.getAttribute('data-key');
             if (!key) return;
+            if (key === 'post_type' || key === 'taxonomy') return; // already collected from checkboxes
             let val;
             if (el.type === 'checkbox') {
                 val = el.checked;
@@ -610,7 +697,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 val = el.value;
                 if (key === 'choices') {
                     val = linesToChoices(el.value);
-                } else if (key === 'sub_fields' || key === 'conditional_logic' || key === 'post_type' || key === 'taxonomy' || key === 'filters' || key === 'elements' || key === 'layouts') {
+                } else if (key === 'sub_fields' || key === 'conditional_logic' || key === 'filters' || key === 'elements' || key === 'layouts') {
                     try { val = JSON.parse(el.value || (key === 'sub_fields' ? '[]' : '[]')); } catch (e) { val = key === 'sub_fields' ? [] : []; }
                 }
             } else {
@@ -629,7 +716,7 @@ require_once ADMIN_PATH . '/templates/header.php';
         const idx = parseInt(row.dataset.index, 10);
         if (e.target.closest('.delete-field')) {
             const label = activeFields[idx].label || activeFields[idx].name || activeFields[idx].type;
-            if (!confirm('Delete field “‘ + label + '”? This cannot be undone.')) return;
+            if (!confirm('Delete field "' + label + '"? This cannot be undone.')) return;
             collectSettingsFromPanel();
             activeFields.splice(idx, 1);
             selectedIndex = idx >= activeFields.length ? activeFields.length - 1 : idx;
@@ -863,10 +950,32 @@ require_once ADMIN_PATH . '/templates/header.php';
         renderActiveFields();
         openSettingsPanel(idx);
     }
+    // Helper to check pointer inside drop zone (global fallback)
+    function isInDropZone(e) {
+        if (!dropZone) return false;
+        const rect = dropZone.getBoundingClientRect();
+        return e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+    }
+    // Capture phase to ensure we always accept the drop on the zone
     dropZone.addEventListener('dragenter', handleDragEnter, true);
     dropZone.addEventListener('dragover', handleDragOver, true);
     dropZone.addEventListener('dragleave', handleDragLeave, true);
     dropZone.addEventListener('drop', handleDrop, true);
+    // Global fallback: if some browsers fire drop on document instead of the zone
+    document.addEventListener('dragover', function(e){
+        if (!draggingFromLibrary) return;
+        if (isInDropZone(e)) handleDragOver(e);
+    }, true);
+    document.addEventListener('drop', function(e){
+        if (!draggingFromLibrary) return;
+        if (isInDropZone(e)) {
+            handleDrop(e);
+        } else {
+            // outside drop zone: just clean up visuals
+            dropZone.classList.remove('drop-active');
+            hideLibraryInsertLine();
+        }
+    }, true);
 
     renderActiveFields();
 })();

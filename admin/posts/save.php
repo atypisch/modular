@@ -105,7 +105,12 @@ require_once CORE_PATH . '/fields/HiddenField.php';
     }
     $schema = is_string($ptRow['schema']) ? json_decode($ptRow['schema'], true) : $ptRow['schema'];
     $schemaFields = $schema['fields'] ?? [];
-    $rawFieldData = isset($_POST['field_data']) && is_array($_POST['field_data']) ? $_POST['field_data'] : [];
+    if (isset($_POST['field_data_json']) && $_POST['field_data_json'] !== '') {
+        $decoded = json_decode($_POST['field_data_json'], true);
+        $rawFieldData = is_array($decoded) ? $decoded : [];
+    } else {
+        $rawFieldData = isset($_POST['field_data']) && is_array($_POST['field_data']) ? $_POST['field_data'] : [];
+    }
     $data = sanitize_field_data_from_schema($schemaFields, $rawFieldData);
     $dataJson = json_encode($data);
     $layoutJson = json_encode(build_layout_order_from_schema($schemaFields));

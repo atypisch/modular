@@ -1,0 +1,23 @@
+---
+description: Canoniek veldschema en PrimeVue-mapping. Field definition ≠ rendering. Config is single source of truth.
+globs: admin/post-types/**/*, admin/posts/edit.php, core/fields/**/*, core/functions/field*.php, admin/assets/js/post-edit-fields-app.js, docs/FIELD_*.md
+---
+
+# Modular CMS — Field Schema & Mapping (verplicht)
+
+1. **Leidende docs:** `docs/FIELD_DEFINITION_SCHEMA.md` en `docs/FIELD_MAPPING.md`. Geen afwijking.
+
+2. **Drie lagen (verplicht):**
+   - **Field Definition** (Post Type Config) = schema met type, key, label, instructions, required, default, **ui** (component + props), **storage** (format, column), **output** (php, json).
+   - **Field Renderer** (Editor UI) = leest alleen schema; rendert PrimeVue-component uit `field.ui.component` + `field.ui.props`. Geen hardcoded component-keuze op type.
+   - **Field Output** = PHP (`$post->key`) en JSON (key). Bepaalbaar uit schema.
+
+3. **PrimeVue = UI-only.** Geen data-structuur, validatie of opslag in PrimeVue. CMS bepaalt opslag en output.
+
+4. **Normalisatie:** Bij laden en bij opslaan van schema: gebruik `Modular\Fields\FieldSchemaMap::normalizeField` / `normalizeSchema` zodat elk veld `ui`, `storage`, `output` heeft (defaults uit mapping).
+
+5. **Mapping:** Elk CMS-veldtype heeft exact één PrimeVue-component en opslagformaat volgens `docs/FIELD_MAPPING.md`. Ontbrekende types: custom ontwerp gebaseerd op PrimeVue-design.
+
+6. **Geen externe dependencies.** Alles lokaal; PrimeVue/Quill uit `admin/assets/vendor/`.
+
+7. **Post Editor:** Eén Vue-app die alleen op `MODULAR_FIELD_SCHEMA` en `MODULAR_FIELD_DATA` rendert; geen fallback op type-switch in PHP voor de editor-UI (PHP mag nog wel gebruikt worden voor hidden-input-namen en sanitization).

@@ -125,6 +125,13 @@ if ($postTypeId) {
 $schemaFields = ($postTypeSchema && isset($postTypeSchema['fields']) && is_array($postTypeSchema['fields'])) ? $postTypeSchema['fields'] : [];
 $useSchemaForm = !empty($schemaFields);
 
+// Normalize to canonical schema (ui, storage, output) per docs/FIELD_DEFINITION_SCHEMA.md
+if ($useSchemaForm) {
+    require_once CORE_PATH . '/fields/FieldSchemaMap.php';
+    $normalizedSchema = \Modular\Fields\FieldSchemaMap::normalizeSchema(['fields' => $schemaFields]);
+    $schemaFields = $normalizedSchema['fields'];
+}
+
 // Load field system so schema form can render (FieldRegistry + field classes)
 if ($useSchemaForm) {
     require_once CORE_PATH . '/fields/FieldInterface.php';
@@ -169,6 +176,19 @@ require_once CORE_PATH . '/fields/HiddenField.php';
     require_once CORE_PATH . '/fields/DividerField.php';
 }
 require_once CORE_PATH . '/functions/field-form.php';
+if ($useSchemaForm) {
+    foreach ($schemaFields as &$f) {
+        $t = $f['type'] ?? '';
+        if (in_array($t, ['post_object', 'relationship', 'relation'], true)) {
+            $posts = get_posts_for_relational_field($f);
+            $f['options'] = array_map(function ($p) {
+                $label = ($p['title'] ?? '') . (isset($p['post_type_slug']) && $p['post_type_slug'] ? ' (' . $p['post_type_slug'] . ')' : '');
+                return ['label' => $label, 'value' => (int)($p['id'] ?? 0)];
+            }, $posts);
+        }
+    }
+    unset($f);
+}
 $user_is_admin = function_exists('is_admin') && is_admin();
 require_once ADMIN_PATH . '/templates/header.php';
 
@@ -222,7 +242,7 @@ $preview_slug = $postData['slug'] ?? '';
                     <div class="post-edit-fields-head">
                         <h3 style="margin: 0;">Fields</h3>
                         <?php if ($user_is_admin): ?>
-                        <p class="help-text" style="margin: 0.25rem 0 0;">Configure fields in <a href="/modular/admin/post-types/field-builder.php?id=<?php echo (int)$postTypeId; ?>">Configure fields</a>.</p>
+                        <p class="help-text" style="margin: 0.25rem 0 0;">These fields are defined in <a href="/modular/admin/post-types/field-builder.php?id=<?php echo (int)$postTypeId; ?>">Configure fields</a> for this post type.</p>
                         <?php endif; ?>
                         <?php if ($user_is_admin && $postTypeMode === 'modular'): ?>
                         <button type="button" class="btn btn-secondary btn-sm" id="add-fields-btn" style="margin-top: 0.5rem;">
@@ -231,9 +251,22 @@ $preview_slug = $postData['slug'] ?? '';
                         <?php endif; ?>
                     </div>
                     <input type="hidden" name="use_schema_form" value="1">
+                    <input type="hidden" name="field_data_json" id="field_data_json" value="">
                     <div class="post-edit-fields-area <?php echo $postTypeMode === 'modular' ? 'post-edit-fields-draggable' : ''; ?>" id="post-edit-fields-area" data-fixed="<?php echo $postTypeMode === 'fixed' ? '1' : '0'; ?>">
-                        <?php render_schema_fields_form($schemaFields, $fieldData, 'field_data'); ?>
+                        <div id="post-edit-fields-vue-app" class="modular-field-renderer-container">
+                            <noscript>
+                                <p class="help-text">JavaScript is required for the field editor. Please enable it and refresh.</p>
+                            </noscript>
+                        </div>
+                        <div id="post-edit-fields-php-fallback" style="display: none;">
+                            <?php render_schema_fields_form($schemaFields, $fieldData, 'field_data'); ?>
+                        </div>
                     </div>
+                    <script>
+                    window.MODULAR_FIELD_SCHEMA = <?php echo json_encode(['fields' => $schemaFields]); ?>;
+                    window.MODULAR_FIELD_DATA = <?php echo json_encode($fieldData); ?>;
+                    window.MODULAR_FIELD_OPTIONS = {};
+                    </script>
                 <?php else: ?>
                     <h3 style="margin-top: 0;">Component Data</h3>
                     <div class="form-group">
@@ -275,11 +308,11 @@ $preview_slug = $postData['slug'] ?? '';
                 </div>
             </div>
         </aside>
+        </div>
+        </form>
     </div>
-    </form>
-</div>
 
-<!-- Add fields modal (modular + admin only) -->
+    <!-- Add fields modal (modular + admin only) -->
 <div id="add-fields-modal" class="post-edit-modal-overlay" style="display: none;" aria-hidden="true">
     <div class="post-edit-modal-panel">
         <div class="post-edit-modal-header">
@@ -363,4 +396,9 @@ $preview_slug = $postData['slug'] ?? '';
 })();
 </script>
 
-<?php require_once ADMIN_PATH . '/templates/footer.php'; ?>
+<?php
+$additional_scripts = $useSchemaForm
+    ? '<script src="/modular/admin/assets/js/field-renderer/resolveFieldComponent.js?v=1"></script><script src="/modular/admin/assets/js/field-renderer/field-renderer-app.js?v=1"></script>'
+    : '<script src="/modular/admin/assets/js/primevue-fields.js?v=3"></script>';
+require_once ADMIN_PATH . '/templates/footer.php';
+?>

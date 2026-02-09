@@ -28,6 +28,8 @@ class WysiwygField implements FieldInterface
                 'default_value' => ['type' => 'string', 'required' => false],
                 'toolbar' => ['type' => 'string', 'default' => 'full'],
                 'media_upload' => ['type' => 'boolean', 'default' => true],
+                'tabs' => ['type' => 'string', 'default' => 'all'],
+                'delay' => ['type' => 'boolean', 'default' => false],
                 'conditional_logic' => ['type' => 'array', 'required' => false],
             ],
         ];

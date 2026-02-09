@@ -48,6 +48,11 @@ if ($schemaJson !== '') {
         echo json_encode(['error' => 'Invalid schema JSON']);
         exit;
     }
+    // Normalize to canonical schema (ui, storage, output) per docs/FIELD_DEFINITION_SCHEMA.md
+    if (is_array($schema) && !empty($schema['fields'])) {
+        require_once dirname(dirname(dirname(__DIR__))) . '/core/fields/FieldSchemaMap.php';
+        $schema = \Modular\Fields\FieldSchemaMap::normalizeSchema($schema);
+    }
 }
 
 $db = $GLOBALS['db'];
