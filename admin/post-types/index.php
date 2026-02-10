@@ -150,7 +150,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                                     </a>
                                     <a href="/modular/admin/post-types/post-types-delete.php?id=<?php echo $type['id']; ?>" 
                                        class="btn btn-sm btn-danger"
-                                       onclick="return confirm('Are you sure you want to delete this post type?');">
+                                       data-confirm="Are you sure you want to delete this post type?">
                                         <i class="fas fa-trash"></i> Delete
                                     </a>
                                 </div>

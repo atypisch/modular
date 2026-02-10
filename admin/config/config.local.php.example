@@ -1,0 +1,14 @@
+<?php
+/**
+ * MAMP (of andere lokale) override.
+ * Kopieer naar config.local.php en pas aan.
+ * config.local.php wordt niet gecommit (voeg toe aan .gitignore).
+ */
+
+// MAMP MySQL draait standaard op poort 8889
+define('DB_PORT', '8889');
+
+// Optioneel: als de app niet onder /modular draait, zet dan het juiste base path.
+// Voorbeeld: document root = htdocs/modular → BASE_PATH = '/modular'
+// Voorbeeld: vhost met document root = projectmap → BASE_PATH = ''
+// define('BASE_PATH', '/modular');

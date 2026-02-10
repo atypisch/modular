@@ -41,21 +41,25 @@ This document is the single source of truth for the Vue/PrimeVue field rendering
 | date_time_picker   | Calendar           | p-calendar    | showTime true, dateFormat yy-mm-dd HH:mm |
 | **Relation**       |                    |               |                      |
 | post_object        | Dropdown           | p-dropdown    | options (API), optionLabel, optionValue, showClear, filter |
-| relationship       | MultiSelect        | p-multiselect | options (API), filter, display chip |
-| relation           | MultiSelect        | p-multiselect | (same as relationship) |
+| relationship       | PickList           | p-picklist    | dataKey value, source/target from options; value = selected IDs |
+| relation           | PickList           | p-picklist    | (same as relationship) |
 | user               | Dropdown           | p-dropdown    | options (API), showClear, filter |
 | taxonomy           | TreeSelect         | p-treeselect  | options (tree), selectionMode (single/multiple), filter |
 | **Media**          |                    |               |                      |
 | image              | FileUpload         | p-fileupload  | mode advanced, accept image/*, customUpload |
 | file               | FileUpload         | p-fileupload  | mode advanced, accept */*, customUpload |
-| gallery            | FileUpload         | p-fileupload  | multiple true, accept image/* |
+| gallery            | Galleria           | p-galleria    | value (array of image items), numVisible, showThumbnails |
+| carousel           | Carousel           | p-carousel    | value (items), numVisible, numScroll |
+| image_compare      | ImageCompare       | p-imagecompare | leftImageSrc, rightImageSrc (slots for left/right) |
 | audio              | FileUpload         | p-fileupload  | accept audio/* |
 | video              | FileUpload         | p-fileupload  | accept video/* |
 | **Utility (no storage)** |              |               |                      |
 | message            | Message            | p-message     | severity (info) |
-| accordion          | (custom header)    | —             | label = section title |
-| tab                | (custom label)     | —             | label = tab label |
+| accordion          | Accordion          | p-accordion   | multiple (optional) |
+| tab                | Tab                | div           | header, value |
 | divider            | Divider            | p-divider     | type (solid) |
+| card               | Card               | p-card        | title, subtitle |
+| chart              | Chart              | p-chart       | type, data, options (Chart.js) |
 | **Layout**         |                    |               |                      |
 | group              | (nested fields)    | div           | sub_fields |
 | repeater           | (repeating rows)   | div           | sub_fields |

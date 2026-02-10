@@ -184,7 +184,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                                     </a>
                                     <a href="/modular/admin/posts/delete.php?id=<?php echo $post['id']; ?>" 
                                        class="btn btn-sm btn-danger"
-                                       onclick="return confirm('Are you sure you want to delete this post?');">
+                                       data-confirm="Are you sure you want to delete this post?">
                                         <i class="fas fa-trash"></i> Delete
                                     </a>
                                 </div>

@@ -132,10 +132,23 @@
 
             case 'wysiwyg':
                 result.component = 'Editor';
+                // Start from base props but ensure the editor is editable by default.
                 result.props = Object.assign({}, base, {
                     placeholder: o.placeholder || 'Write content...',
                     editorStyle: { minHeight: (o.rows || 10) * 24 + 'px' },
                 });
+                // Only apply readonly/disabled when explicitly set on the field,
+                // otherwise PrimeVue Editor ends up non-editable and toolbar buttons are disabled.
+                if (o.readonly != null) {
+                    result.props.readonly = !!o.readonly;
+                } else {
+                    delete result.props.readonly;
+                }
+                if (o.disabled != null) {
+                    result.props.disabled = !!o.disabled;
+                } else {
+                    delete result.props.disabled;
+                }
                 if (o.toolbar) result.props.toolbar = o.toolbar;
                 if (o.tabs) result.props.tabs = o.tabs;
                 break;
@@ -303,19 +316,14 @@
 
             case 'relationship':
             case 'relation':
-                result.component = 'MultiSelect';
+                result.component = 'PickList';
                 result.props = Object.assign({}, base, {
-                    options: o.options || [],
-                    optionLabel: 'label',
-                    optionValue: 'value',
-                    placeholder: o.placeholder || 'Select posts',
-                    filter: true,
-                    filterPlaceholder: 'Search',
-                    display: 'chip',
-                    maxSelectedLabels: o.max_selected_labels || 3,
-                    showToggleAll: false,
+                    dataKey: 'value',
+                    breakpoint: '1400px',
+                    listStyle: { maxHeight: '16rem' },
                 });
                 result.options = o.options || [];
+                result.pickListValue = true; // app converts modelValue (ids) <-> [source, target]
                 break;
 
             case 'user':
@@ -358,13 +366,28 @@
                 break;
 
             case 'gallery':
-                result.component = 'FileUpload';
+                result.component = 'Galleria';
                 result.props = Object.assign({}, base, {
-                    mode: o.mode || 'advanced',
-                    accept: o.accept || 'image/*',
-                    multiple: true,
-                    customUpload: true,
-                    chooseLabel: o.choose_label || 'Add images',
+                    numVisible: o.numVisible != null ? parseInt(o.numVisible, 10) : 5,
+                    containerStyle: 'max-width: 640px',
+                    showThumbnails: true,
+                });
+                result.options = o.options || [];
+                break;
+
+            case 'carousel':
+                result.component = 'Carousel';
+                result.props = Object.assign({}, base, {
+                    numVisible: o.numVisible != null ? parseInt(o.numVisible, 10) : 3,
+                    numScroll: o.numScroll != null ? parseInt(o.numScroll, 10) : 1,
+                });
+                break;
+
+            case 'image_compare':
+                result.component = 'ImageCompare';
+                result.props = Object.assign({}, base, {
+                    leftImageSrc: o.leftImageSrc || o.left || '',
+                    rightImageSrc: o.rightImageSrc || o.right || '',
                 });
                 break;
 
@@ -386,12 +409,26 @@
 
             case 'accordion':
                 result.component = 'Accordion';
-                result.props = {}; // Custom header from label
+                result.props = { multiple: !!o.multiple };
                 break;
 
             case 'tab':
                 result.component = 'Tab';
-                result.props = { header: label };
+                result.props = { header: label, value: o.value || name };
+                break;
+
+            case 'card':
+                result.component = 'Card';
+                result.props = { title: label, subtitle: o.subtitle || '' };
+                break;
+
+            case 'chart':
+                result.component = 'Chart';
+                result.props = Object.assign({}, base, {
+                    type: o.chartType || 'bar',
+                    data: o.data || {},
+                    options: o.options || {},
+                });
                 break;
 
             case 'divider':
@@ -483,6 +520,8 @@
         Divider: 'p-divider', Hidden: 'input', Group: 'div', Repeater: 'div', FlexibleContent: 'div',
         Tab: 'div', ToggleSwitch: 'p-toggleswitch', Listbox: 'p-listbox', AutoComplete: 'p-autocomplete',
         Rating: 'p-rating', ColorPicker: 'p-colorpicker', Chips: 'p-chips',
+        PickList: 'p-picklist', Galleria: 'p-galleria', Carousel: 'p-carousel', ImageCompare: 'p-imagecompare',
+        Card: 'p-card', Chart: 'p-chart',
     };
 
     function getComponentTag(componentName) {

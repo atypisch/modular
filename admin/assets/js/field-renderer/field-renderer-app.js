@@ -51,6 +51,12 @@
         'p-rating': PV.Rating,
         'p-colorpicker': PV.ColorPicker,
         'p-chips': PV.Chips,
+        'p-picklist': PV.PickList,
+        'p-galleria': PV.Galleria,
+        'p-carousel': PV.Carousel,
+        'p-imagecompare': PV.ImageCompare,
+        'p-card': PV.Card,
+        'p-chart': PV.Chart,
     };
 
     function registerAllComponents(app) {
@@ -72,6 +78,7 @@
         if (resolved.props.multiple || type === 'relationship' || type === 'relation' || type === 'chips') return [];
         if (type === 'checkbox' || type === 'true_false') return false;
         if (type === 'number' || type === 'range' || type === 'rating') return null;
+        if (type === 'gallery' || type === 'carousel' || type === 'chart') return type === 'chart' ? {} : [];
         return '';
     }
 
@@ -100,7 +107,19 @@
             watch(function () { return props.modelValue; }, function (v) { localValue.value = v; }, { immediate: true });
             watch(localValue, function (v) { context.emit('update:modelValue', v); }, { deep: true });
 
-            return { resolved: resolved, localValue: localValue };
+            // PickList (relationship) uses [[source], [target]]; we store selected IDs
+            var pickListModel = ref([[], []]);
+            watch([localValue, resolved], function () {
+                var r = resolved.value;
+                if (r.component !== 'PickList' || !r.options) return;
+                var opts = r.options || [];
+                var ids = Array.isArray(localValue.value) ? localValue.value : [];
+                var source = opts.filter(function (o) { return ids.indexOf(o.value) === -1; });
+                var target = opts.filter(function (o) { return ids.indexOf(o.value) !== -1; });
+                pickListModel.value = [source, target];
+            }, { immediate: true, deep: true });
+
+            return { resolved: resolved, localValue: localValue, pickListModel: pickListModel };
         },
         render: function (ctx) {
             var field = ctx.field;
@@ -174,8 +193,13 @@
 
             var inputClass = (resolved.props.class || '') + ' w-full ' + (resolved.styledOptions.class || '');
             var bindProps = Object.assign({}, resolved.props, {
-                modelValue: ctx.localValue,
-                'onUpdate:modelValue': function (v) { ctx.localValue = v; },
+                modelValue: tag === 'p-picklist' ? ctx.pickListModel : ctx.localValue,
+                'onUpdate:modelValue': tag === 'p-picklist'
+                    ? function (v) {
+                        ctx.pickListModel.value = v;
+                        ctx.localValue = (v && v[1]) ? v[1].map(function (x) { return x.value; }) : [];
+                    }
+                    : function (v) { ctx.localValue = v; },
                 id: id,
                 class: inputClass,
             });
@@ -185,7 +209,19 @@
                 bindProps.modelValue = bindProps.modelValue;
             }
 
-            var inputEl = tag === 'input' ? h('input', { type: 'hidden', name: 'field_data[' + (field.name || field.key) + ']', value: ctx.localValue }) : h(component, bindProps);
+            // PickList needs option slot for item label
+            var inputEl;
+            if (tag === 'p-picklist') {
+                inputEl = h(component, bindProps, {
+                    option: function (slotProps) {
+                        return slotProps.option ? slotProps.option.label : '';
+                    },
+                });
+            } else if (tag === 'input') {
+                inputEl = h('input', { type: 'hidden', name: 'field_data[' + (field.name || field.key) + ']', value: ctx.localValue });
+            } else {
+                inputEl = h(component, bindProps);
+            }
 
             var helpEl = resolved.instructions ? h('div', { class: 'help-text' }, resolved.instructions) : null;
             var validationEl = (resolved.validationMessage || field.validationMessage) ? h('div', { class: 'help-text text-danger', role: 'alert' }, resolved.validationMessage || field.validationMessage) : null;

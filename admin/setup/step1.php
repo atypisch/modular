@@ -1,88 +1,92 @@
 <?php
-// This file will contain the form for the database setup.
-// After the form is submitted, it will test the DB connection and write the details to /admin/config/database.php.
-// If successful, it will redirect to step2.php. 
+// Setup Step 1: Database configuration
+// - Check current DB connection based on config.php / config.local.php
+// - If connection fails or needs changing, show form and write overrides to config.local.php
+// - On success, continue to step2 (migrations + first admin user)
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
 require_once __DIR__ . '/../../core/config-check.php';
 
-// Check if config already exists and redirect if it does
-if (file_exists('../config/config.php')) {
-    header('Location: ../index.php');
-    exit;
-}
+$configDir        = __DIR__ . '/../config';
+$configFile       = $configDir . '/config.php';
+$configLocalFile  = $configDir . '/config.local.php';
 
-// Check directory dependencies
+// Ensure required directories are present/writable
 $directoryErrors = getDirectoryErrors();
 
-// Process form submission
+// Default values
+$db_host = '127.0.0.1';
+$db_port = '3306';
+$db_name = 'modular';
+$db_user = 'root';
+$db_pass = 'root';
+$connectionOk = false;
 $error = '';
-$success = false;
 
+// Load existing config to prefill values and inspect connection status, if present
+if (file_exists($configFile)) {
+    require_once $configFile;
+
+    if (defined('DB_HOST')) $db_host = DB_HOST;
+    if (defined('DB_PORT')) $db_port = DB_PORT;
+    if (defined('DB_NAME')) $db_name = DB_NAME;
+    if (defined('DB_USER')) $db_user = DB_USER;
+    if (defined('DB_PASS')) $db_pass = DB_PASS;
+
+    if (isset($GLOBALS['db']) && empty($directoryErrors)) {
+        $connectionOk = true;
+    } elseif (isset($GLOBALS['db_error'])) {
+        $error = 'Database connection failed: ' . $GLOBALS['db_error']->getMessage();
+    }
+}
+
+// Handle form submission: test and persist DB settings into config.local.php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($directoryErrors)) {
-    $db_host = $_POST['db_host'] ?? '';
-    $db_name = $_POST['db_name'] ?? '';
-    $db_user = $_POST['db_user'] ?? '';
-    $db_pass = $_POST['db_pass'] ?? '';
-    
-    // Validate inputs
-    if (empty($db_host) || empty($db_name) || empty($db_user)) {
+    $db_host = trim($_POST['db_host'] ?? $db_host);
+    $db_port = trim($_POST['db_port'] ?? $db_port);
+    $db_name = trim($_POST['db_name'] ?? $db_name);
+    $db_user = trim($_POST['db_user'] ?? $db_user);
+    $db_pass = $_POST['db_pass'] !== '' ? $_POST['db_pass'] : $db_pass;
+
+    if ($db_host === '' || $db_port === '' || $db_name === '' || $db_user === '') {
         $error = 'All fields except password are required.';
     } else {
-        // Test connection
         try {
-            $conn = new PDO(
-                "mysql:host=$db_host;dbname=$db_name",
-                $db_user,
-                $db_pass
-            );
-            $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            
-            // Connection successful, create config file
-            $config_content = "<?php\nreturn [\n" .
-                "    'db_host' => '" . addslashes($db_host) . "',\n" .
-                "    'db_name' => '" . addslashes($db_name) . "',\n" .
-                "    'db_user' => '" . addslashes($db_user) . "',\n" .
-                "    'db_pass' => '" . addslashes($db_pass) . "',\n" .
-                "];\n";
-            
-            // Create config directory if it doesn't exist
-            if (!file_exists('../config')) {
-                mkdir('../config', 0755, true);
+            $dsn = "mysql:host={$db_host};port={$db_port};dbname={$db_name};charset=utf8mb4";
+            $test = new PDO($dsn, $db_user, $db_pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            $test->query('SELECT 1');
+
+            if (!is_dir($configDir)) {
+                mkdir($configDir, 0755, true);
             }
-            
-            // Write config file
-            if (file_put_contents('../config/config.php', $config_content)) {
-                // Create necessary database tables
-                $tables = [
-                    "CREATE TABLE IF NOT EXISTS users (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        email VARCHAR(255) NOT NULL UNIQUE,
-                        password VARCHAR(255) NOT NULL,
-                        role VARCHAR(50) NOT NULL DEFAULT 'user',
-                        email_verified BOOLEAN DEFAULT FALSE,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )",
-                    "CREATE TABLE IF NOT EXISTS routes (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        slug VARCHAR(255) NOT NULL UNIQUE,
-                        template VARCHAR(255) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )"
-                ];
-                
-                foreach ($tables as $sql) {
-                    $conn->exec($sql);
-                }
-                
-                $success = true;
+
+            // Write config.local.php with DB_* overrides
+            $localContent = "<?php\n"
+                . "if (!defined('DB_HOST')) define('DB_HOST', '" . addslashes($db_host) . "');\n"
+                . "if (!defined('DB_PORT')) define('DB_PORT', '" . addslashes($db_port) . "');\n"
+                . "if (!defined('DB_USER')) define('DB_USER', '" . addslashes($db_user) . "');\n"
+                . "if (!defined('DB_PASS')) define('DB_PASS', '" . addslashes($db_pass) . "');\n"
+                . "if (!defined('DB_NAME')) define('DB_NAME', '" . addslashes($db_name) . "');\n";
+
+            file_put_contents($configLocalFile, $localContent);
+
+            // Re-load config to ensure $GLOBALS['db'] is initialised with new settings
+            if (file_exists($configFile)) {
+                require $configFile;
+            }
+
+            if (isset($GLOBALS['db'])) {
                 header('Location: step2.php');
                 exit;
-            } else {
-                $error = 'Could not write config file. Please check permissions.';
             }
+
+            $error = 'Configuration saved, but database connection still failed. Please verify your credentials.';
         } catch (PDOException $e) {
             $error = 'Database connection failed: ' . $e->getMessage();
         }
@@ -123,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($directoryErrors)) {
                             </h3>
                             <div class="mt-2 text-sm text-red-700">
                                 <ul class="list-disc pl-5 space-y-1">
-                                    <?php foreach ($directoryErrors as $error): ?>
-                                        <li><?php echo htmlspecialchars($error); ?></li>
+                                    <?php foreach ($directoryErrors as $msg): ?>
+                                        <li><?php echo htmlspecialchars($msg); ?></li>
                                     <?php endforeach; ?>
                                 </ul>
                             </div>
@@ -132,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($directoryErrors)) {
                     </div>
                 </div>
             <?php endif; ?>
-            
+
             <?php if ($error): ?>
                 <div class="rounded-md bg-red-50 p-4">
                     <div class="flex">
@@ -148,31 +152,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($directoryErrors)) {
                         </div>
                     </div>
                 </div>
+            <?php elseif ($connectionOk): ?>
+                <div class="rounded-md bg-green-50 p-4">
+                    <p class="text-sm text-green-700">
+                        ✓ Database connection successful. You can continue to create the first admin user.
+                    </p>
+                </div>
             <?php endif; ?>
 
             <form method="POST" class="mt-8 space-y-6" <?php if (!empty($directoryErrors)) echo 'style="opacity: 0.5; pointer-events: none;"'; ?>>
                 <div class="rounded-md shadow-sm -space-y-px">
                     <div>
                         <label for="db_host" class="sr-only">Database Host</label>
-                        <input type="text" id="db_host" name="db_host" value="localhost" required
+                        <input type="text" id="db_host" name="db_host" value="<?php echo htmlspecialchars($db_host); ?>" required
                                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                                placeholder="Database Host">
                     </div>
                     <div>
+                        <label for="db_port" class="sr-only">Database Port</label>
+                        <input type="text" id="db_port" name="db_port" value="<?php echo htmlspecialchars($db_port); ?>" required
+                               class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                               placeholder="Database Port (e.g. 3306 or 8889)">
+                    </div>
+                    <div>
                         <label for="db_name" class="sr-only">Database Name</label>
-                        <input type="text" id="db_name" name="db_name" required
+                        <input type="text" id="db_name" name="db_name" value="<?php echo htmlspecialchars($db_name); ?>" required
                                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                                placeholder="Database Name">
                     </div>
                     <div>
                         <label for="db_user" class="sr-only">Database User</label>
-                        <input type="text" id="db_user" name="db_user" required
+                        <input type="text" id="db_user" name="db_user" value="<?php echo htmlspecialchars($db_user); ?>" required
                                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                                placeholder="Database User">
                     </div>
                     <div>
                         <label for="db_pass" class="sr-only">Database Password</label>
-                        <input type="password" id="db_pass" name="db_pass"
+                        <input type="password" id="db_pass" name="db_pass" value="<?php echo htmlspecialchars($db_pass); ?>"
                                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                                placeholder="Database Password">
                     </div>
@@ -180,11 +196,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($directoryErrors)) {
 
                 <div>
                     <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Continue to Step 2
+                        Save &amp; Continue to Step 2
                     </button>
                 </div>
             </form>
         </div>
     </div>
 </body>
-</html> 
+</html>
+

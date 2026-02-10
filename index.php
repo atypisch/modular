@@ -1,13 +1,32 @@
 <?php
 require_once __DIR__ . '/core/config-check.php';
 
-// Check if Modular is installed
-$isInstalled = file_exists(__DIR__ . '/admin/config/config.php');
+$configPath = __DIR__ . '/admin/config/config.php';
+$hasConfig  = file_exists($configPath);
+$needsSetup = true;
 
-// Only redirect if accessing setup directly and already installed
-if ($isInstalled && strpos($_SERVER['REQUEST_URI'], '/admin/setup/') !== false) {
-    header('Location: ../index.php');
-    exit;
+if ($hasConfig) {
+    // Try to load config and check DB / tables
+    require_once $configPath;
+
+    if (isset($GLOBALS['db_error'])) {
+        $needsSetup = true;
+    } elseif (!isset($GLOBALS['db'])) {
+        $needsSetup = true;
+    } else {
+        // Check critical tables; if missing, we still consider it "not installed"
+        require_once __DIR__ . '/core/functions/database.php';
+        if (function_exists('check_database_tables')) {
+            $status = check_database_tables();
+            $critical = ['users', 'post_types'];
+            $missingCritical = array_intersect($critical, $status['missing'] ?? []);
+            $needsSetup = !empty($missingCritical) || !isInstalled();
+        } else {
+            $needsSetup = !isInstalled();
+        }
+    }
+} else {
+    $needsSetup = true;
 }
 ?>
 <!DOCTYPE html>
@@ -20,7 +39,7 @@ if ($isInstalled && strpos($_SERVER['REQUEST_URI'], '/admin/setup/') !== false) 
 </head>
 <body class="bg-gray-50">
     <div class="min-h-screen flex items-center justify-center">
-        <?php if (!$isInstalled): ?>
+        <?php if ($needsSetup): ?>
         <div class="max-w-md w-full mx-4">
             <div class="bg-white rounded-lg shadow-lg p-8 text-center">
                 <div class="mb-6">

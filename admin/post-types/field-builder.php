@@ -11,6 +11,7 @@ if (!defined('ADMIN_PATH')) {
 }
 require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
+require_once CORE_PATH . '/functions/subscription.php';
 require_once CORE_PATH . '/fields/FieldRegistry.php';
 
 use Modular\Fields\FieldRegistry;
@@ -58,6 +59,11 @@ if (is_string($schema)) {
 }
 $schema = is_array($schema) ? $schema : ['fields' => []];
 $mode = $postType['mode'] ?? 'fixed';
+// Enforce Fixed mode when modular_post_types feature is not available
+$modularAllowed = subscription_has_feature('modular_post_types');
+if (!$modularAllowed && $mode !== 'fixed') {
+    $mode = 'fixed';
+}
 
 // Load all post types and taxonomies for relationship/post_object field settings (select from DB)
 $availablePostTypes = [];
@@ -82,22 +88,29 @@ require_once ADMIN_PATH . '/templates/header.php';
 
 <div class="container">
     <div class="page-header" style="margin-bottom: var(--spacing-lg);">
-        <div class="flex justify-between items-center">
+        <div class="flex justify-between items-start" style="gap: 1rem;">
             <div>
-                <a href="/modular/admin/post-types/edit.php?id=<?php echo (int)$id; ?>" class="btn btn-secondary btn-sm" style="margin-bottom: 0.5rem;">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/post-types/edit.php?id=<?php echo (int)$id; ?>" class="btn btn-secondary btn-sm" style="margin-bottom: 0.5rem;">
                     <i class="fas fa-arrow-left"></i> Back to Post Type
                 </a>
                 <h1 style="margin: 0;"><?php echo $page_title; ?></h1>
                 <p style="margin: 0.5rem 0 0; color: var(--text-muted);">Configure which fields editors see when creating or editing a post of this type. Drag fields from the library to the canvas, or click to add. Click a field to edit its settings.</p>
+                <div class="flex gap-2 align-center" style="margin-top: 0.75rem;">
+                    <label class="flex align-center gap-2">
+                        <span>Mode:</span>
+                        <select id="schema-mode" class="form-control" style="width: auto;" <?php echo $modularAllowed ? '' : 'disabled'; ?>>
+                            <option value="fixed" <?php echo $mode === 'fixed' ? 'selected' : ''; ?>>Fixed</option>
+                            <option value="modular" <?php echo $mode === 'modular' ? 'selected' : ''; ?>>Modular</option>
+                        </select>
+                    </label>
+                    <?php if (!$modularAllowed): ?>
+                    <span class="help-text" style="margin-left: 0.5rem;">
+                        Modular mode is available in Pro and Agency tiers.
+                    </span>
+                    <?php endif; ?>
+                </div>
             </div>
-            <div class="flex gap-2 align-center">
-                <label class="flex align-center gap-2">
-                    <span>Mode:</span>
-                    <select id="schema-mode" class="form-control" style="width: auto;">
-                        <option value="fixed" <?php echo $mode === 'fixed' ? 'selected' : ''; ?>>Fixed</option>
-                        <option value="modular" <?php echo $mode === 'modular' ? 'selected' : ''; ?>>Modular</option>
-                    </select>
-                </label>
+            <div class="flex-shrink-0">
                 <button type="button" id="save-schema-btn" class="btn btn-primary">
                     <i class="fas fa-save"></i> Save schema
                 </button>
@@ -381,9 +394,10 @@ require_once ADMIN_PATH . '/templates/header.php';
 .settings-header-type { font-size: 0.75rem; color: var(--text-muted); }
 </style>
 
-<script src="/modular/admin/assets/js/sortable.js"></script>
+<script src="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/assets/js/sortable.js"></script>
 <script>
 (function() {
+    var MODULAR_ADMIN_URL = <?php echo json_encode(defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'); ?>;
     const postTypeId = <?php echo (int)$id; ?>;
     const fieldLibrary = <?php echo json_encode($fieldLibrary); ?>;
     const categoryOrder = <?php echo json_encode($categoryOrder); ?>;
@@ -716,7 +730,8 @@ require_once ADMIN_PATH . '/templates/header.php';
         const idx = parseInt(row.dataset.index, 10);
         if (e.target.closest('.delete-field')) {
             const label = activeFields[idx].label || activeFields[idx].name || activeFields[idx].type;
-            if (!confirm('Delete field "' + label + '"? This cannot be undone.')) return;
+            (window.ModularModal ? window.ModularModal.confirm('Delete field "' + label + '"? This cannot be undone.') : Promise.resolve(confirm('Delete field "' + label + '"? This cannot be undone.'))).then(function(ok) {
+            if (!ok) return;
             collectSettingsFromPanel();
             activeFields.splice(idx, 1);
             selectedIndex = idx >= activeFields.length ? activeFields.length - 1 : idx;
@@ -727,6 +742,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 fillSettingsForm(selectedIndex >= 0 ? selectedIndex : 0);
             }
             renderActiveFields();
+            });
             return;
         }
         if (e.target.closest('.duplicate-field')) {
@@ -779,17 +795,30 @@ require_once ADMIN_PATH . '/templates/header.php';
         payload.append('id', postTypeId);
         payload.append('mode', mode);
         payload.append('schema', JSON.stringify({ fields: activeFields }));
-        fetch('/modular/admin/post-types/field-schema-save.php', {
+        const saveUrl = (typeof MODULAR_ADMIN_URL !== 'undefined' ? MODULAR_ADMIN_URL : '/modular/admin') + '/post-types/field-schema-save.php';
+        fetch(saveUrl, {
             method: 'POST',
             body: payload,
             credentials: 'same-origin'
         })
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) alert('Error: ' + data.error);
-            else alert('Schema saved.');
+        .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text().then(function(text) {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    throw new Error('Server returned invalid JSON. Check for PHP errors.');
+                }
+            });
         })
-        .catch(() => alert('Request failed.'));
+        .then(function(data) {
+            if (data && data.error) (window.ModularModal ? window.ModularModal.alert('Error: ' + data.error) : alert('Error: ' + data.error));
+            else (window.ModularModal ? window.ModularModal.alert('Schema saved.') : alert('Schema saved.'));
+        })
+        .catch(function(err) {
+            (window.ModularModal ? window.ModularModal.alert('Request failed: ' + (err && err.message ? err.message : 'Check the console.')) : alert('Request failed: ' + (err && err.message ? err.message : 'Check the console.')));
+            console.error('Save schema failed:', err);
+        });
     });
 
     function updateLibraryInsertLine(clientY) {

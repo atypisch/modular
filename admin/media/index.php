@@ -94,7 +94,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                             </a>
                             <a href="/modular/admin/media/delete.php?id=<?php echo $item['id']; ?>" 
                                class="btn btn-sm btn-danger"
-                               onclick="return confirm('Are you sure?');">
+                               data-confirm="Are you sure?">
                                 <i class="fas fa-trash"></i>
                             </a>
                         </div>

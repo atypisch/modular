@@ -2,8 +2,8 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once dirname(dirname(__FILE__)) . '/admin/data/init.php';
-require_once dirname(dirname(__FILE__)) . '/config.php';
+// Core configuration / DB (uses migrations-based schema)
+require_once dirname(__DIR__) . '/config/config.php';
 
 $token = $_GET['token'] ?? '';
 

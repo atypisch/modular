@@ -1,69 +1,62 @@
 <?php
-// Initialize database tables
+/**
+ * Legacy helper: initialize database tables.
+ *
+ * This script now delegates to the core migration system (001_core_schema.php),
+ * so it always installs the **current** schema instead of the old init_database.sql layout.
+ */
 
-// Load required files
 if (!defined('ADMIN_PATH')) {
     require_once dirname(__DIR__) . '/config/config.php';
 }
 require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/database.php';
 
-try {
-    // Get database connection
-    $db = get_database_connection();
-    
-    // Read and execute the SQL file
-    $sql = file_get_contents(__DIR__ . '/init_database.sql');
-    
-    // Split SQL into individual statements
-    $statements = array_filter(
-        array_map(
-            'trim',
-            explode(';', $sql)
-        )
-    );
-    
-    // Execute each statement
-    foreach ($statements as $statement) {
-        if (!empty($statement)) {
-            if (!$db->query($statement)) {
-                throw new Exception("Error executing SQL: " . $db->error . "\nStatement: " . $statement);
-            }
-        }
+if (!isset($GLOBALS['db'])) {
+    die("Error: Database connection not available.\n");
+}
+
+echo "Running core migrations (001_core_schema and beyond)...\n";
+
+$result = run_pending_migrations();
+if (!empty($result['error'])) {
+    die("Migration error: " . $result['error'] . "\n");
+}
+
+if (!empty($result['ran'])) {
+    echo "Executed migrations:\n";
+    foreach ($result['ran'] as $m) {
+        echo " - {$m}\n";
     }
-    
-    echo "Database tables created successfully!\n";
-    
-    // Create default admin user if users table is empty
-    $result = $db->query("SELECT COUNT(*) as count FROM users");
-    $row = $result->fetch_assoc();
-    
-    if ($row['count'] == 0) {
-        // Create default admin user
+} else {
+    echo "No pending migrations. Schema already up to date.\n";
+}
+
+// Ensure at least one admin user exists
+try {
+    $db = $GLOBALS['db'];
+    $stmt = $db->query("SELECT COUNT(*) AS cnt FROM users");
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    if ((int)($row['cnt'] ?? 0) === 0) {
         $username = 'admin';
         $email = 'admin@example.com';
-        $password = password_hash('admin', PASSWORD_DEFAULT); // Change this in production!
-        $created_at = date('Y-m-d H:i:s');
-        $updated_at = $created_at;
-        
+        $password = password_hash('admin', PASSWORD_DEFAULT);
+
         $stmt = $db->prepare("
             INSERT INTO users 
-            (username, email, password, role, status, created_at, updated_at)
-            VALUES (?, ?, ?, 'admin', 'active', ?, ?)
+            (username, email, password, status, email_verified, created_at, updated_at)
+            VALUES (?, ?, ?, 'active', 1, NOW(), NOW())
         ");
-        
-        $stmt->bind_param('sssss', $username, $email, $password, $created_at, $updated_at);
-        
-        if ($stmt->execute()) {
-            echo "Default admin user created!\n";
-            echo "Username: admin\n";
-            echo "Password: admin\n";
-            echo "Please change these credentials immediately after first login!\n";
-        } else {
-            throw new Exception("Error creating admin user: " . $stmt->error);
-        }
+        $stmt->execute([$username, $email, $password]);
+
+        echo "Default admin user created.\n";
+        echo "Username: admin\n";
+        echo "Password: admin\n";
+        echo "Please change these credentials immediately after first login.\n";
+    } else {
+        echo "Users already present; default admin not created.\n";
     }
-    
-} catch (Exception $e) {
-    die("Error: " . $e->getMessage() . "\n");
+} catch (\Throwable $e) {
+    echo "Warning: could not ensure default admin user: " . $e->getMessage() . "\n";
 }

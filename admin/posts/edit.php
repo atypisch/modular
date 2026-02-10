@@ -321,7 +321,7 @@ $preview_slug = $postData['slug'] ?? '';
         </div>
         <div class="post-edit-modal-body">
             <p class="help-text">To add new field types to this post type, define them in Configure fields. Existing fields below can be reordered when this post type is in modular mode.</p>
-            <a href="/modular/admin/post-types/field-builder.php?id=<?php echo (int)$postTypeId; ?>" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">
+            <a href="/modular/admin/post-types/field-builder.php?id=<?php echo (int)$postTypeId; ?>" class="btn btn-primary btn-sm btn-inline" style="margin-top: 0.5rem;">
                 <i class="fas fa-cogs"></i> Configure fields
             </a>
         </div>

@@ -175,7 +175,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                                     </a>
                                     <a href="/modular/admin/taxonomies/delete.php?id=<?php echo $tax['id']; ?>" 
                                        class="btn btn-sm btn-danger"
-                                       onclick="return confirm('Are you sure you want to delete this taxonomy?');">
+                                       data-confirm="Are you sure you want to delete this taxonomy?">
                                         <i class="fas fa-trash"></i> Delete
                                     </a>
                                 </div>

@@ -114,69 +114,140 @@ require_once ADMIN_PATH . '/templates/header.php';
                 </a>
             </div>
         <?php else: ?>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Username</th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Email Verified</th>
-                        <th>Created</th>
-                        <th style="text-align: right;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($users as $user): ?>
-                        <?php
-                        $full_name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
-                        if (empty($full_name)) {
-                            $full_name = $user['username'] ?? 'N/A';
-                        }
-                        ?>
+            <form id="users-bulk-form" action="/modular/admin/users/bulk.php" method="POST">
+                <div class="users-toolbar">
+                    <div class="users-search">
+                        <input
+                            type="search"
+                            id="user-search"
+                            class="form-control"
+                            placeholder="Search by username or email">
+                    </div>
+                    <div class="users-bulk-actions">
+                        <select name="bulk_action" id="bulk-action" class="form-control" style="max-width: 200px;">
+                            <option value="">Bulk actions…</option>
+                            <option value="activate">Set active</option>
+                            <option value="deactivate">Set inactive</option>
+                            <option value="role_admin">Set role: Admin</option>
+                            <option value="role_editor">Set role: Editor</option>
+                            <option value="role_user">Set role: User</option>
+                            <option value="delete">Delete</option>
+                        </select>
+                        <button type="submit" class="btn btn-secondary btn-sm">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+
+                <table class="table table-compact" id="users-table">
+                    <thead>
                         <tr>
-                            <td><?php echo htmlspecialchars($user['id'] ?? ''); ?></td>
-                            <td><strong><?php echo htmlspecialchars($user['username'] ?? ''); ?></strong></td>
-                            <td><?php echo htmlspecialchars($full_name); ?></td>
-                            <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
-                            <td>
-                                <span class="badge badge-success"><?php echo htmlspecialchars(ucfirst($user['role'] ?? 'user')); ?></span>
-                            </td>
-                            <td>
-                                <?php if (($user['status'] ?? 'active') === 'active'): ?>
-                                    <span class="badge badge-success">Active</span>
-                                <?php else: ?>
-                                    <span class="badge badge-secondary">Inactive</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php if ($user['email_verified'] ?? 0): ?>
-                                    <span class="badge badge-success">Yes</span>
-                                <?php else: ?>
-                                    <span class="badge badge-secondary">No</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><?php echo date('Y-m-d', strtotime($user['created_at'] ?? 'now')); ?></td>
-                            <td style="text-align: right;">
-                                <div class="flex gap-2 justify-end">
-                                    <a href="/modular/admin/users/edit.php?id=<?php echo $user['id']; ?>" class="btn btn-sm btn-secondary">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </a>
-                                    <a href="/modular/admin/users/delete.php?id=<?php echo $user['id']; ?>" 
-                                       class="btn btn-sm btn-danger"
-                                       onclick="return confirm('Are you sure you want to delete this user?');">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </a>
-                                </div>
-                            </td>
+                            <th style="width: 32px; text-align: center;">
+                                <input type="checkbox" id="bulk-select-all">
+                            </th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th style="text-align: right;">Actions</th>
                         </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($users as $user): ?>
+                            <tr data-user-row data-search="<?php echo htmlspecialchars(strtolower(($user['username'] ?? '') . ' ' . ($user['email'] ?? ''))); ?>">
+                                <td style="text-align: center;">
+                                    <input
+                                        type="checkbox"
+                                        class="user-select"
+                                        name="ids[]"
+                                        value="<?php echo (int)($user['id'] ?? 0); ?>">
+                                </td>
+                                <td>
+                                    <strong><?php echo htmlspecialchars($user['username'] ?? ''); ?></strong>
+                                </td>
+                                <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
+                                <td>
+                                    <span class="badge badge-success">
+                                        <?php echo htmlspecialchars(ucfirst($user['role'] ?? 'user')); ?>
+                                    </span>
+                                </td>
+                                <td style="text-align: right;">
+                                    <div class="users-actions">
+                                        <a
+                                            href="/modular/admin/users/edit.php?id=<?php echo (int)($user['id'] ?? 0); ?>"
+                                            class="action-icon"
+                                            title="Edit user">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a
+                                            href="/modular/admin/users/delete.php?id=<?php echo (int)($user['id'] ?? 0); ?>"
+                                            class="action-icon action-icon-danger"
+                                            data-confirm="Are you sure you want to delete this user?"
+                                            title="Delete user">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </form>
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+(function() {
+    var searchInput = document.getElementById('user-search');
+    var table = document.getElementById('users-table');
+    if (searchInput && table) {
+        var rows = table.querySelectorAll('tbody tr[data-user-row]');
+        searchInput.addEventListener('input', function() {
+            var q = this.value.toLowerCase();
+            rows.forEach(function(row) {
+                var haystack = row.getAttribute('data-search') || '';
+                row.style.display = (!q || haystack.indexOf(q) !== -1) ? '' : 'none';
+            });
+        });
+    }
+
+    var selectAll = document.getElementById('bulk-select-all');
+    if (selectAll) {
+        var checkboxes = document.querySelectorAll('.user-select');
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(function(cb) {
+                cb.checked = selectAll.checked;
+            });
+        });
+    }
+
+    var bulkForm = document.getElementById('users-bulk-form');
+    var bulkAction = document.getElementById('bulk-action');
+    if (bulkForm && bulkAction) {
+        bulkForm.addEventListener('submit', function(e) {
+            if (!bulkAction.value) {
+                e.preventDefault();
+                alert('Please choose a bulk action first.');
+                return;
+            }
+            var anyChecked = false;
+            var checkboxes = bulkForm.querySelectorAll('.user-select');
+            checkboxes.forEach(function(cb) {
+                if (cb.checked) anyChecked = true;
+            });
+            if (!anyChecked) {
+                e.preventDefault();
+                alert('Please select at least one user.');
+                return;
+            }
+            if (bulkAction.value === 'delete') {
+                if (!confirm('Are you sure you want to delete the selected users?')) {
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+})();
+</script>
 
 <?php require_once ADMIN_PATH . '/templates/footer.php'; ?>

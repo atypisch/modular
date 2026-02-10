@@ -1,11 +1,13 @@
 <?php
 /**
- * Check if Modular CMS is installed
+ * Check if Modular CMS is installed.
+ * We consider the system installed once the setup flow has completed
+ * and written the installed.php marker file.
  * 
  * @return bool True if installed, false otherwise
  */
 function isInstalled() {
-    return file_exists(__DIR__ . '/../admin/config/config.php');
+    return file_exists(__DIR__ . '/../admin/config/installed.php');
 }
 
 /**

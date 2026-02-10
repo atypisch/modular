@@ -11,6 +11,7 @@ if (!defined('ADMIN_PATH')) {
 }
 require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
+require_once CORE_PATH . '/functions/subscription.php';
 
 if (!is_logged_in()) {
     header('Location: /modular/admin/auth/login.php');
@@ -41,6 +42,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $siteUrl = filter_input(INPUT_POST, 'site_url', FILTER_SANITIZE_URL) ?? '';
     $timezone = filter_input(INPUT_POST, 'timezone', FILTER_SANITIZE_STRING) ?? 'UTC';
     $language = filter_input(INPUT_POST, 'language', FILTER_SANITIZE_STRING) ?? 'en_US';
+
+    // Mail & templates
+    $mailFromName = filter_input(INPUT_POST, 'mail_from_name', FILTER_SANITIZE_STRING) ?? '';
+    $mailFromAddress = filter_input(INPUT_POST, 'mail_from_address', FILTER_SANITIZE_EMAIL) ?? '';
+    $passwordResetSubject = filter_input(INPUT_POST, 'email_template_password_reset_subject', FILTER_SANITIZE_STRING) ?? '';
+    $passwordResetBody = $_POST['email_template_password_reset_body'] ?? '';
+
+    // License & Dev Mode
+    $licenseTier = filter_input(INPUT_POST, 'license_tier', FILTER_SANITIZE_STRING) ?? 'free';
+    $licenseKey = filter_input(INPUT_POST, 'license_key', FILTER_SANITIZE_STRING) ?? '';
+    $devModeEnabled = isset($_POST['dev_mode_enabled']) ? '1' : '0';
+    $devModeTierOverride = filter_input(INPUT_POST, 'dev_mode_tier_override', FILTER_SANITIZE_STRING) ?? '';
     
     try {
         $updateStmt = $db->prepare("
@@ -54,6 +67,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateStmt->execute(['site_url', $siteUrl, $siteUrl]);
         $updateStmt->execute(['timezone', $timezone, $timezone]);
         $updateStmt->execute(['language', $language, $language]);
+
+        // Mail settings
+        $updateStmt->execute(['mail_from_name', $mailFromName, $mailFromName]);
+        $updateStmt->execute(['mail_from_address', $mailFromAddress, $mailFromAddress]);
+        $updateStmt->execute(['email_template.password_reset.subject', $passwordResetSubject, $passwordResetSubject]);
+        $updateStmt->execute(['email_template.password_reset.body', $passwordResetBody, $passwordResetBody]);
+
+        // License + Dev Mode (autoloaded)
+        $updateStmt->execute(['license_tier', strtolower($licenseTier), strtolower($licenseTier)]);
+        $updateStmt->execute(['license_key', $licenseKey, $licenseKey]);
+        $updateStmt->execute(['dev_mode_enabled', $devModeEnabled, $devModeEnabled]);
+        $updateStmt->execute(['dev_mode_tier_override', strtolower($devModeTierOverride), strtolower($devModeTierOverride)]);
         
         $_SESSION['success'] = 'Settings saved successfully.';
         header('Location: /modular/admin/settings');
@@ -126,6 +151,109 @@ require_once ADMIN_PATH . '/templates/header.php';
                 </select>
                 <div class="help-text">The default language for your site.</div>
             </div>
+
+            <hr class="section-divider">
+
+            <h2 style="margin-top: var(--spacing-md);">Email</h2>
+
+            <div class="form-group">
+                <label for="mail_from_name">From Name</label>
+                <input type="text" name="mail_from_name" id="mail_from_name" class="form-control"
+                       value="<?php echo htmlspecialchars($settings['mail_from_name'] ?? 'Modular CMS'); ?>">
+                <div class="help-text">Name shown in the "From" field of outgoing emails.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="mail_from_address">From Address</label>
+                <input type="email" name="mail_from_address" id="mail_from_address" class="form-control"
+                       value="<?php echo htmlspecialchars($settings['mail_from_address'] ?? 'noreply@example.com'); ?>">
+                <div class="help-text">Email address used for outgoing system emails.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="email_template_password_reset_subject">Password Reset – Subject</label>
+                <input type="text" name="email_template_password_reset_subject" id="email_template_password_reset_subject" class="form-control"
+                       value="<?php echo htmlspecialchars($settings['email_template.password_reset.subject'] ?? 'Password Reset Request'); ?>">
+                <div class="help-text">
+                    You can use variables like <code>{{reset_link}}</code>.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="email_template_password_reset_body">Password Reset – Body</label>
+                <textarea name="email_template_password_reset_body" id="email_template_password_reset_body" rows="6" class="form-control"><?php
+                    echo htmlspecialchars($settings['email_template.password_reset.body'] ??
+"Hello,
+
+You have requested to reset your password. Please click the following link to reset it:
+
+{{reset_link}}
+
+This link will expire in 1 hour.
+
+If you did not request this password reset, please ignore this email.
+
+Best regards,
+Modular CMS Team");
+                ?></textarea>
+                <div class="help-text">
+                    Available variables: <code>{{reset_link}}</code>. Plain text only for now.
+                </div>
+            </div>
+
+            <hr class="section-divider">
+
+            <h2 style="margin-top: var(--spacing-md);">License &amp; Dev Mode</h2>
+
+            <div class="form-group">
+                <label for="license_tier">License Tier</label>
+                <select name="license_tier" id="license_tier" class="form-control">
+                    <?php
+                    $currentTier = subscription_base_tier();
+                    ?>
+                    <option value="free" <?php echo $currentTier === 'free' ? 'selected' : ''; ?>>Free</option>
+                    <option value="pro" <?php echo $currentTier === 'pro' ? 'selected' : ''; ?>>Pro</option>
+                    <option value="agency" <?php echo $currentTier === 'agency' ? 'selected' : ''; ?>>Agency</option>
+                </select>
+                <div class="help-text">Sets the licensed tier for this installation.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="license_key">License Key</label>
+                <input type="text" name="license_key" id="license_key" class="form-control"
+                       value="<?php echo htmlspecialchars($settings['license_key'] ?? ''); ?>">
+                <div class="help-text">Optional license key or contract reference. Not sent anywhere automatically.</div>
+            </div>
+
+            <?php if (function_exists('is_admin') && is_admin()): ?>
+            <div class="form-group">
+                <label for="dev_mode_enabled">Dev Mode</label>
+                <div class="checkbox-group">
+                    <input type="checkbox" name="dev_mode_enabled" id="dev_mode_enabled" value="1"
+                           <?php echo dev_mode_enabled() ? 'checked' : ''; ?>>
+                    <label for="dev_mode_enabled">
+                        <strong>Enable Dev Mode (admins only)</strong>
+                        <div class="help-text">
+                            Allows simulating another tier for testing feature gating. Should be disabled in production.
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="dev_mode_tier_override">Dev Mode Tier Override</label>
+                <?php $override = $settings['dev_mode_tier_override'] ?? ''; ?>
+                <select name="dev_mode_tier_override" id="dev_mode_tier_override" class="form-control">
+                    <option value="" <?php echo $override === '' ? 'selected' : ''; ?>>None (use licensed tier)</option>
+                    <option value="free" <?php echo $override === 'free' ? 'selected' : ''; ?>>Free</option>
+                    <option value="pro" <?php echo $override === 'pro' ? 'selected' : ''; ?>>Pro</option>
+                    <option value="agency" <?php echo $override === 'agency' ? 'selected' : ''; ?>>Agency</option>
+                </select>
+                <div class="help-text">
+                    When Dev Mode is enabled, use this tier for gating checks.
+                </div>
+            </div>
+            <?php endif; ?>
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">

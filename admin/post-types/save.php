@@ -9,8 +9,8 @@ if (!defined('ADMIN_PATH')) {
     require_once dirname(__DIR__) . '/config/config.php';
 }
 require_once dirname(__DIR__) . '/bootstrap.php';
-require_once dirname(__DIR__) . '/data/init.php'; // Ensure database is initialized
 require_once CORE_PATH . '/functions/auth.php';
+require_once CORE_PATH . '/functions/subscription.php';
 require_once CORE_PATH . '/classes/PostType.php';
 require_once CORE_PATH . '/classes/Taxonomy.php';
 
@@ -34,6 +34,15 @@ $post_type = [
     'public' => isset($_POST['public']) ? 1 : 0,
     'show_in_menu' => isset($_POST['show_in_menu']) ? 1 : 0
 ];
+
+// Default mode for new post types is 'fixed'; only allow 'modular' when feature is enabled.
+$requestedMode = isset($_POST['mode']) ? trim($_POST['mode']) : 'fixed';
+if (!in_array($requestedMode, ['fixed', 'modular'], true)) {
+    $requestedMode = 'fixed';
+}
+if ($requestedMode === 'modular' && !subscription_has_feature('modular_post_types')) {
+    $requestedMode = 'fixed';
+}
 
 // Validate required fields
 if (empty($post_type['name'])) {
@@ -87,9 +96,12 @@ try {
             }
         }
         
-        $_SESSION['success'] = 'Post type created successfully.';
+        $_SESSION['success'] = 'Post type created successfully. Now configure its fields.';
+        // After creating a new post type, go straight to the Field Builder
+        header('Location: /modular/admin/post-types/field-builder.php?id=' . (int)$newId);
+        exit;
     }
-    
+    // For updates, go back to the post types list
     header('Location: /modular/admin/post-types');
     exit;
     

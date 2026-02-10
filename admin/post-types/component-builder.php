@@ -493,7 +493,7 @@ function saveComponents() {
         }
     })
     .catch(error => {
-        alert('Error: ' + error.message);
+        (window.ModularModal ? window.ModularModal.alert('Error: ' + error.message) : alert('Error: ' + error.message));
     });
 }
 

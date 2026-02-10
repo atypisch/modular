@@ -49,6 +49,18 @@ class PostType {
             // Get current user ID for created_by/updated_by
             $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 1;
             
+            // Determine mode (fixed / modular), with feature gating
+            $mode = isset($data['mode']) ? trim($data['mode']) : 'fixed';
+            if (!in_array($mode, ['fixed', 'modular'], true)) {
+                $mode = 'fixed';
+            }
+            if (!function_exists('subscription_has_feature')) {
+                @require_once CORE_PATH . '/functions/subscription.php';
+            }
+            if ($mode === 'modular' && function_exists('subscription_has_feature') && !subscription_has_feature('modular_post_types')) {
+                $mode = 'fixed';
+            }
+            
             // Build supports JSON from individual support flags or use provided supports
             $supports = [];
             if (isset($data['supports']) && is_array($data['supports'])) {
@@ -61,10 +73,10 @@ class PostType {
             }
 
             $sql = "INSERT INTO {$this->table} (
-                name, slug, description, public, show_in_menu, supports,
+                name, slug, description, public, show_in_menu, supports, mode,
                 created_by, updated_by, created_at, updated_at
             ) VALUES (
-                :name, :slug, :description, :public, :show_in_menu, :supports,
+                :name, :slug, :description, :public, :show_in_menu, :supports, :mode,
                 :created_by, :updated_by, NOW(), NOW()
             )";
 
@@ -77,6 +89,7 @@ class PostType {
                 ':public' => isset($data['public']) ? (int)$data['public'] : (isset($data['is_public']) ? (int)$data['is_public'] : 1),
                 ':show_in_menu' => isset($data['show_in_menu']) ? (int)$data['show_in_menu'] : 1,
                 ':supports' => json_encode($supports),
+                ':mode' => $mode,
                 ':created_by' => $user_id,
                 ':updated_by' => $user_id
             ]);
@@ -208,6 +221,21 @@ class PostType {
             // Get current user ID for updated_by
             $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 1;
             
+            // Determine mode with feature gating; fall back to existing if not provided
+            $mode = $existing['mode'] ?? 'fixed';
+            if (isset($data['mode'])) {
+                $candidate = trim($data['mode']);
+                if (in_array($candidate, ['fixed', 'modular'], true)) {
+                    $mode = $candidate;
+                }
+            }
+            if (!function_exists('subscription_has_feature')) {
+                @require_once CORE_PATH . '/functions/subscription.php';
+            }
+            if ($mode === 'modular' && function_exists('subscription_has_feature') && !subscription_has_feature('modular_post_types')) {
+                $mode = 'fixed';
+            }
+            
             // Build supports JSON
             $supports = [];
             if (isset($data['supports']) && is_array($data['supports'])) {
@@ -233,6 +261,7 @@ class PostType {
                 public = :public,
                 show_in_menu = :show_in_menu,
                 supports = :supports,
+                mode = :mode,
                 updated_by = :updated_by,
                 updated_at = NOW()
                 WHERE id = :id";
@@ -247,6 +276,7 @@ class PostType {
                 ':public' => isset($data['public']) ? (int)$data['public'] : (isset($data['is_public']) ? (int)$data['is_public'] : (int)$existing['public']),
                 ':show_in_menu' => isset($data['show_in_menu']) ? (int)$data['show_in_menu'] : (int)($existing['show_in_menu'] ?? 1),
                 ':supports' => json_encode($supports),
+                ':mode' => $mode,
                 ':updated_by' => $user_id
             ]);
         } catch (\PDOException $e) {

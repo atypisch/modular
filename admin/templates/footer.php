@@ -4,8 +4,8 @@
 
     <?php if (!$is_auth_page): ?>
     <footer class="cms-footer">
-        <a href="/modular/public/" class="cms-footer-logo" title="Modular CMS">
-            <img src="/modular/ontwerp/logo_modular.svg" alt="Modular CMS" width="80" height="24">
+        <a href="<?php echo SITE_URL; ?>/public/" class="cms-footer-logo" title="Modular CMS">
+            <img src="<?php echo SITE_URL; ?>/ontwerp/logo_modular.svg" alt="Modular CMS" width="80" height="24">
         </a>
     </footer>
     <?php endif; ?>

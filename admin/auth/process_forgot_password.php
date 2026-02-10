@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
+require_once CORE_PATH . '/functions/mail.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'] ?? '';
@@ -56,23 +57,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new PDOException("Failed to update reset token");
         }
 
-        // Send the reset email
+        // Send the reset email via centralized mail helper
         $reset_link = SITE_URL . "/admin/auth/reset_password.php?token=" . $token;
         error_log("Reset link: " . $reset_link);
-        
-        $subject = "Password Reset Request";
-        $message = "Hello,\n\n";
-        $message .= "You have requested to reset your password. Please click the following link to reset it:\n\n";
-        $message .= $reset_link . "\n\n";
-        $message .= "This link will expire in 1 hour.\n\n";
-        $message .= "If you did not request this password reset, please ignore this email.\n\n";
-        $message .= "Best regards,\nModular CMS Team";
 
-        $headers = 'From: noreply@modular.com' . "\r\n" .
-                  'Reply-To: noreply@modular.com' . "\r\n" .
-                  'X-Mailer: PHP/' . phpversion();
+        $sent = mail_send_template('password_reset', $email, [
+            'reset_link' => $reset_link,
+            'subject_fallback' => 'Password Reset Request',
+            'body_fallback' => "Hello,\n\nYou have requested to reset your password. Please click the following link to reset it:\n\n{$reset_link}\n\nThis link will expire in 1 hour.\n\nIf you did not request this password reset, please ignore this email.\n\nBest regards,\nModular CMS Team",
+        ]);
 
-        if (mail($email, $subject, $message, $headers)) {
+        if ($sent) {
             $_SESSION['success'] = 'A password reset link has been sent to your email address.';
         } else {
             $_SESSION['error'] = 'Failed to send reset email. Please try again later.';

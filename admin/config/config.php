@@ -3,6 +3,12 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Optional local override (e.g. for MAMP: DB_PORT 8889, BASE_PATH)
+$configLocalPath = __DIR__ . '/config.local.php';
+if (file_exists($configLocalPath)) {
+    require_once $configLocalPath;
+}
+
 // Configure session settings for better persistence
 if (session_status() === PHP_SESSION_NONE) {
     // Set session cookie parameters before starting session
@@ -21,14 +27,18 @@ define('PUBLIC_PATH', MODULAR_PATH . '/public');
 define('THEMES_PATH', MODULAR_PATH . '/public/themes');
 define('DEFAULT_THEME', 'default');
 
-// Database configuration
-define('DB_HOST', '127.0.0.1');
-define('DB_PORT', '3306'); // Default MySQL port, change to 8889 for MAMP
-define('DB_USER', 'root');
-define('DB_PASS', 'root');
-define('DB_NAME', 'modular');
+// Setup helpers (isInstalled, directory checks)
+require_once CORE_PATH . '/config-check.php';
 
-// Create database connection with error handling
+// Database configuration (override in config.local.php for MAMP)
+if (!defined('DB_HOST')) define('DB_HOST', '127.0.0.1');
+if (!defined('DB_PORT')) define('DB_PORT', '3306'); // MAMP: 8889
+if (!defined('DB_USER')) define('DB_USER', 'root');
+if (!defined('DB_PASS')) define('DB_PASS', 'root');
+if (!defined('DB_NAME')) define('DB_NAME', 'modular');
+
+// Create database connection with error handling.
+// During setup we want to detect connection errors without hard-dying.
 try {
     $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4";
     $db = new PDO(
@@ -48,21 +58,34 @@ try {
     // Make database connection available globally
     $GLOBALS['db'] = $db;
 
-    // Run pending migrations so post_types.mode/schema, posts.data/layout etc. exist
+} catch(PDOException $e) {
+    $GLOBALS['db_error'] = $e;
+}
+
+// Only run migrations when we're in the admin area and not on the setup flow.
+// Otherwise, visiting / would recreate tables and show "Go to Admin" instead of setup;
+// and visiting /admin/setup/ would recreate tables before the user completes step 2.
+$requestUri = $_SERVER['REQUEST_URI'] ?? '';
+$isAdminRequest = (strpos($requestUri, '/admin') !== false);
+$isSetupRequest = (strpos($requestUri, '/admin/setup') !== false);
+if (isset($GLOBALS['db']) && function_exists('isInstalled') && isInstalled() && $isAdminRequest && !$isSetupRequest) {
     require_once CORE_PATH . '/functions/database.php';
     if (function_exists('run_pending_migrations')) {
         run_pending_migrations();
     }
-
-} catch(PDOException $e) {
-    die("Database connection failed: " . $e->getMessage());
 }
 
-// Set up URLs
+// Set up URLs: base path for assets/links (auto-detect or from config.local.php)
+if (!defined('BASE_PATH')) {
+    $script = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '';
+    $pos = strpos($script, '/admin');
+    define('BASE_PATH', $pos !== false ? rtrim(substr($script, 0, $pos), '/') : '/modular');
+}
 $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-define('SITE_URL', $protocol . '://' . $host . '/modular');
+define('SITE_URL', $protocol . '://' . $host . BASE_PATH);
 define('ADMIN_URL', SITE_URL . '/admin');
+define('ADMIN_BASE_PATH', BASE_PATH . '/admin');
 
 // Define asset paths
 define('ADMIN_ASSETS_PATH', ADMIN_URL . '/assets');

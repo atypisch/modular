@@ -1,33 +1,40 @@
 <?php
-// This file will contain the form to register the first admin user.
-// After the form is submitted, it will save the user into the database, with role = "admin", and email_verified = true.
-// It will then log the user in automatically (session-based) and redirect to /admin/dashboard.php. 
+// Setup Step 2: Create first admin user and run migrations.
+// - Assumes DB connection is configured in admin/config/config.php (+config.local.php)
+// - On POST: run migrations (creates tables) and create an admin user, then log in and mark installed.
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
 require_once __DIR__ . '/../../core/config-check.php';
 
-// Check if config exists, if not redirect to step 1
-if (!file_exists('../config/config.php')) {
+$configFile = __DIR__ . '/../config/config.php';
+
+if (!file_exists($configFile)) {
     header('Location: step1.php');
     exit;
 }
 
-// Load config
-$config = require '../config/config.php';
+require_once $configFile;
 
-// Process form submission
+// If we still don't have a DB connection, redirect back to step1
+if (!isset($GLOBALS['db'])) {
+    $_SESSION['error'] = 'Database connection is not configured. Please complete Step 1 first.';
+    header('Location: step1.php');
+    exit;
+}
+
+$db = $GLOBALS['db'];
+
 $error = '';
-$success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = $_POST['email'] ?? '';
-    $password = $_POST['password'] ?? '';
+    $email            = $_POST['email'] ?? '';
+    $password         = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
-    
-    // Validate inputs
-    if (empty($email) || empty($password) || empty($confirm_password)) {
+
+    if ($email === '' || $password === '' || $confirm_password === '') {
         $error = 'All fields are required.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Please enter a valid email address.';
@@ -37,40 +44,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Passwords do not match.';
     } else {
         try {
-            // Connect to database
-            $conn = new PDO(
-                "mysql:host={$config['db_host']};dbname={$config['db_name']}",
-                $config['db_user'],
-                $config['db_pass']
-            );
-            $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            
-            // Check if user already exists
-            $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-            $stmt->execute([$email]);
-            if ($stmt->fetch()) {
-                $error = 'This email is already registered.';
-            } else {
-                // Create admin user
-                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $conn->prepare(
-                    "INSERT INTO users (email, password, role, email_verified) 
-                     VALUES (?, ?, 'admin', TRUE)"
-                );
-                if ($stmt->execute([$email, $hashed_password])) {
-                    // Start session and redirect to admin dashboard
-                    $_SESSION['user_id'] = $conn->lastInsertId();
-                    $_SESSION['user_email'] = $email;
-                    $_SESSION['user_role'] = 'admin';
-                    
-                    header('Location: ../index.php');
-                    exit;
-                } else {
-                    $error = 'Failed to create admin user.';
+            // 1) Run core migrations (creates all tables)
+            require_once CORE_PATH . '/functions/database.php';
+            if (function_exists('run_pending_migrations')) {
+                $result = run_pending_migrations();
+                if (!empty($result['error'])) {
+                    throw new Exception('Migration error: ' . $result['error']);
                 }
             }
-        } catch (PDOException $e) {
-            $error = 'Database error: ' . $e->getMessage();
+
+            // 2) Ensure there is no existing user with this email
+            $stmt = $db->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+            $stmt->execute([$email]);
+            if ($stmt->fetchColumn()) {
+                throw new Exception('This email is already registered.');
+            }
+
+            // 3) Create admin user
+            $hashed = password_hash($password, PASSWORD_DEFAULT);
+            $username = strstr($email, '@', true) ?: $email;
+
+            $stmt = $db->prepare("
+                INSERT INTO users (username, email, password, status, email_verified, created_at, updated_at)
+                VALUES (?, ?, ?, 'active', 1, NOW(), NOW())
+            ");
+            $stmt->execute([$username, $email, $hashed]);
+            $userId = (int) $db->lastInsertId();
+
+            // 4) Attach admin role if roles table exists
+            try {
+                $roleId = $db->query("SELECT id FROM roles WHERE name = 'admin' LIMIT 1")->fetchColumn();
+                if ($roleId) {
+                    $linkStmt = $db->prepare("INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)");
+                    $linkStmt->execute([$userId, $roleId]);
+                }
+            } catch (Throwable $ignored) {
+                // If roles table doesn't exist for some reason, we still proceed;
+                // is_admin() will fall back to session role.
+            }
+
+            // 5) Mark system as installed
+            $installedPath = __DIR__ . '/../config/installed.php';
+            @file_put_contents($installedPath, "<?php\nreturn true;\n");
+
+            // 6) Log the user in as admin
+            $_SESSION['user_id']    = $userId;
+            $_SESSION['user_email'] = $email;
+            $_SESSION['user_name']  = $username;
+            $_SESSION['user_role']  = 'admin';
+
+            header('Location: ../index.php');
+            exit;
+        } catch (Throwable $e) {
+            $error = $e->getMessage();
         }
     }
 }
@@ -122,15 +148,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div>
                         <label for="password" class="sr-only">Password</label>
-                        <input type="password" id="password" name="password" 
-                               required minlength="8"
+                        <input type="password" id="password" name="password" required minlength="8"
                                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                                placeholder="Password (minimum 8 characters)">
                     </div>
                     <div>
                         <label for="confirm_password" class="sr-only">Confirm Password</label>
-                        <input type="password" id="confirm_password" name="confirm_password" 
-                               required minlength="8"
+                        <input type="password" id="confirm_password" name="confirm_password" required minlength="8"
                                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                                placeholder="Confirm Password">
                     </div>
@@ -145,4 +169,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </body>
-</html> 
+</html>
+

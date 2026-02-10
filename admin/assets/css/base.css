@@ -58,10 +58,10 @@
     --sidebar-width: 220px;
     --sidebar-width-collapsed: 64px;
 
-    /* Button colors - subtle green scheme */
-    --btn-default-bg: #1e4d1a;
-    --btn-default-text: #c5e0bd;
-    --btn-hover-bg: #4a7c2a;
+    /* Button colors - teal accents */
+    --btn-default-bg: #71C1D2;
+    --btn-default-text: #ffffff;
+    --btn-hover-bg: #77D0E4;
     --btn-hover-text: #ffffff;
     --warning-bg: #fffbeb;
     --warning-text: #92400e;
@@ -183,14 +183,17 @@ body:not(.auth-page) {
 
 .sidebar-nav > ul > li > a:hover {
     background: var(--background-subtle);
-    color: var(--primary-color);
-    border-left-color: var(--primary-light);
+    color: var(--text-color);
+    border-left-color: #71C1D2; /* hover stripe – same as inactive button */
+}
+.sidebar-nav > ul > li > a:hover i {
+    color: #71C1D2;
 }
 
 .sidebar-nav > ul > li > a.active {
     background: var(--background-subtle);
-    color: var(--primary-color);
-    border-left-color: var(--primary-color);
+    color: var(--text-color);
+    border-left-color: #77D0E4; /* active stripe in lighter teal */
     font-weight: 500;
 }
 
@@ -203,6 +206,7 @@ body:not(.auth-page) {
 
 .sidebar-nav > ul > li > a.active i {
     opacity: 1;
+    color: #77D0E4; /* active icon in accent color */
 }
 
 /* Sub-navigation */
@@ -602,6 +606,10 @@ input[type="radio"] {
     white-space: nowrap;
 }
 
+.btn-inline {
+    width: auto;
+}
+
 .btn-primary,
 .btn-secondary {
     background: var(--btn-default-bg);
@@ -692,6 +700,64 @@ input[type="radio"] {
 
 .table tbody tr:hover {
     background: var(--background-subtle);
+}
+
+/* Compact table variant for dense overviews */
+.table-compact th,
+.table-compact td {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+/* Users toolbar above table */
+.users-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.users-search {
+    flex: 1 1 260px;
+    max-width: 360px;
+}
+
+.users-bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.users-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    color: var(--text-color-light);
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.action-icon:hover,
+.action-icon:focus-visible {
+    color: var(--primary-color-stronger);
+    background: rgba(15, 23, 42, 0.04);
+}
+
+.action-icon-danger:hover,
+.action-icon-danger:focus-visible {
+    color: var(--error-text);
+    background: rgba(220, 38, 38, 0.06);
 }
 
 /* Alerts */
@@ -866,14 +932,41 @@ input[type="radio"] {
 /* Empty State */
 .empty-state {
     text-align: center;
-    padding: var(--spacing-2xl);
+    padding: var(--spacing-lg);
     color: var(--text-color-light);
 }
 
-.empty-state i {
-    font-size: 3rem;
-    margin-bottom: var(--spacing-lg);
+/* Only the large decorative icon (direct child), not the button icon */
+.empty-state > i {
+    font-size: 2.25rem;
+    margin-bottom: var(--spacing-md);
     opacity: 0.3;
+}
+
+.empty-state .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.95rem;
+    background: #f3f4f6;
+    color: #6b7280;
+    border-color: #e5e7eb;
+}
+
+.empty-state .btn i {
+    font-size: 0.8em;
+    color: inherit;
+}
+
+.empty-state .btn:hover {
+    background: #e5e7eb;
+    color: #4b5563;
+    border-color: #d1d5db;
+}
+
+.empty-state .btn:hover i {
+    color: inherit;
 }
 
 /* Loading State */
@@ -909,6 +1002,29 @@ input[type="radio"] {
 .badge-error {
     background: var(--error-bg);
     color: var(--error-text);
+}
+
+/* Toolbar dev badge (subtle, sticky header) */
+.toolbar-devbadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: #f0f9fb;
+    border: 1px solid #5E959C;
+    color: #335058;
+    font-size: 0.75rem;
+}
+
+.toolbar-devbadge-label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.toolbar-devbadge-text {
+    opacity: 0.9;
 }
 
 .badge-warning {

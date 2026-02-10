@@ -12,9 +12,17 @@ if (!defined('ADMIN_PATH')) {
 }
 require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
+require_once CORE_PATH . '/functions/subscription.php';
 
 if (!is_logged_in()) {
     header('Location: /modular/admin/auth/login.php');
+    exit;
+}
+// Feature gating: Actions/automations are Pro+ only (except for super admins)
+if (!subscription_has_feature('automations') && !(function_exists('is_admin') && is_admin())) {
+    // Soft, informational warning instead of hard red error
+    $_SESSION['warning'] = 'Actions & automation are available in Pro and Agency tiers.';
+    header('Location: /modular/admin/index.php');
     exit;
 }
 
@@ -398,7 +406,7 @@ document.getElementById('action-form').addEventListener('submit', function(e) {
     .then(response => response.json())
     .then(result => {
         if (result.error) {
-            alert('Error: ' + result.error);
+            (window.ModularModal ? window.ModularModal.alert('Error: ' + result.error) : alert('Error: ' + result.error));
         } else {
             closeModal();
             location.reload();
@@ -449,8 +457,8 @@ function toggleAction(id, enabled) {
 }
 
 function deleteAction(id) {
-    if (!confirm('Are you sure you want to delete this action?')) return;
-    
+    (window.ModularModal ? window.ModularModal.confirm('Are you sure you want to delete this action?') : Promise.resolve(confirm('Are you sure you want to delete this action?'))).then(function(ok) {
+        if (!ok) return;
     fetch('/modular/admin/api/index.php/api/v1/actions/' + id, {
         method: 'DELETE',
         headers: {
@@ -458,6 +466,7 @@ function deleteAction(id) {
         }
     })
     .then(() => location.reload());
+    });
 }
 
 function getCookie(name) {

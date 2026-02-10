@@ -10,6 +10,7 @@ if (!defined('ADMIN_PATH')) {
 }
 require_once CORE_PATH . '/functions/admin.php';
 require_once CORE_PATH . '/functions/database.php';
+require_once CORE_PATH . '/functions/subscription.php';
 
 // Check database installation status (only if not on install page)
 $db_install_needed = false;
@@ -50,13 +51,12 @@ if (!isset($posts_active)) {
 if (!$posts_active) {
     // Check post types (but not if we're on posts page)
     // Also exclude if we're on a posts page (double check)
-    $post_types_active = !$posts_active && (is_post_types_page() || strpos($current_path, '/modular/admin/taxonomies') !== false);
+    $adminBase = defined('ADMIN_BASE_PATH') ? ADMIN_BASE_PATH : '/modular/admin';
+    $post_types_active = !$posts_active && (is_post_types_page() || strpos($current_path, $adminBase . '/taxonomies') !== false);
     
     // Only check dashboard if not on post types or posts
     if (!$post_types_active) {
-        // Dashboard only when path is exactly /modular/admin or starts with /modular/admin/dashboard
-        // (Do NOT use check_active_path('/modular/admin') - it matches every admin page)
-        $dashboard_active = ($current_path === '/modular/admin' || $current_path === '/modular/admin/' || strpos($current_path, '/modular/admin/dashboard') === 0);
+        $dashboard_active = ($current_path === $adminBase || $current_path === $adminBase . '/' || strpos($current_path, $adminBase . '/dashboard') === 0);
     } else {
         $dashboard_active = false;
     }
@@ -95,7 +95,7 @@ if (!$posts_active) {
 }
 
 // Check if this is an auth page
-$is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
+$is_auth_page = strpos($current_path, (defined('ADMIN_BASE_PATH') ? ADMIN_BASE_PATH : '/modular/admin') . '/auth/') !== false;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -106,58 +106,60 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title><?php echo isset($page_title) ? $page_title . ' - Modular CMS' : 'Modular CMS'; ?></title>
-    <link rel="icon" href="/modular/ontwerp/favicon_modular.svg" type="image/svg+xml">
+    <link rel="icon" href="<?php echo SITE_URL; ?>/ontwerp/favicon_modular.svg" type="image/svg+xml">
     
     <!-- Base CSS -->
-    <link rel="stylesheet" href="/modular/admin/assets/css/base.css">
-    <link rel="stylesheet" href="/modular/admin/assets/css/form.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/base.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/form.css">
     <?php if (!$is_auth_page): ?>
-    <link rel="stylesheet" href="/modular/admin/assets/css/layout.css">
-    <link rel="stylesheet" href="/modular/admin/assets/css/components.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/layout.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/components.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/modal.css">
     <?php endif; ?>
     <?php if ($is_auth_page): ?>
-    <link rel="stylesheet" href="/modular/admin/assets/css/auth.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/auth.css">
     <?php endif; ?>
-    <link rel="stylesheet" href="/modular/admin/assets/css/responsive.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/responsive.css">
     
     <!-- Font Awesome (local; run admin/assets/vendor/download-vendor.sh once) -->
-    <link rel="stylesheet" href="/modular/admin/assets/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/vendor/fontawesome/css/all.min.css">
     
     <?php if (!$is_auth_page): ?>
     <!-- jQuery (local) -->
-    <script src="/modular/admin/assets/vendor/jquery/jquery-3.6.0.min.js"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/vendor/jquery/jquery-3.6.0.min.js"></script>
     
     <!-- SortableJS (local) -->
-    <script src="/modular/admin/assets/vendor/sortablejs/Sortable.min.js"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/vendor/sortablejs/Sortable.min.js"></script>
     
     <!-- Vue 3 + PrimeVue (local; run admin/assets/vendor/download-vendor.sh for Quill if using Editor) -->
-    <script src="/modular/admin/assets/vendor/vue/vue.global.prod.js"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/vendor/vue/vue.global.prod.js"></script>
     <?php
     $quill_js = ADMIN_PATH . '/assets/vendor/quill/quill.min.js';
     $quill_css = ADMIN_PATH . '/assets/vendor/quill/quill.snow.css';
     if (file_exists($quill_js)): ?>
-    <script src="/modular/admin/assets/vendor/quill/quill.min.js"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/vendor/quill/quill.min.js"></script>
     <?php endif;
     ?>
-    <script src="/modular/admin/assets/vendor/primevue/primevue.min.js"></script>
-    <link rel="stylesheet" href="/modular/admin/assets/vendor/primevue/primevue.min.css">
+    <script src="<?php echo ADMIN_URL; ?>/assets/vendor/primevue/primevue.min.js"></script>
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/vendor/primevue/primevue.min.css">
     <?php
     $aura_theme = ADMIN_PATH . '/assets/vendor/primevue/themes/aura.js';
     if (file_exists($aura_theme)): ?>
-    <script src="/modular/admin/assets/vendor/primevue/themes/aura.js"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/vendor/primevue/themes/aura.js"></script>
     <?php endif; ?>
     <?php if (file_exists($quill_css)): ?>
-    <link rel="stylesheet" href="/modular/admin/assets/vendor/quill/quill.snow.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/vendor/quill/quill.snow.css">
     <?php endif; ?>
-    <link rel="stylesheet" href="/modular/admin/assets/vendor/primeicons/primeicons.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/vendor/primeicons/primeicons.css">
     
     <!-- Admin Scripts (v=2: no export, classic script compatible) -->
-    <script src="/modular/admin/assets/js/base.js?v=2"></script>
-    <script src="/modular/admin/assets/js/components.js?v=2"></script>
-    <script src="/modular/admin/assets/js/forms.js?v=2"></script>
-    <script src="/modular/admin/assets/js/tables.js?v=2"></script>
-    <script src="/modular/admin/assets/js/charts.js?v=2"></script>
-    <script src="/modular/admin/assets/js/sortable.js?v=1"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/js/base.js?v=2"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/js/components.js?v=2"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/js/forms.js?v=2"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/js/tables.js?v=2"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/js/charts.js?v=2"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/js/sortable.js?v=1"></script>
+    <script src="<?php echo ADMIN_URL; ?>/assets/js/modal.js?v=1"></script>
     <?php endif; ?>
 </head>
 <body class="<?php echo $is_auth_page ? 'auth-page' : ''; ?>">
@@ -172,6 +174,11 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
             <?php endif; ?>
 
             <main class="main-content">
+                <?php if (!$is_auth_page && isset($_SESSION['warning'])): ?>
+                <div class="alert alert-warning" style="margin: var(--spacing-md); border-left: 4px solid var(--warning-border);">
+                    <?php echo htmlspecialchars($_SESSION['warning']); unset($_SESSION['warning']); ?>
+                </div>
+                <?php endif; ?>
                 <?php if (!$is_auth_page && $db_install_needed): ?>
                 <div class="alert alert-error" style="margin: var(--spacing-md); border-left: 4px solid var(--error-border);">
                     <div style="display: flex; align-items: start; gap: var(--spacing-md);">
@@ -184,7 +191,7 @@ $is_auth_page = strpos($current_path, '/modular/admin/auth/') !== false;
                             </p>
                         </div>
                         <div>
-                            <a href="/modular/admin/install.php" class="btn btn-primary" style="white-space: nowrap;">
+                            <a href="<?php echo ADMIN_URL; ?>/install.php" class="btn btn-primary" style="white-space: nowrap;">
                                 <i class="fas fa-database"></i> Install Database
                             </a>
                         </div>

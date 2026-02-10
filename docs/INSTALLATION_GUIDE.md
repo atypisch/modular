@@ -36,7 +36,13 @@ define('DB_PASS', 'root');
 define('DB_NAME', 'modular');
 ```
 
-**For MAMP users**: Change `DB_PORT` to `8889` in `admin/config/config.php`.
+**For MAMP users**: Use a local config override so you don’t have to change the main config:
+
+1. Copy `admin/config/config.local.php.example` to `admin/config/config.local.php`
+2. In `config.local.php`, set `DB_PORT` to `8889` (MAMP’s default MySQL port)
+3. If the site is not under `/modular`, set `BASE_PATH` (e.g. `define('BASE_PATH', '/modular');` for `http://localhost:8888/modular/`)
+
+All asset and redirect URLs then use the correct base path automatically.
 
 ## Tables Created
 
