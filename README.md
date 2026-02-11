@@ -1,3 +1,5 @@
+![Modular CMS logo](ontwerp/logo_modular.svg)
+
 # Modular CMS
 
 A flexible, component-based content management system built with PHP, MySQL, and vanilla JavaScript.
