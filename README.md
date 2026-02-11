@@ -1,4 +1,4 @@
-![Modular CMS logo](ontwerp/logo_modular.svg)
+![Modular CMS logo](admin/assets/images/logo_modular.svg)
 
 # Modular CMS
 

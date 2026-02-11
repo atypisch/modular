@@ -106,7 +106,7 @@ $is_auth_page = strpos($current_path, (defined('ADMIN_BASE_PATH') ? ADMIN_BASE_P
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title><?php echo isset($page_title) ? $page_title . ' - Modular CMS' : 'Modular CMS'; ?></title>
-    <link rel="icon" href="<?php echo SITE_URL; ?>/ontwerp/favicon_modular.svg" type="image/svg+xml">
+    <link rel="icon" href="<?php echo ADMIN_URL; ?>/assets/images/favicon_modular.svg" type="image/svg+xml">
     
     <!-- Base CSS -->
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/base.css">
