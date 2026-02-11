@@ -130,8 +130,8 @@ $profile_active = $profile_active ?? false;
                 $users_sub_active = $users_active;
                 ?>
                 <ul class="sub-nav <?php echo $users_sub_active ? 'active' : ''; ?>">
-                    <li><a href="<?php echo ADMIN_URL; ?>/users" class="<?php echo $users_active && !check_active_path($adminBase . '/users/roles') && !check_active_path($adminBase . '/users/edit.php') ? 'active' : ''; ?>">Manage Users</a></li>
-                    <li><a href="<?php echo ADMIN_URL; ?>/users/roles" class="<?php echo check_active_path($adminBase . '/users/roles') ? 'active' : ''; ?>">User Roles</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/users" class="<?php echo $users_active && !check_active_path($adminBase . '/users/roles.php') && !check_active_path($adminBase . '/users/roles/') && !check_active_path($adminBase . '/users/edit.php') ? 'active' : ''; ?>">Manage Users</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/users/roles.php" class="<?php echo (check_active_path($adminBase . '/users/roles.php') || check_active_path($adminBase . '/users/roles/')) ? 'active' : ''; ?>">User Roles</a></li>
                 </ul>
             </li>
             <li>

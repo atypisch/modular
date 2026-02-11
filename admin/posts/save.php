@@ -31,7 +31,19 @@ $useSchemaForm = !empty($_POST['use_schema_form']);
 $postTypeId = filter_input(INPUT_POST, 'post_type_id', FILTER_SANITIZE_NUMBER_INT);
 $title = filter_input(INPUT_POST, 'title', FILTER_SANITIZE_STRING) ?? '';
 $slug = filter_input(INPUT_POST, 'slug', FILTER_SANITIZE_STRING) ?? '';
-$excerpt = filter_input(INPUT_POST, 'excerpt', FILTER_SANITIZE_STRING) ?? '';
+$postId = isset($_POST['id']) ? filter_input(INPUT_POST, 'id', FILTER_SANITIZE_NUMBER_INT) : null;
+// Excerpt is no longer a default field; preserve existing on update when not in form
+$excerpt = '';
+if ($postId && array_key_exists('excerpt', $_POST)) {
+    $excerpt = filter_input(INPUT_POST, 'excerpt', FILTER_SANITIZE_STRING) ?? '';
+} elseif ($postId) {
+    $stmt = $db->prepare("SELECT excerpt FROM posts WHERE id = ?");
+    $stmt->execute([$postId]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    $excerpt = $row['excerpt'] ?? '';
+} else {
+    $excerpt = filter_input(INPUT_POST, 'excerpt', FILTER_SANITIZE_STRING) ?? '';
+}
 $status = filter_input(INPUT_POST, 'status', FILTER_SANITIZE_STRING) ?? 'draft';
 
 // Validate required
@@ -48,7 +60,6 @@ if (empty($slug)) {
     $slug = strtolower(preg_replace('/[^a-zA-Z0-9-]/', '', str_replace(' ', '-', $slug)));
 }
 
-$postId = isset($_POST['id']) ? filter_input(INPUT_POST, 'id', FILTER_SANITIZE_NUMBER_INT) : null;
 $dataJson = null;
 $layoutJson = null;
 $componentData = '[]';

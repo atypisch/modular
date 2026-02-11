@@ -34,7 +34,6 @@ $postData = [
     'post_type_id' => $postTypeId ?? '',
     'title' => '',
     'slug' => '',
-    'excerpt' => '',
     'status' => 'draft',
     'component_data' => []
 ];
@@ -276,17 +275,6 @@ $preview_slug = $postData['slug'] ?? '';
                     </div>
                 <?php endif; ?>
 
-                <?php if ($useSchemaForm): ?>
-                <div class="form-group" style="margin-top: var(--spacing-lg);">
-                    <label for="excerpt">Excerpt</label>
-                    <textarea name="excerpt" id="excerpt" class="form-control" rows="3"><?php echo htmlspecialchars($postData['excerpt'] ?? ''); ?></textarea>
-                </div>
-                <?php else: ?>
-                <div class="form-group">
-                    <label for="excerpt">Excerpt</label>
-                    <textarea name="excerpt" id="excerpt" class="form-control" rows="3"><?php echo htmlspecialchars($postData['excerpt'] ?? ''); ?></textarea>
-                </div>
-                <?php endif; ?>
             </div>
         </main>
 

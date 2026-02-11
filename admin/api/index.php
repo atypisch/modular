@@ -1,10 +1,11 @@
 <?php
 /**
  * API Entry Point
- * Routes all /api/* requests
+ * Routes all /api/* requests.
+ * Ensure no PHP output before JSON (disable display_errors for this entry point).
  */
-
-require_once __DIR__ . '/../../config/config.php';
+require_once dirname(__DIR__) . '/config/config.php';
+ini_set('display_errors', '0');
 require_once CORE_PATH . '/functions/database.php';
 if (function_exists('run_pending_migrations') && isset($GLOBALS['db'])) {
     run_pending_migrations();
