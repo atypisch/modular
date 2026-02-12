@@ -5,7 +5,7 @@
     <?php if (!$is_auth_page): ?>
     <footer class="cms-footer">
         <a href="<?php echo SITE_URL; ?>/public/" class="cms-footer-logo" title="Modular CMS">
-            <img src="<?php echo ADMIN_URL; ?>/assets/images/logo_modular.svg" alt="Modular CMS" width="80" height="24">
+            <img src="<?php echo ADMIN_ASSETS_PATH; ?>/images/logo_modular.svg" alt="Modular CMS" width="80" height="24">
         </a>
     </footer>
     <?php endif; ?>
