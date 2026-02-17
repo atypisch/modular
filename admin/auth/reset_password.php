@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
+require_once dirname(dirname(__FILE__)) . '/bootstrap.php';
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);
@@ -63,6 +64,7 @@ try {
             ' . (isset($_SESSION['success']) ? '<div class="alert alert-success">' . $_SESSION['success'] . '</div>' : '') . '
             
             <form id="resetPasswordForm" action="process_reset_password.php" method="POST">
+                ' . (function_exists('csrf_field') ? csrf_field() : '') . '
                 <input type="hidden" name="token" value="' . htmlspecialchars($token) . '">
                 
                 <div class="form-group">

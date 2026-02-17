@@ -8,11 +8,30 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // First include config to set up database connection
 require_once dirname(__DIR__) . '/config/config.php';
+require_once CORE_PATH . '/functions/csrf.php';
+require_once CORE_PATH . '/classes/RateLimiter.php';
 
 // Then include init which depends on the database connection
 require_once ADMIN_PATH . '/data/init.php';
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF: reject state-changing request without valid token
+    if (!function_exists('csrf_verify') || !csrf_verify()) {
+        $_SESSION['error'] = 'Invalid security token. Please try again.';
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '') . '/auth/login.php');
+        ob_end_flush();
+        exit;
+    }
+
+    // Rate limit: 10 attempts per 15 min per IP (brute-force protection)
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!\Modular\RateLimiter::check('login_' . $ip, 10, 900)) {
+        $_SESSION['error'] = 'Too many login attempts. Try again later.';
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '') . '/auth/login.php');
+        ob_end_flush();
+        exit;
+    }
+
     $email = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
     

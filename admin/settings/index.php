@@ -37,6 +37,11 @@ try {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify()) {
+        $_SESSION['error'] = 'Invalid request. Please try again.';
+        header('Location: /modular/admin/settings');
+        exit;
+    }
     $siteTitle = filter_input(INPUT_POST, 'site_title', FILTER_SANITIZE_STRING) ?? '';
     $siteTagline = filter_input(INPUT_POST, 'site_tagline', FILTER_SANITIZE_STRING) ?? '';
     $siteUrl = filter_input(INPUT_POST, 'site_url', FILTER_SANITIZE_URL) ?? '';
@@ -110,6 +115,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
     <div class="card">
         <form method="POST">
+            <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label for="site_title">Site Title</label>
                 <input type="text" name="site_title" id="site_title" class="form-control" 

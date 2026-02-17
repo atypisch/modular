@@ -107,6 +107,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
     <div class="card">
         <form action="/modular/admin/taxonomies/terms/save.php" method="POST">
+            <?php echo csrf_field(); ?>
             <input type="hidden" name="taxonomy_id" value="<?php echo $taxonomy_id; ?>">
             <?php if ($term_id): ?>
             <input type="hidden" name="id" value="<?php echo $term_id; ?>">

@@ -25,6 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: /modular/admin/post-types');
     exit;
 }
+if (!csrf_verify()) {
+    $_SESSION['error'] = 'Invalid request. Please try again.';
+    header('Location: /modular/admin/post-types' . (isset($_POST['id']) ? '/edit.php?id=' . (int)$_POST['id'] : ''));
+    exit;
+}
 
 // Validate and sanitize input
 $post_type = [
@@ -98,7 +103,7 @@ try {
         
         $_SESSION['success'] = 'Post type created successfully. Now configure its fields.';
         // After creating a new post type, go straight to the Field Builder
-        header('Location: /modular/admin/post-types/field-builder.php?id=' . (int)$newId);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/field-builder/?id=' . (int)$newId);
         exit;
     }
     // For updates, go back to the post types list

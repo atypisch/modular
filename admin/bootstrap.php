@@ -12,6 +12,8 @@ if (!defined('CORE_PATH')) {
 // Include core files
 require_once CORE_PATH . '/config-check.php';
 require_once CORE_PATH . '/functions/auth.php';
+require_once CORE_PATH . '/functions/csrf.php';
+require_once CORE_PATH . '/functions/cache.php';
 require_once CORE_PATH . '/functions/admin.php';
 require_once CORE_PATH . '/functions/hooks.php';
 
@@ -33,6 +35,17 @@ if (isset($GLOBALS['db'])) {
         // Modules table doesn't exist yet - that's okay
         error_log("Modules table not found. Module system will be available after installation.");
     }
+}
+
+// Security headers for admin (send before any output)
+if (!headers_sent()) {
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('X-XSS-Protection: 1; mode=block');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    // CSP: allow same origin and inline styles common in admin; tighten as needed
+    $csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; frame-ancestors 'self';";
+    header("Content-Security-Policy: " . $csp);
 }
 
 // Set error reporting in development

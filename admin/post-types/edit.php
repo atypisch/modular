@@ -129,6 +129,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
     <div class="card">
         <form action="/modular/admin/post-types/save.php" method="POST">
+            <?php echo csrf_field(); ?>
             <?php if (isset($_GET['id'])): ?>
             <input type="hidden" name="id" value="<?php echo htmlspecialchars($_GET['id']); ?>">
             <?php endif; ?>
@@ -203,7 +204,7 @@ require_once ADMIN_PATH . '/templates/header.php';
             <hr class="section-divider">
             <h3 style="margin-top: 0;">Field Schema</h3>
             <p class="help-text" style="margin-bottom: var(--spacing-md);">Define the structured fields for this post type. Fixed = locked schema; Modular = editors can add/reorder/remove blocks per post.</p>
-            <a href="/modular/admin/post-types/field-builder.php?id=<?php echo (int)$_GET['id']; ?>" class="btn btn-secondary btn-inline">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/field-builder/?id=<?php echo (int)$_GET['id']; ?>" class="btn btn-secondary btn-inline">
                 <i class="fas fa-th-list"></i> Configure fields
             </a>
             <?php endif; ?>

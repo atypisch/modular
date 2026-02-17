@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
+require_once dirname(dirname(__FILE__)) . '/bootstrap.php';
 
 $page_title = 'Forgot Password';
 $content = '
@@ -11,7 +12,7 @@ $content = '
             <h2 class="auth-title">Reset Password</h2>
             ' . (isset($_SESSION['error']) ? '<div class="alert alert-error">' . $_SESSION['error'] . '</div>' : '') . '
             ' . (isset($_SESSION['success']) ? '<div class="alert alert-success">' . $_SESSION['success'] . '</div>' : '') . '
-            <form action="/modular/admin/auth/process_forgot_password.php" method="POST" class="auth-form">
+            <form action="/modular/admin/auth/process_forgot_password.php" method="POST" class="auth-form">' . (function_exists('csrf_field') ? csrf_field() : '') . '
                 <div class="form-group">
                     <label for="email" class="form-label">Email</label>
                     <input type="email" id="email" name="email" class="form-input" required>

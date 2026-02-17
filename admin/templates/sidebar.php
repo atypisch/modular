@@ -96,6 +96,32 @@ $profile_active = $profile_active ?? false;
                     <li><a href="<?php echo ADMIN_URL; ?>/taxonomies" class="<?php echo str_contains($_SERVER['REQUEST_URI'], '/taxonomies') ? 'active' : ''; ?>">Taxonomies</a></li>
                 </ul>
             </li>
+            <?php
+            $module_menu_items = function_exists('apply_filters') ? apply_filters('admin_menu_items', []) : [];
+            foreach ($module_menu_items as $mitem):
+                $murl = $mitem['url'] ?? '#';
+                $mlabel = $mitem['label'] ?? 'Item';
+                $micon = $mitem['icon'] ?? 'fas fa-puzzle-piece';
+                $mactive = !empty($mitem['match']) && strpos($_SERVER['REQUEST_URI'], 'module-page') !== false && strpos($_SERVER['REQUEST_URI'], $mitem['match']) !== false;
+                if (!$mactive && !empty($mitem['url'])) {
+                    $mactive = strpos($_SERVER['REQUEST_URI'], $murl) !== false;
+                }
+                $msub = $mitem['sub'] ?? [];
+            ?>
+            <li>
+                <a href="<?php echo htmlspecialchars($murl); ?>" class="<?php echo $mactive ? 'active' : ''; ?>">
+                    <i class="<?php echo htmlspecialchars($micon); ?>"></i>
+                    <?php echo htmlspecialchars($mlabel); ?>
+                </a>
+                <?php if (!empty($msub)): ?>
+                <ul class="sub-nav <?php echo $mactive ? 'active' : ''; ?>">
+                    <?php foreach ($msub as $s): ?>
+                    <li><a href="<?php echo htmlspecialchars($s['url'] ?? '#'); ?>"><?php echo htmlspecialchars($s['label'] ?? ''); ?></a></li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php endif; ?>
+            </li>
+            <?php endforeach; ?>
             <li>
                 <a href="<?php echo ADMIN_URL; ?>/modules" class="<?php echo $modules_active ? 'active' : ''; ?>">
                     <i class="fas fa-puzzle-piece"></i>

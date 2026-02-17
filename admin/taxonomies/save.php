@@ -23,6 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: /modular/admin/taxonomies');
     exit;
 }
+if (!csrf_verify()) {
+    $_SESSION['error'] = 'Invalid request. Please try again.';
+    header('Location: /modular/admin/taxonomies' . (isset($_POST['id']) ? '/edit.php?id=' . (int)$_POST['id'] : ''));
+    exit;
+}
 
 // Validate and sanitize input
 $taxonomy = [

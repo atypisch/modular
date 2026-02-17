@@ -22,6 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: /modular/admin/users/roles.php');
     exit;
 }
+if (!csrf_verify()) {
+    $_SESSION['error'] = 'Invalid request. Please try again.';
+    header('Location: /modular/admin/users/roles/edit.php' . (isset($_POST['id']) ? '?id=' . (int)$_POST['id'] : ''));
+    exit;
+}
 
 $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
 $display_name = trim($_POST['display_name'] ?? '');

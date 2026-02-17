@@ -23,6 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: /modular/admin/users');
     exit;
 }
+if (!csrf_verify()) {
+    $_SESSION['error'] = 'Invalid request. Please try again.';
+    header('Location: /modular/admin/users/edit.php' . (isset($_POST['id']) ? '?id=' . (int)$_POST['id'] : ''));
+    exit;
+}
 
 $userData = new userdata();
 $update_data = [

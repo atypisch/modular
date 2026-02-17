@@ -212,6 +212,7 @@ $preview_slug = $postData['slug'] ?? '';
     <?php endif; ?>
 
     <form action="/modular/admin/posts/save.php" method="POST" id="post-edit-form">
+        <?php echo csrf_field(); ?>
         <?php if ($postId): ?>
         <input type="hidden" name="id" value="<?php echo (int)$postId; ?>">
         <?php endif; ?>
@@ -241,7 +242,7 @@ $preview_slug = $postData['slug'] ?? '';
                     <div class="post-edit-fields-head">
                         <h3 style="margin: 0;">Fields</h3>
                         <?php if ($user_is_admin): ?>
-                        <p class="help-text" style="margin: 0.25rem 0 0;">These fields are defined in <a href="/modular/admin/post-types/field-builder.php?id=<?php echo (int)$postTypeId; ?>">Configure fields</a> for this post type.</p>
+                        <p class="help-text" style="margin: 0.25rem 0 0;">These fields are defined in <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/field-builder/?id=<?php echo (int)$postTypeId; ?>">Configure fields</a> for this post type.</p>
                         <?php endif; ?>
                         <?php if ($user_is_admin && $postTypeMode === 'modular'): ?>
                         <button type="button" class="btn btn-secondary btn-sm" id="add-fields-btn" style="margin-top: 0.5rem;">
@@ -309,7 +310,7 @@ $preview_slug = $postData['slug'] ?? '';
         </div>
         <div class="post-edit-modal-body">
             <p class="help-text">To add new field types to this post type, define them in Configure fields. Existing fields below can be reordered when this post type is in modular mode.</p>
-            <a href="/modular/admin/post-types/field-builder.php?id=<?php echo (int)$postTypeId; ?>" class="btn btn-primary btn-sm btn-inline" style="margin-top: 0.5rem;">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/field-builder/?id=<?php echo (int)$postTypeId; ?>" class="btn btn-primary btn-sm btn-inline" style="margin-top: 0.5rem;">
                 <i class="fas fa-cogs"></i> Configure fields
             </a>
         </div>

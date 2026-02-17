@@ -19,6 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: /modular/admin/taxonomies');
     exit;
 }
+if (!csrf_verify()) {
+    $_SESSION['error'] = 'Invalid request. Please try again.';
+    $tid = filter_input(INPUT_POST, 'taxonomy_id', FILTER_SANITIZE_NUMBER_INT);
+    header('Location: /modular/admin/taxonomies/terms/edit.php?taxonomy_id=' . ($tid ?: '') . (isset($_POST['id']) ? '&id=' . (int)$_POST['id'] : ''));
+    exit;
+}
 
 $db = $GLOBALS['db'];
 $taxonomyObj = new Modular\Taxonomy($db);

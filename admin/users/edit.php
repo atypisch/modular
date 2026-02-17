@@ -77,6 +77,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
     <div class="card">
         <form method="POST" action="/modular/admin/users/save.php">
+            <?php echo csrf_field(); ?>
             <?php if (isset($_GET['id'])): ?>
                 <input type="hidden" name="id" value="<?php echo htmlspecialchars($_GET['id']); ?>">
             <?php endif; ?>

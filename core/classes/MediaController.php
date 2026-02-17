@@ -12,7 +12,7 @@ class MediaController {
     
     public function __construct($db) {
         $this->db = $db;
-        $this->uploadDir = dirname(dirname(dirname(__DIR__))) . '/public/uploads';
+        $this->uploadDir = defined('UPLOADS_PATH') ? UPLOADS_PATH : (dirname(dirname(dirname(__DIR__))) . '/public/uploads');
         if (!is_dir($this->uploadDir)) {
             mkdir($this->uploadDir, 0755, true);
         }
@@ -107,7 +107,7 @@ class MediaController {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         
-        $relativePath = '/modular/public/uploads/' . $filename;
+        $relativePath = (defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') . '/' : '/public/uploads/') . $filename;
         $variantsJson = json_encode($variants);
         
         $stmt->execute([
@@ -138,7 +138,7 @@ class MediaController {
             if ($this->resizeImage($sourcePath, $variantPath, $dimensions[0], $dimensions[1])) {
                 $variants[$name] = [
                     'filename' => $variantFilename,
-                    'path' => '/modular/public/uploads/' . $variantFilename,
+                    'path' => (defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') . '/' : '/public/uploads/') . $variantFilename,
                     'width' => $dimensions[0],
                     'height' => $dimensions[1]
                 ];

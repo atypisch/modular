@@ -48,6 +48,11 @@ try {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify()) {
+        $_SESSION['error'] = 'Invalid request. Please try again.';
+        header('Location: /modular/admin/media/edit.php?id=' . (int)$id);
+        exit;
+    }
     $title = filter_input(INPUT_POST, 'title', FILTER_SANITIZE_STRING) ?? '';
     $altText = filter_input(INPUT_POST, 'alt_text', FILTER_SANITIZE_STRING) ?? '';
     $caption = filter_input(INPUT_POST, 'caption', FILTER_SANITIZE_STRING) ?? '';
@@ -112,6 +117,7 @@ require_once ADMIN_PATH . '/templates/header.php';
         
         <div class="card">
             <form method="POST">
+                <?php echo csrf_field(); ?>
                 <div class="form-group">
                     <label for="title">Title</label>
                     <input type="text" name="title" id="title" class="form-control" 

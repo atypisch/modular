@@ -22,6 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['file'])) {
     header('Location: /modular/admin/media/upload.php');
     exit;
 }
+if (!csrf_verify()) {
+    $_SESSION['error'] = 'Invalid request. Please try again.';
+    header('Location: /modular/admin/media/upload.php');
+    exit;
+}
 
 $db = $GLOBALS['db'];
 $userId = $_SESSION['user_id'] ?? 1;
@@ -44,8 +49,8 @@ if (!in_array($file['type'], $allowedTypes)) {
     exit;
 }
 
-// Create uploads directory if it doesn't exist
-$uploadDir = dirname(dirname(dirname(__DIR__))) . '/public/uploads';
+// Create uploads directory if it doesn't exist (use configurable path)
+$uploadDir = defined('UPLOADS_PATH') ? UPLOADS_PATH : (dirname(dirname(dirname(__DIR__))) . '/public/uploads');
 if (!is_dir($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
@@ -85,7 +90,7 @@ if ($fileType === 'image') {
 
 // Save to database
 try {
-    $relativePath = '/modular/public/uploads/' . $filename;
+    $relativePath = (defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') . '/' : '/public/uploads/') . $filename;
     
     $stmt = $db->prepare("
         INSERT INTO media 

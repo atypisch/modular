@@ -3,9 +3,22 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
+require_once dirname(dirname(__FILE__)) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/mail.php';
+require_once CORE_PATH . '/classes/RateLimiter.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (function_exists('csrf_verify') && !csrf_verify()) {
+        $_SESSION['error'] = 'Invalid request. Please try again.';
+        header('Location: /modular/admin/auth/forgot_password.php');
+        exit;
+    }
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!\Modular\RateLimiter::check('forgot_password_' . $ip, 5, 3600)) {
+        $_SESSION['error'] = 'Too many requests. Try again later.';
+        header('Location: /modular/admin/auth/forgot_password.php');
+        exit;
+    }
     $email = $_POST['email'] ?? '';
 
     // Validate input

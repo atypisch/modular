@@ -91,6 +91,14 @@ define('ADMIN_BASE_PATH', BASE_PATH . '/admin');
 define('ADMIN_ASSETS_PATH', ADMIN_URL . '/assets');
 define('ADMIN_CSS_PATH', ADMIN_ASSETS_PATH . '/css');
 
+// Uploads: configurable so external/app base path works
+if (!defined('UPLOADS_PATH')) {
+    define('UPLOADS_PATH', PUBLIC_PATH . '/uploads');
+}
+if (!defined('UPLOADS_WEB_PATH')) {
+    define('UPLOADS_WEB_PATH', BASE_PATH . '/public/uploads');
+}
+
 // Define common CSS files to be loaded
 $additional_styles = '
     <link rel="stylesheet" href="' . ADMIN_CSS_PATH . '/base.css">

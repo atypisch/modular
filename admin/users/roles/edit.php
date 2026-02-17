@@ -80,6 +80,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
     <div class="card">
         <form action="/modular/admin/users/roles/save.php" method="POST">
+            <?php echo csrf_field(); ?>
             <input type="hidden" name="id" value="<?php echo (int) $role['id']; ?>">
 
             <div class="form-group">

@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
+require_once CORE_PATH . '/functions/csrf.php';
 
 $page_title = 'Login';
 $content = '
@@ -11,7 +12,8 @@ $content = '
             <h2 class="auth-title">Login</h2>
             ' . (isset($_SESSION['error']) ? '<div class="alert alert-error" style="margin-bottom: 1.5rem; padding: 0.75rem; background: #fee; border: 1px solid #fcc; border-radius: 6px; color: #c33; font-size: 13px;">' . htmlspecialchars($_SESSION['error']) . '</div>' : '') . '
             ' . (isset($_SESSION['success']) ? '<div class="alert alert-success" style="margin-bottom: 1.5rem; padding: 0.75rem; background: #efe; border: 1px solid #cfc; border-radius: 6px; color: #3c3; font-size: 13px;">' . htmlspecialchars($_SESSION['success']) . '</div>' : '') . '
-            <form action="/modular/admin/auth/process_login.php" method="POST" class="auth-form">
+            <form action="' . (defined('ADMIN_URL') ? ADMIN_URL : '') . '/auth/process_login.php" method="POST" class="auth-form">
+                ' . csrf_field() . '
                 <div class="form-group">
                     <label for="email">Email</label>
                     <input type="email" id="email" name="email" class="form-input" required autocomplete="email">

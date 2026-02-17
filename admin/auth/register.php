@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
+require_once CORE_PATH . '/functions/csrf.php';
 
 // Clear any existing messages
 $error = $_SESSION['error'] ?? '';
@@ -17,7 +18,8 @@ $content = '
             <h2 class="auth-title">Create Account</h2>
             ' . ($error ? '<div class="alert alert-error">' . htmlspecialchars($error) . '</div>' : '') . '
             ' . ($success ? '<div class="alert alert-success">' . htmlspecialchars($success) . '</div>' : '') . '
-            <form action="/modular/admin/auth/process_register.php" method="POST" class="auth-form">
+            <form action="' . (defined('ADMIN_URL') ? ADMIN_URL : '') . '/auth/process_register.php" method="POST" class="auth-form">
+                ' . csrf_field() . '
                 <div class="form-group">
                     <label for="full_name" class="form-label">Full Name</label>
                     <input type="text" id="full_name" name="full_name" class="form-input" required>

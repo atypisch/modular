@@ -35,6 +35,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
     <div class="card">
         <form id="upload-form" enctype="multipart/form-data" action="/modular/admin/media/upload-handler.php" method="POST">
+            <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label for="file">Select File <span style="color: var(--error-text);">*</span></label>
                 <input type="file" id="file" name="file" class="form-control" required accept="image/*,application/pdf">

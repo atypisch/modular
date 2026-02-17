@@ -36,6 +36,11 @@ try {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify()) {
+        $_SESSION['error'] = 'Invalid request. Please try again.';
+        header('Location: /modular/admin/settings/appearance.php');
+        exit;
+    }
     $activeTheme = filter_input(INPUT_POST, 'active_theme', FILTER_SANITIZE_STRING) ?? 'default';
     $headlessMode = isset($_POST['headless_mode']) ? 1 : 0;
     
@@ -90,6 +95,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
     <div class="card">
         <form method="POST">
+            <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label for="active_theme">Active Theme</label>
                 <select name="active_theme" id="active_theme" class="form-control">

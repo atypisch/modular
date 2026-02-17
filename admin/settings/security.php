@@ -36,6 +36,11 @@ try {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify()) {
+        $_SESSION['error'] = 'Invalid request. Please try again.';
+        header('Location: /modular/admin/settings/security.php');
+        exit;
+    }
     $enable2FA = isset($_POST['enable_2fa']) ? 1 : 0;
     $passwordMinLength = filter_input(INPUT_POST, 'password_min_length', FILTER_SANITIZE_NUMBER_INT) ?? 8;
     $maxLoginAttempts = filter_input(INPUT_POST, 'max_login_attempts', FILTER_SANITIZE_NUMBER_INT) ?? 5;
@@ -83,6 +88,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
     <div class="card">
         <form method="POST">
+            <?php echo csrf_field(); ?>
             <h3 style="margin-top: 0;">Authentication</h3>
             
             <div class="checkbox-group">

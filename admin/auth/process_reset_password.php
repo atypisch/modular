@@ -3,8 +3,14 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
+require_once dirname(dirname(__FILE__)) . '/bootstrap.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (function_exists('csrf_verify') && !csrf_verify()) {
+        $_SESSION['error'] = 'Invalid request. Please try again.';
+        header('Location: /modular/admin/auth/reset_password.php?token=' . urlencode($_POST['token'] ?? ''));
+        exit;
+    }
     $token = $_POST['token'] ?? '';
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';

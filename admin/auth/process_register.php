@@ -3,12 +3,21 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
-
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+require_once CORE_PATH . '/functions/csrf.php';
+require_once CORE_PATH . '/classes/RateLimiter.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!function_exists('csrf_verify') || !csrf_verify()) {
+        $_SESSION['error'] = 'Invalid security token. Please try again.';
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '') . '/auth/register.php');
+        exit;
+    }
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!\Modular\RateLimiter::check('register_' . $ip, 5, 3600)) {
+        $_SESSION['error'] = 'Too many registration attempts. Try again later.';
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '') . '/auth/register.php');
+        exit;
+    }
     $name = $_POST['full_name'] ?? '';
     $email = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';

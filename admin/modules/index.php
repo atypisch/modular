@@ -53,7 +53,10 @@ $message = '';
 $messageType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action']) && isset($_POST['module_slug'])) {
+    if (!function_exists('csrf_verify') || !csrf_verify()) {
+        $message = 'Invalid request. Please try again.';
+        $messageType = 'error';
+    } elseif (isset($_POST['action']) && isset($_POST['module_slug'])) {
         $slug = $_POST['module_slug'];
         
         try {
@@ -163,6 +166,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                                 </td>
                                 <td>
                                     <form method="POST" style="display: inline;">
+                                        <?php echo csrf_field(); ?>
                                         <input type="hidden" name="module_slug" value="<?php echo htmlspecialchars($module->slug); ?>">
                                         <?php if ($isActive): ?>
                                             <button type="submit" name="action" value="deactivate" class="btn btn-sm btn-warning">

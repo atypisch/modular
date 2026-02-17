@@ -93,6 +93,16 @@ if (!function_exists('is_modules_page')) {
     }
 }
 
+if (!function_exists('is_module_active')) {
+    /**
+     * Check if a module is active by slug.
+     */
+    function is_module_active($slug) {
+        $m = $GLOBALS['module_manager'] ?? null;
+        return $m && $m->isModuleActive($slug);
+    }
+}
+
 if (!function_exists('is_posts_page')) {
     /**
      * Check if we're on a posts admin page

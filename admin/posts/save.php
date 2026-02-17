@@ -23,6 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: /modular/admin/posts');
     exit;
 }
+if (!csrf_verify()) {
+    $_SESSION['error'] = 'Invalid request. Please try again.';
+    header('Location: /modular/admin/posts');
+    exit;
+}
 
 $db = $GLOBALS['db'];
 $userId = $_SESSION['user_id'] ?? 1;
