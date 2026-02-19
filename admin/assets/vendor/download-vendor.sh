@@ -4,10 +4,10 @@
 
 set -e
 VENDOR="admin/assets/vendor"
-mkdir -p "$VENDOR/jquery" "$VENDOR/sortablejs" "$VENDOR/vue" "$VENDOR/primevue" "$VENDOR/primeicons" "$VENDOR/fontawesome/css" "$VENDOR/fontawesome/webfonts" "$VENDOR/quill"
+mkdir -p "$VENDOR/jquery" "$VENDOR/sortablejs" "$VENDOR/vue" "$VENDOR/primevue" "$VENDOR/primeicons" "$VENDOR/fontawesome/css" "$VENDOR/fontawesome/webfonts" "$VENDOR/tinymce"
 
-echo "Downloading jQuery..."
-curl -sL -o "$VENDOR/jquery/jquery-3.6.0.min.js" "https://code.jquery.com/jquery-3.6.0.min.js"
+# jQuery: not used by admin (sidebar/tables use vanilla JS). Uncomment if a module needs it.
+# echo "Downloading jQuery..." && curl -sL -o "$VENDOR/jquery/jquery-3.6.0.min.js" "https://code.jquery.com/jquery-3.6.0.min.js"
 
 echo "Downloading SortableJS..."
 curl -sL -o "$VENDOR/sortablejs/Sortable.min.js" "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"
@@ -30,9 +30,7 @@ if grep -q "url(" "$VENDOR/primeicons/primeicons.css"; then
   echo "PrimeIcons: if fonts are 404, copy them from node_modules/primeicons/fonts or primeicons package."
 fi
 
-echo "Downloading Quill (for PrimeVue Editor)..."
-curl -sL -o "$VENDOR/quill/quill.min.js" "https://unpkg.com/quill@1.3.7/dist/quill.min.js"
-curl -sL -o "$VENDOR/quill/quill.snow.css" "https://unpkg.com/quill@1.3.7/dist/quill.snow.css"
+echo "TinyMCE: run admin/assets/vendor/download-tinymce.sh to install TinyMCE locally (WYSIWYG)."
 
 echo "Downloading Font Awesome CSS..."
 curl -sL -o "$VENDOR/fontawesome/css/all.min.css" "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"

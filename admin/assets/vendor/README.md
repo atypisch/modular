@@ -18,13 +18,14 @@ This fetches:
 | `primevue/primevue.min.js` + `.min.css` | PrimeVue components |
 | `primevue/themes/aura.js` | Aura theme (styled mode; optional) |
 | `primeicons/primeicons.css` | PrimeVue icons |
-| `quill/quill.min.js` + `quill.snow.css` | Quill (required for PrimeVue Editor / WYSIWYG) |
-| `jquery/jquery-3.6.0.min.js` | jQuery (sidebar, legacy) |
+| `tinymce/` | TinyMCE (WYSIWYG editor); run `download-tinymce.sh` |
 | `sortablejs/Sortable.min.js` | Drag & drop (Field Builder) |
 | `fontawesome/css/all.min.css` + `webfonts/` | Font Awesome icons |
 
-If `quill/` is missing, the PrimeVue Editor (WYSIWYG) will not load; other fields still work. Run the script to get Quill.
+If `tinymce/` is missing, the WYSIWYG field will not load; run `admin/assets/vendor/download-tinymce.sh` to install TinyMCE locally.
 
-**PrimeVue styled mode:** If `primevue/themes/aura.js` exists, the post-edit form uses the Aura theme ([PrimeVue Theming](https://primevue.org/theming/styled/)). Otherwise PrimeVue falls back to default styles. The post-edit page loads `primevue-fields.js`, which enhances WYSIWYG (Editor), Relationship (MultiSelect), and Post Object (Dropdown) with PrimeVue components.
+**jQuery:** The admin no longer loads jQuery; sidebar and tables use vanilla JS. The download script skips jQuery by default. Uncomment the jQuery line in `download-vendor.sh` if a module needs it.
+
+**PrimeVue styled mode:** If `primevue/themes/aura.js` exists, the post-edit form uses the Aura theme ([PrimeVue Theming](https://primevue.org/theming/styled/)). Otherwise PrimeVue falls back to default styles. The post-edit page loads `primevue-fields.js` for Relationship (MultiSelect) and Post Object (Dropdown). WYSIWYG uses TinyMCE via the field renderer.
 
 After the script runs, the admin works offline.

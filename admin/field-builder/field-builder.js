@@ -140,6 +140,22 @@
                     items.unshift({ key: 'required', label: 'Required', inputType: 'boolean', meta: {}, rows: 1 });
                 }
                 return items;
+            },
+            // For modular mode: master toggle for \"show on creation\" on all fields
+            allShowOnCreationSelected: {
+                get: function () {
+                    if (!this.activeFields.length) return false;
+                    // Default behaviour: if flag is undefined, treat as true (backwards compatible)
+                    return this.activeFields.every(function (f) {
+                        return f.show_on_creation !== false;
+                    });
+                },
+                set: function (val) {
+                    var enable = !!val;
+                    this.activeFields.forEach(function (f) {
+                        f.show_on_creation = enable;
+                    });
+                }
             }
         },
         methods: {
@@ -210,6 +226,10 @@
                 this.activeFields.push(newField);
                 this.selectedIndex = this.activeFields.length - 1;
                 this.settingsTab = 'general';
+                var self = this;
+                this.$nextTick(function () {
+                    self.reinitSortable();
+                });
             },
             onLibraryDragStart: function (e, f) {
                 this.lastDragPayload = { type: f.type, label: f.label || f.type, icon: f.icon || 'fa-circle' };
@@ -259,6 +279,10 @@
                 this.selectedIndex = idx;
                 this.settingsTab = 'general';
                 this.lastDragPayload = null;
+                var self = this;
+                this.$nextTick(function () {
+                    self.reinitSortable();
+                });
             },
             selectField: function (index) {
                 if (index >= 0 && index < this.activeFields.length) {
@@ -350,8 +374,16 @@
                     ghostClass: 'sortable-ghost',
                     chosenClass: 'sortable-chosen',
                     onEnd: function (evt) {
-                        var oldIndex = evt.oldIndex;
-                        var newIndex = evt.newIndex;
+                        var oldIndex = (typeof evt.oldIndex === 'number') ? evt.oldIndex : parseInt((evt.item && evt.item.getAttribute('data-index')) || '-1', 10);
+                        var newIndex;
+                        if (typeof evt.newIndex === 'number') {
+                            newIndex = evt.newIndex;
+                        } else if (evt.item && evt.item.parentNode) {
+                            newIndex = Array.prototype.indexOf.call(evt.item.parentNode.children, evt.item);
+                        } else {
+                            newIndex = -1;
+                        }
+                        if (isNaN(oldIndex)) oldIndex = -1;
                         if (oldIndex === newIndex) return;
                         var n = self.activeFields.length;
                         if (oldIndex < 0 || oldIndex >= n || newIndex < 0 || newIndex >= n) {

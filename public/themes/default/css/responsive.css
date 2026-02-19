@@ -1,0 +1,129 @@
+/* ------------------ */
+/* ROOT + BASE        */
+/* ------------------ */
+:root {
+  --gap: 20px;
+}
+
+/* Ensure all rows behave as flexbox containers */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+}
+
+.col {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+
+/* ------------------ */
+/* RESPONSIVE: TABLET */
+/* ------------------ */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .container, .sticky-wrapper {
+    max-width: 100%;
+    padding: var(--gap);
+  }
+
+  /* Tablet-specific column sizing */
+  .col-tablet-2 {
+    flex: 1 1 calc(50% - var(--gap));
+    max-width: calc(50% - var(--gap));
+  }
+
+  .col-tablet-3 {
+    flex: 1 1 calc(33.333% - var(--gap));
+    max-width: calc(33.333% - var(--gap));
+  }
+
+  .col-tablet-4 {
+    flex: 1 1 calc(25% - var(--gap));
+    max-width: calc(25% - var(--gap));
+  }
+}
+
+
+/* ------------------ */
+/* RESPONSIVE: MOBILE */
+/* ------------------ */
+@media (max-width: 768px) {
+  :root {
+    --gap: 10px;
+  }
+
+  /* Adjust containers */
+  .container,
+  .sticky-wrapper,
+  .fullwidth {
+    max-width: 100%;
+    padding: var(--gap);
+  }
+
+  /* Navigation: hide desktop, show mobile */
+  .main-nav {
+    display: none;
+  }
+
+  .mobile-nav-toggle {
+    display: block;
+  }
+
+  .mobile-nav {
+    display: block;
+  }
+
+  /* Ensure rows flex correctly */
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gap);
+  }
+
+  .col {
+    flex: 1 1 auto;
+    max-width: 100%;
+  }
+
+  /* Mobile-specific column overrides */
+  .col-mobile-2 {
+    flex: 1 1 calc(50% - var(--gap));
+    max-width: calc(50% - var(--gap));
+  }
+
+  .col-mobile-3 {
+    flex: 1 1 calc(33.333% - var(--gap));
+    max-width: calc(33.333% - var(--gap));
+  }
+
+  /* Sticky element behavior for mobile */
+  .sticky-wrapper {
+    flex-direction: column;
+  }
+
+  .sticky-scroll {
+    position: static;
+    width: 100%;
+    margin-bottom: var(--gap);
+  }
+}
+
+
+/* ------------------------ */
+/* RESPONSIVE: SMALL MOBILE */
+/* ------------------------ */
+@media (max-width: 480px) {
+  :root {
+    --gap: 10px;
+  }
+
+  .logo {
+    font-size: 1.1em;
+  }
+
+  .container,
+  .fullwidth {
+    padding: var(--gap);
+  }
+}

@@ -1,44 +1,43 @@
-// Table Handling Functions
+// Table handling (vanilla JS, no jQuery/DataTables).
+// initDataTable is optional; use PrimeVue DataTable or native tables when needed.
 
-// Initialize DataTable
 function initDataTable(tableId, options = {}) {
-    const defaultOptions = {
-        pageLength: 10,
-        order: [],
-        columnDefs: []
+    var el = document.getElementById(tableId);
+    if (!el) return null;
+    // Stub API so callers that expect .draw(), .row.add(), etc. do not throw.
+    return {
+        draw: function () {},
+        search: function () { return this; },
+        order: function () { return this; },
+        row: {
+            add: function () { return { node: null }; },
+            remove: function () { return this; }
+        }
     };
-
-    const table = $(`#${tableId}`).DataTable({
-        ...defaultOptions,
-        ...options
-    });
-
-    return table;
 }
 
-// Add Row to Table
 function addTableRow(table, data) {
-    const row = table.row.add(data);
-    table.draw();
+    var row = table && table.row && table.row.add ? table.row.add(data) : null;
+    if (table && table.draw) table.draw();
     return row;
 }
 
-// Remove Row from Table
 function removeTableRow(table, row) {
-    table.row(row).remove().draw();
+    if (table && table.row) table.row(row).remove();
+    if (table && table.draw) table.draw();
 }
 
-// Update Row in Table
 function updateTableRow(table, row, data) {
-    table.row(row).data(data).draw();
+    if (table && table.row) table.row(row).data(data);
+    if (table && table.draw) table.draw();
 }
 
-// Search Table
 function searchTable(table, searchTerm) {
-    table.search(searchTerm).draw();
+    if (table && table.search) table.search(searchTerm);
+    if (table && table.draw) table.draw();
 }
 
-// Sort Table
 function sortTable(table, columnIndex, order) {
-    table.order([columnIndex, order]).draw();
+    if (table && table.order) table.order([[columnIndex, order]]);
+    if (table && table.draw) table.draw();
 }

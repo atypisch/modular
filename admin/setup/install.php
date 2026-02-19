@@ -18,12 +18,12 @@ if (file_exists(__DIR__ . '/../config/installed.php')) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modular CMS Setup</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="../assets/css/install.css" rel="stylesheet">
 </head>
-<body class="bg-gray-100">
-    <div class="min-h-screen flex items-center justify-center">
-        <div class="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-            <h1 class="text-2xl font-bold mb-6">Modular CMS Setup</h1>
+<body class="install-page">
+    <div class="min-h-screen">
+        <div class="install-card">
+            <h1 class="mb-6">Modular CMS Setup</h1>
             
             <?php
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -71,29 +71,26 @@ if (file_exists(__DIR__ . '/../config/installed.php')) {
                     // Create the installed file
                     file_put_contents(__DIR__ . '/../config/installed.php', '<?php return true;');
                     
-                    echo '<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+                    echo '<div class="msg-success border rounded px-4 py-3 mb-4">
                         <strong>Installation completed successfully!</strong><br>
                         All database tables have been created.<br>
                         ' . ($result['count'] == 0 ? 'Default admin user created:<br>Username: <strong>admin</strong><br>Password: <strong>admin</strong><br>Please change these credentials immediately!<br>' : '') . '
                         <a href="/modular/admin/auth/login.php" class="underline font-bold">Click here to login</a>
                     </div>';
                 } catch (Exception $e) {
-                    echo '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                    echo '<div class="msg-error border rounded px-4 py-3 mb-4">
                         <strong>Error:</strong> ' . htmlspecialchars($e->getMessage()) . '
                     </div>';
                 }
             } else {
             ?>
                 <form method="post" class="space-y-6">
-                    <div class="bg-yellow-50 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+                    <div class="msg-warn border rounded px-4 py-3">
                         This will create all necessary database tables and a default admin user.
                         Make sure your database configuration is correct before proceeding.
                     </div>
-                    
                     <div>
-                        <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                            Install Database Tables
-                        </button>
+                        <button type="submit">Install Database Tables</button>
                     </div>
                 </form>
             <?php } ?>

@@ -97,7 +97,50 @@ $profile_active = $profile_active ?? false;
                 </ul>
             </li>
             <?php
+            // Menu items registered by modules via add_filter('admin_menu_items')
             $module_menu_items = function_exists('apply_filters') ? apply_filters('admin_menu_items', []) : [];
+            // Track which module slugs already have a menu item (from filter)
+            $module_slugs_in_menu = [];
+            foreach ($module_menu_items as $mitem) {
+                $u = $mitem['url'] ?? '';
+                if (preg_match('/[?&]module=([a-z0-9\-]+)/', $u, $m)) {
+                    $module_slugs_in_menu[$m[1]] = true;
+                }
+            }
+            // Fallback: add sidebar entry for each active module that has admin pages but didn't register via filter
+            $moduleManager = $GLOBALS['module_manager'] ?? null;
+            $modulesDir = defined('PUBLIC_PATH') ? PUBLIC_PATH . '/modules' : (defined('MODULAR_PATH') ? MODULAR_PATH . '/public/modules' : '');
+            if ($moduleManager && $modulesDir && is_dir($modulesDir)) {
+                $activeModules = $moduleManager->getActiveModules();
+                foreach ($activeModules as $slug => $mod) {
+                    if (isset($module_slugs_in_menu[$slug])) {
+                        continue;
+                    }
+                    $adminDir = $modulesDir . '/' . $slug . '/admin';
+                    if (!is_dir($adminDir)) {
+                        continue;
+                    }
+                    $pages = [];
+                    foreach (glob($adminDir . '/*.php') as $f) {
+                        $base = basename($f, '.php');
+                        $pages[] = [
+                            'label' => ucfirst(str_replace(['-', '_'], ' ', $base)),
+                            'url' => (defined('ADMIN_URL') ? ADMIN_URL : '') . '/module-page.php?module=' . $slug . '&page=' . $base,
+                        ];
+                    }
+                    if (!empty($pages)) {
+                        $module_menu_items[] = [
+                            'label' => ($mod->name ?? ucfirst(str_replace('-', ' ', $slug))),
+                            'url' => $pages[0]['url'],
+                            'icon' => 'fas fa-puzzle-piece',
+                            'match' => $slug,
+                            'sub' => $pages,
+                        ];
+                    }
+                }
+            }
+            $current_module = isset($_GET['module']) ? $_GET['module'] : '';
+            $current_page = isset($_GET['page']) ? $_GET['page'] : '';
             foreach ($module_menu_items as $mitem):
                 $murl = $mitem['url'] ?? '#';
                 $mlabel = $mitem['label'] ?? 'Item';
@@ -115,8 +158,11 @@ $profile_active = $profile_active ?? false;
                 </a>
                 <?php if (!empty($msub)): ?>
                 <ul class="sub-nav <?php echo $mactive ? 'active' : ''; ?>">
-                    <?php foreach ($msub as $s): ?>
-                    <li><a href="<?php echo htmlspecialchars($s['url'] ?? '#'); ?>"><?php echo htmlspecialchars($s['label'] ?? ''); ?></a></li>
+                    <?php foreach ($msub as $s):
+                        $surl = $s['url'] ?? '#';
+                        $sactive = ($mactive && $current_page && strpos($surl, 'page=' . $current_page) !== false) || ($current_module && strpos($surl, 'module=' . $current_module) !== false && $current_page && strpos($surl, 'page=' . $current_page) !== false);
+                    ?>
+                    <li><a href="<?php echo htmlspecialchars($surl); ?>" class="<?php echo $sactive ? 'active' : ''; ?>"><?php echo htmlspecialchars($s['label'] ?? ''); ?></a></li>
                     <?php endforeach; ?>
                 </ul>
                 <?php endif; ?>
@@ -127,6 +173,9 @@ $profile_active = $profile_active ?? false;
                     <i class="fas fa-puzzle-piece"></i>
                     Modules
                 </a>
+                <ul class="sub-nav <?php echo $modules_active ? 'active' : ''; ?>">
+                    <li><a href="<?php echo ADMIN_URL; ?>/modules" class="<?php echo $modules_active ? 'active' : ''; ?>">Manage modules</a></li>
+                </ul>
             </li>
             <li>
                 <a href="<?php echo ADMIN_URL; ?>/actions" class="<?php echo $actions_active ? 'active' : ''; ?>">
@@ -178,6 +227,7 @@ $profile_active = $profile_active ?? false;
                     <li><a href="<?php echo ADMIN_URL; ?>/settings" class="<?php echo $settings_active && !check_active_path($adminBase . '/settings/appearance') && !check_active_path($adminBase . '/settings/security') ? 'active' : ''; ?>">General</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/appearance" class="<?php echo check_active_path($adminBase . '/settings/appearance') ? 'active' : ''; ?>">Appearance</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/security" class="<?php echo check_active_path($adminBase . '/settings/security') ? 'active' : ''; ?>">Security</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/settings/media-images.php" class="<?php echo check_active_path($adminBase . '/settings/media-images.php') ? 'active' : ''; ?>">Media Images</a></li>
                 </ul>
             </li>
         </ul>

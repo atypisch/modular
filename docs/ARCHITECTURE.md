@@ -29,7 +29,8 @@ modular/
 ├── public/             # Public-facing files
 │   ├── themes/         # Themes
 │   └── uploads/        # Uploaded files
-└── tests/              # Test suite
+└── public/
+    └── tests/          # Test suite
 ```
 
 ## Database Schema

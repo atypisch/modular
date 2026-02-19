@@ -1,7 +1,7 @@
 <?php
 /**
  * Simple file-based cache. Use for settings, query results, or rendered output.
- * Cache dir: MODULAR_PATH . '/storage/cache' or sys_get_temp_dir() . '/modular_cache'
+ * Cache dir: MODULAR_PATH . '/core/storage/cache' or sys_get_temp_dir() . '/modular_cache'
  */
 
 if (!function_exists('cache_get')) {
@@ -55,8 +55,8 @@ if (!function_exists('cache_path')) {
 
 if (!function_exists('cache_dir')) {
     function cache_dir(): string {
-        if (defined('MODULAR_PATH') && is_dir(MODULAR_PATH . '/storage')) {
-            return MODULAR_PATH . '/storage/cache';
+        if (defined('MODULAR_PATH') && is_dir(MODULAR_PATH . '/core/storage')) {
+            return MODULAR_PATH . '/core/storage/cache';
         }
         $d = sys_get_temp_dir() . '/modular_cache';
         if (!is_dir($d)) {

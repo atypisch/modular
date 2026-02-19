@@ -234,14 +234,14 @@ body:not(.auth-page) {
 }
 
 .sub-nav a:hover {
-    color: var(--primary-color);
-    background: rgba(45, 80, 22, 0.05);
+    color: #71C1D2;
+    background: rgba(113, 193, 210, 0.08);
 }
 
 .sub-nav a.active {
-    color: var(--primary-color);
+    color: #77D0E4;
     font-weight: 500;
-    background: rgba(45, 80, 22, 0.08);
+    background: rgba(119, 208, 228, 0.1);
 }
 
 /* Sidebar collapsed: icons only, narrow width */
@@ -608,6 +608,14 @@ input[type="radio"] {
 
 .btn-inline {
     width: auto;
+    max-width: max-content;
+    align-self: flex-start;
+}
+
+form .btn.btn-inline {
+    width: auto !important;
+    max-width: max-content;
+    align-self: flex-start;
 }
 
 .btn-primary,

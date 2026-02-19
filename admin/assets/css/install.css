@@ -1,0 +1,51 @@
+/* Setup & landing pages: no external CDN (Tailwind/jQuery). Use local only. */
+body.install-page,
+body.landing-page { background: #f3f4f6; margin: 0; font-family: system-ui, sans-serif; }
+
+/* Install page (admin/setup/install.php) */
+.install-page .min-h-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; box-sizing: border-box; }
+.install-page .install-card { max-width: 28rem; width: 100%; background: #fff; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1); padding: 2rem; box-sizing: border-box; }
+.install-page h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 1.5rem 0; }
+.install-page .space-y-6 > * + * { margin-top: 1.5rem; }
+.install-page .mb-4 { margin-bottom: 1rem; }
+.install-page .mb-6 { margin-bottom: 1.5rem; }
+.install-page .rounded { border-radius: 0.25rem; }
+.install-page .px-4 { padding-left: 1rem; padding-right: 1rem; }
+.install-page .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.install-page .border { border-width: 1px; border-style: solid; }
+.install-page .msg-success { background: #d1fae5; border-color: #34d399; color: #047857; }
+.install-page .msg-error { background: #fee2e2; border-color: #f87171; color: #b91c1c; }
+.install-page .msg-warn { background: #fef3c7; border-color: #fbbf24; color: #92400e; }
+.install-page .msg-success a, .install-page .msg-error a { text-decoration: underline; font-weight: 700; }
+.install-page button[type="submit"] { width: 100%; background: #3b82f6; color: #fff; padding: 0.5rem 1rem; border: none; border-radius: 0.25rem; font-size: 1rem; cursor: pointer; }
+.install-page button[type="submit"]:hover { background: #2563eb; }
+.install-page button[type="submit"]:focus { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+/* Landing page (root index.php) */
+.landing-page .landing-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; box-sizing: border-box; }
+.landing-page .landing-wrap { max-width: 28rem; width: 100%; margin: 0 1rem; }
+.landing-page .landing-card { background: #fff; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1); padding: 2rem; box-sizing: border-box; text-align: center; }
+.landing-page .landing-card:not(.text-center) { text-align: left; }
+.landing-page .landing-title { font-size: 1.5rem; font-weight: 700; color: #111; margin: 0 0 1rem 0; }
+.landing-page .landing-text { color: #4b5563; margin: 0 0 1.5rem 0; }
+.landing-page .landing-icon { width: 4rem; height: 4rem; margin: 0 auto 1.5rem; color: #3b82f6; }
+.landing-page .btn-primary { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; background: #2563eb; color: #fff; border: none; border-radius: 0.375rem; font-size: 1rem; font-weight: 500; text-decoration: none; cursor: pointer; }
+.landing-page .btn-primary:hover { background: #1d4ed8; }
+.landing-page .btn-primary:focus { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.landing-page .btn-primary svg { width: 1.25rem; height: 1.25rem; margin-left: 0.25rem; }
+
+/* Setup steps (step1, step2) */
+.setup-step .min-h-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; box-sizing: border-box; }
+.setup-step .setup-card { max-width: 28rem; width: 100%; }
+.setup-step .setup-title { text-align: center; font-size: 1.875rem; font-weight: 800; color: #111; margin: 0 0 0.5rem 0; }
+.setup-step .setup-subtitle { text-align: center; font-size: 0.875rem; color: #4b5563; margin: 0 0 2rem 0; }
+.setup-step .space-y-8 > * + * { margin-top: 2rem; }
+.setup-step .msg-error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 0.375rem; padding: 1rem; }
+.setup-step .msg-error .flex { display: flex; gap: 0.75rem; }
+.setup-step form label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.25rem; }
+.setup-step form input[type="text"],
+.setup-step form input[type="email"],
+.setup-step form input[type="password"] { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.25rem; box-sizing: border-box; margin-bottom: 1rem; }
+.setup-step form button[type="submit"] { width: 100%; padding: 0.5rem 1rem; background: #3b82f6; color: #fff; border: none; border-radius: 0.25rem; font-size: 1rem; cursor: pointer; }
+.setup-step form button[type="submit"]:hover { background: #2563eb; }
+.setup-step .install-card { background: #fff; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 2rem; box-sizing: border-box; }

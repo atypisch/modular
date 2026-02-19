@@ -1,14 +1,13 @@
 /**
  * PrimeVue-powered field UX for post edit (styled mode).
- * Requires: Vue 3, PrimeVue UMD, Quill (for Editor), optional Aura theme (PrimeUIX.Themes.Aura).
- * - WYSIWYG -> PrimeVue Editor (Quill)
+ * Requires: Vue 3, PrimeVue UMD, optional Aura theme (PrimeUIX.Themes.Aura).
+ * - WYSIWYG -> TinyMCE (loaded via field-renderer-app when using schema form)
  * - Relationship -> MultiSelect, Post Object -> Dropdown
- * - Other form components registered for future use.
  */
 (function () {
     if (!window.Vue || !window.PrimeVue) return;
 
-    const { createApp, ref, watch, computed } = Vue;
+    const { createApp, ref, watch } = Vue;
     const PV = window.PrimeVue;
     const PrimeUIX = window.PrimeUIX;
 
@@ -21,7 +20,7 @@
     }
 
     var pComponentNames = {
-        Editor: 'p-editor', InputText: 'p-inputtext', Textarea: 'p-textarea', Dropdown: 'p-dropdown',
+        InputText: 'p-inputtext', Textarea: 'p-textarea', Dropdown: 'p-dropdown',
         MultiSelect: 'p-multiselect', AutoComplete: 'p-autocomplete', Calendar: 'p-calendar',
         Checkbox: 'p-checkbox', RadioButton: 'p-radiobutton', SelectButton: 'p-selectbutton',
         InputNumber: 'p-inputnumber', Slider: 'p-slider', ToggleSwitch: 'p-toggleswitch',
@@ -34,38 +33,6 @@
         Object.keys(pComponentNames).forEach(function (name) {
             if (PV[name]) app.component(pComponentNames[name], PV[name]);
         });
-    }
-
-    function mountEditor(textarea) {
-        if (!textarea || textarea.dataset.pvEditor === '1') return;
-        if (!PV.Editor) return; /* requires PrimeVue Editor + Quill */
-        textarea.dataset.pvEditor = '1';
-
-        var parent = textarea.parentNode;
-        if (!parent) return;
-
-        var mountEl = document.createElement('div');
-        mountEl.className = 'pv-wysiwyg-root pv-editor-mount';
-        parent.insertBefore(mountEl, textarea);
-        textarea.style.display = 'none';
-
-        var initialValue = textarea.value || '';
-        var rows = parseInt(textarea.getAttribute('data-rows') || '10', 10);
-        var height = Math.max(200, rows * 24) + 'px';
-
-        var app = createApp({
-            setup: function () {
-                var value = ref(initialValue);
-                watch(value, function (v) {
-                    textarea.value = v == null ? '' : String(v);
-                }, { immediate: true });
-                return { value: value, editorStyle: { height: height } };
-            },
-            template: '<div class="pv-editor-wrapper"><p-editor v-model="value" :editorStyle="editorStyle" placeholder="Write content..." /></div>'
-        });
-        registerFormComponents(app);
-        app.component('p-editor', PV.Editor);
-        app.mount(mountEl);
     }
 
     function mountRelationshipSelect(select, type) {
@@ -110,7 +77,6 @@
     }
 
     function initAll() {
-        document.querySelectorAll('textarea.wysiwyg-textarea').forEach(mountEditor);
         document.querySelectorAll('.form-group[data-field-type="relationship"] select').forEach(function (sel) {
             mountRelationshipSelect(sel, 'relationship');
         });

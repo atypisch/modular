@@ -19,12 +19,12 @@
         "psr-4": {
             "Modular\\": "core/",
             "Modular\\Admin\\": "admin/",
-            "Modular\\Tests\\": "tests/"
+            "Modular\\Tests\\": "public/tests/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Modular\\Tests\\": "tests/"
+            "Modular\\Tests\\": "public/tests/"
         }
     },
     "scripts": {

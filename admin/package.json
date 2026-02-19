@@ -1,0 +1,18 @@
+{
+  "name": "modular-admin-assets",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "build:wysiwyg": "vite build"
+  },
+  "dependencies": {
+    "@tinymce/tinymce-vue": "^6.0.0",
+    "tinymce": "^7.0.0",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "@vitejs/plugin-vue": "^5.0.0"
+  }
+}

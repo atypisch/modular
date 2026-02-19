@@ -55,16 +55,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $title = filter_input(INPUT_POST, 'title', FILTER_SANITIZE_STRING) ?? '';
     $altText = filter_input(INPUT_POST, 'alt_text', FILTER_SANITIZE_STRING) ?? '';
+    $folderPath = filter_input(INPUT_POST, 'folder_path', FILTER_SANITIZE_STRING) ?? '';
     $caption = filter_input(INPUT_POST, 'caption', FILTER_SANITIZE_STRING) ?? '';
     $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING) ?? '';
     
     try {
         $stmt = $db->prepare("
             UPDATE media 
-            SET title = ?, alt_text = ?, caption = ?, description = ?, updated_at = NOW()
+            SET title = ?, alt_text = ?, folder_path = ?, caption = ?, description = ?, updated_at = NOW()
             WHERE id = ?
         ");
-        $stmt->execute([$title, $altText, $caption, $description, $id]);
+        $stmt->execute([$title, $altText, $folderPath ?: null, $caption, $description, $id]);
         
         $_SESSION['success'] = 'Media updated successfully.';
         header('Location: /modular/admin/media');
@@ -95,8 +96,21 @@ require_once ADMIN_PATH . '/templates/header.php';
 
     <div class="grid grid-cols-2" style="gap: var(--spacing-xl);">
         <div class="card">
+            <?php
+            $variants = [];
+            if (!empty($media['variants'])) {
+                $decoded = json_decode($media['variants'], true);
+                if (is_array($decoded)) $variants = $decoded;
+            }
+            $previewPath = $media['file_path'];
+            if (isset($variants['medium']['path'])) {
+                $previewPath = $variants['medium']['path'];
+            } elseif (isset($variants['thumb']['path'])) {
+                $previewPath = $variants['thumb']['path'];
+            }
+            ?>
             <?php if ($media['file_type'] === 'image'): ?>
-                <img src="<?php echo htmlspecialchars($media['file_path']); ?>" 
+                <img src="<?php echo htmlspecialchars($previewPath); ?>" 
                      alt="<?php echo htmlspecialchars($media['alt_text'] ?? ''); ?>"
                      style="width: 100%; border-radius: var(--radius-md); margin-bottom: var(--spacing-md);">
             <?php else: ?>
@@ -112,7 +126,77 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <?php if ($media['width'] && $media['height']): ?>
                     <div><strong>Dimensions:</strong> <?php echo $media['width']; ?> × <?php echo $media['height']; ?> px</div>
                 <?php endif; ?>
+                <?php if (!empty($media['folder_path'])): ?>
+                    <div><strong>Folder:</strong> <?php echo htmlspecialchars($media['folder_path']); ?></div>
+                <?php endif; ?>
             </div>
+
+            <?php if ($media['file_type'] === 'image' && !empty($variants)): ?>
+                <hr class="section-divider">
+                <h3 style="margin-top:0;">Image Variants</h3>
+                <p class="help-text">Crop thumbnails for specific sizes. Enter crop rectangle in pixels based on the original image.</p>
+                <?php foreach ($variants as $vName => $vData): ?>
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label><?php echo htmlspecialchars($vName); ?> (<?php echo (int)($vData['width'] ?? 0); ?> × <?php echo (int)($vData['height'] ?? 0); ?>)</label>
+                        <div style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
+                            <div style="display:flex;gap:0.25rem;align-items:flex-end;">
+                                <input type="number" class="form-control form-control-sm" style="width:5rem;" placeholder="x" data-crop-x="<?php echo htmlspecialchars($vName); ?>">
+                                <input type="number" class="form-control form-control-sm" style="width:5rem;" placeholder="y" data-crop-y="<?php echo htmlspecialchars($vName); ?>">
+                                <input type="number" class="form-control form-control-sm" style="width:5rem;" placeholder="w" data-crop-w="<?php echo htmlspecialchars($vName); ?>">
+                                <input type="number" class="form-control form-control-sm" style="width:5rem;" placeholder="h" data-crop-h="<?php echo htmlspecialchars($vName); ?>">
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" data-crop-btn="<?php echo htmlspecialchars($vName); ?>">
+                                <i class="fas fa-crop"></i> Crop &amp; Save
+                            </button>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                <script>
+                (function() {
+                    var buttons = document.querySelectorAll('[data-crop-btn]');
+                    buttons.forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            var variant = btn.getAttribute('data-crop-btn');
+                            var x = document.querySelector('[data-crop-x=\"' + variant + '\"]');
+                            var y = document.querySelector('[data-crop-y=\"' + variant + '\"]');
+                            var w = document.querySelector('[data-crop-w=\"' + variant + '\"]');
+                            var h = document.querySelector('[data-crop-h=\"' + variant + '\"]');
+                            var xv = parseInt(x && x.value || '0', 10);
+                            var yv = parseInt(y && y.value || '0', 10);
+                            var wv = parseInt(w && w.value || '0', 10);
+                            var hv = parseInt(h && h.value || '0', 10);
+                            if (!wv || !hv) {
+                                alert('Please enter width and height for the crop area.');
+                                return;
+                            }
+                            var formData = new FormData();
+                            formData.append('id', '<?php echo (int)$media['id']; ?>');
+                            formData.append('variant', variant);
+                            formData.append('x', isNaN(xv) ? 0 : xv);
+                            formData.append('y', isNaN(yv) ? 0 : yv);
+                            formData.append('w', wv);
+                            formData.append('h', hv);
+                            formData.append('<?php echo htmlspecialchars(csrf_token_name() ?? "_csrf_token"); ?>', '<?php echo htmlspecialchars(csrf_token() ?? ""); ?>');
+
+                            fetch('/modular/admin/media/crop.php', {
+                                method: 'POST',
+                                body: formData,
+                                credentials: 'same-origin'
+                            }).then(function(res) { return res.text(); }).then(function(text) {
+                                if (text.trim() === 'ok') {
+                                    location.reload();
+                                } else {
+                                    alert('Crop failed: ' + text);
+                                }
+                            }).catch(function(err) {
+                                alert('Crop request failed. Check console.');
+                                console.error(err);
+                            });
+                        });
+                    });
+                })();
+                </script>
+            <?php endif; ?>
         </div>
         
         <div class="card">
@@ -129,6 +213,13 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <input type="text" name="alt_text" id="alt_text" class="form-control" 
                            value="<?php echo htmlspecialchars($media['alt_text'] ?? ''); ?>">
                     <div class="help-text">Alternative text for accessibility (for images).</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="folder_path">Folder</label>
+                    <input type="text" name="folder_path" id="folder_path" class="form-control" 
+                           value="<?php echo htmlspecialchars($media['folder_path'] ?? ''); ?>">
+                    <div class="help-text">Optional folder path to organise this media item.</div>
                 </div>
                 
                 <div class="form-group">

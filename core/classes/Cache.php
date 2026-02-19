@@ -11,7 +11,8 @@ class Cache {
     private $defaultTtl = 3600; // 1 hour
     
     public function __construct($cacheDir = null) {
-        $this->cacheDir = $cacheDir ?? dirname(dirname(__DIR__)) . '/cache';
+        $base = defined('MODULAR_PATH') ? MODULAR_PATH : dirname(dirname(__DIR__));
+        $this->cacheDir = $cacheDir ?? $base . '/core/storage/cache';
         if (!is_dir($this->cacheDir)) {
             mkdir($this->cacheDir, 0755, true);
         }

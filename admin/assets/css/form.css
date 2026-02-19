@@ -145,71 +145,6 @@
     font-size: 0.875rem;
 }
 
-/* WYSIWYG editor (admin, inspired by ACF Visual/Text) */
-.wysiwyg-wrapper {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #fff;
-}
-.wysiwyg-tabs {
-    display: flex;
-    border-bottom: 1px solid #eee;
-    background: #f8f9fa;
-}
-.wysiwyg-tab {
-    flex: 0 0 auto;
-    padding: 0.4rem 0.75rem;
-    border: none;
-    background: none;
-    font-size: 0.85rem;
-    cursor: pointer;
-    color: #6c757d;
-}
-.wysiwyg-tab.active {
-    color: #212529;
-    font-weight: 600;
-    border-bottom: 2px solid #007bff;
-}
-.wysiwyg-toolbar {
-    display: flex;
-    gap: 0.25rem;
-    padding: 0.35rem 0.5rem;
-    border-bottom: 1px solid #eee;
-    background: #fdfdfd;
-}
-.wysiwyg-toolbar-btn {
-    border: 1px solid #ddd;
-    background: #fff;
-    border-radius: 3px;
-    padding: 0.15rem 0.4rem;
-    font-size: 0.75rem;
-    cursor: pointer;
-}
-.wysiwyg-toolbar-btn:hover {
-    background: #f3f3f3;
-}
-.wysiwyg-visual {
-    min-height: 160px;
-    padding: 0.75rem;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    outline: none;
-}
-.wysiwyg-textarea-internal {
-    width: 100%;
-    border: none;
-    border-top: 1px solid #eee;
-    border-radius: 0;
-    font-size: 0.9rem;
-    padding: 0.5rem 0.75rem;
-}
-.wysiwyg-mode-visual .wysiwyg-textarea-internal {
-    display: none;
-}
-.wysiwyg-mode-text .wysiwyg-visual {
-    display: none;
-}
-
 /* Relationship / Post Object UX */
 .relationship-field {
     display: flex;
@@ -300,15 +235,6 @@
 }
 
 /* PrimeVue field mounts (post edit) */
-.pv-wysiwyg-root.pv-editor-mount,
-.pv-editor-wrapper {
-    width: 100%;
-    min-height: 200px;
-}
-.pv-editor-wrapper .p-editor-container,
-.pv-editor-wrapper .p-editor-content {
-    width: 100%;
-}
 .pv-relation-root {
     width: 100%;
     max-width: 100%;
@@ -317,6 +243,23 @@
 .pv-relation-root .p-dropdown {
     width: 100%;
 }
+
+/* WYSIWYG (TinyMCE) – clickable area, min height, theme consistency */
+.field-type-wysiwyg .modular-wysiwyg-field {
+    width: 100%;
+    min-height: 250px;
+}
+.field-type-wysiwyg .modular-wysiwyg-field .tox .tox-edit-area__iframe {
+    min-height: 250px;
+}
+.field-type-wysiwyg .modular-wysiwyg-field .tox .tox-editor-container {
+    min-height: 250px;
+}
+.field-type-wysiwyg .modular-wysiwyg-field .tox-tinymce {
+    border-radius: var(--radius-sm, 4px);
+    border-color: var(--border-color, #e8e6e3);
+}
+
 .w-full { width: 100%; }
 
 /* Validation (field renderer) */

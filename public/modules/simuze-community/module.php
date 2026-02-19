@@ -40,17 +40,22 @@ add_action('init', function () {
     if (!function_exists('is_module_active') || !is_module_active('simuze-community')) {
         return;
     }
-    // Admin menu: add Community > Groups
+    // Admin menu: Overview, Groups, Group Types, Reviews, Reports, Messages, Settings (last) – aligned with WP Simuze Community
     add_filter('admin_menu_items', function ($items) {
         $base = (defined('ADMIN_URL') ? ADMIN_URL : '') . '/module-page.php?module=simuze-community&page=';
         $items[] = [
             'label' => 'Community',
-            'url' => $base . 'groups',
+            'url' => $base . 'index',
             'icon' => 'fas fa-users',
             'match' => 'simuze-community',
             'sub' => [
+                ['label' => 'Simuze', 'url' => $base . 'index'],
                 ['label' => 'Groups', 'url' => $base . 'groups'],
+                ['label' => 'Group Types', 'url' => $base . 'group-types'],
+                ['label' => 'Reviews', 'url' => $base . 'reviews'],
+                ['label' => 'Reports', 'url' => $base . 'reports'],
                 ['label' => 'Messages', 'url' => $base . 'messages'],
+                ['label' => 'Settings', 'url' => $base . 'settings'],
             ],
         ];
         return $items;

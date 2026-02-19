@@ -7,12 +7,12 @@ Modular CMS follows a modular, component-based architecture with clear separatio
 ### Directory Structure
 ```
 modular/
-├── admin/          # Admin interface
-├── core/           # Core system classes
-├── modules/         # Plugins/modules
+├── admin/          # Admin interface (includes admin/bin, admin/languages)
+├── core/           # Core system classes (includes core/storage/cache)
 ├── public/         # Public-facing files
-├── tests/          # Test suite
-└── cache/          # Cache files
+│   └── tests/      # Test suite
+├── docs/           # Internal documentation
+└── ontwerp/        # Design assets (internal)
 ```
 
 ## Core Classes
@@ -203,7 +203,7 @@ composer test
 
 ### Writing Tests
 
-Create test in `tests/Unit/`:
+Create test in `public/tests/Unit/`:
 
 ```php
 namespace Modular\Tests;

@@ -47,7 +47,13 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <input type="text" id="title" name="title" class="form-control" placeholder="Media title">
                 <div class="help-text">Optional title for this media file.</div>
             </div>
-            
+
+            <div class="form-group">
+                <label for="folder_path">Folder</label>
+                <input type="text" id="folder_path" name="folder_path" class="form-control" placeholder="e.g. blog/2025 or assets/icons">
+                <div class="help-text">Optional folder path to organise your media (stored in <code>folder_path</code>).</div>
+            </div>
+
             <div class="form-group">
                 <label for="alt_text">Alt Text</label>
                 <input type="text" id="alt_text" name="alt_text" class="form-control" placeholder="Alternative text">

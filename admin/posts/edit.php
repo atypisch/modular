@@ -124,11 +124,49 @@ if ($postTypeId) {
 $schemaFields = ($postTypeSchema && isset($postTypeSchema['fields']) && is_array($postTypeSchema['fields'])) ? $postTypeSchema['fields'] : [];
 $useSchemaForm = !empty($schemaFields);
 
+// Current layout (array of instances or field names) if stored
+$currentLayout = [];
+if (!empty($postData['layout']) && is_array($postData['layout'])) {
+    $currentLayout = $postData['layout'];
+}
+
 // Normalize to canonical schema (ui, storage, output) per docs/FIELD_DEFINITION_SCHEMA.md
 if ($useSchemaForm) {
     require_once CORE_PATH . '/fields/FieldSchemaMap.php';
     $normalizedSchema = \Modular\Fields\FieldSchemaMap::normalizeSchema(['fields' => $schemaFields]);
     $schemaFields = $normalizedSchema['fields'];
+
+    // If there is no saved per-post layout yet, derive initial layout for modular mode
+    // from fields that are marked \"show_on_creation\". If none are marked, fall back
+    // to including all fields (backwards compatible).
+    if (empty($currentLayout) && $postTypeMode === 'modular') {
+        $showOnCreationNames = [];
+        $allNames = [];
+        foreach ($schemaFields as $f) {
+            $name = $f['name'] ?? ($f['key'] ?? null);
+            if (!$name) {
+                continue;
+            }
+            $allNames[] = $name;
+            if (!array_key_exists('show_on_creation', $f) || $f['show_on_creation']) {
+                $showOnCreationNames[] = $name;
+            }
+        }
+        // If at least one field was explicitly/implicitly marked, use that subset;
+        // otherwise default to all field names.
+        $baseNames = !empty($showOnCreationNames) ? $showOnCreationNames : $allNames;
+
+        // Convert list of names to instance objects expected by the renderer.
+        $currentLayout = [];
+        $i = 0;
+        foreach ($baseNames as $n) {
+            $i++;
+            $currentLayout[] = [
+                'id' => 'fi-init-' . $i . '-' . $n,
+                'name' => $n,
+            ];
+        }
+    }
 }
 
 // Load field system so schema form can render (FieldRegistry + field classes)
@@ -210,6 +248,11 @@ $preview_slug = $postData['slug'] ?? '';
             <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
         </div>
     <?php endif; ?>
+    <?php if (isset($_SESSION['success'])): ?>
+        <div class="alert alert-success">
+            <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
+        </div>
+    <?php endif; ?>
 
     <form action="/modular/admin/posts/save.php" method="POST" id="post-edit-form">
         <?php echo csrf_field(); ?>
@@ -237,7 +280,7 @@ $preview_slug = $postData['slug'] ?? '';
 
     <div class="post-edit-body">
         <main class="post-edit-main">
-            <div class="card">
+            <div class="card" id="post-edit">
                 <?php if ($useSchemaForm): ?>
                     <div class="post-edit-fields-head">
                         <h3 style="margin: 0;">Fields</h3>
@@ -245,14 +288,29 @@ $preview_slug = $postData['slug'] ?? '';
                         <p class="help-text" style="margin: 0.25rem 0 0;">These fields are defined in <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/field-builder/?id=<?php echo (int)$postTypeId; ?>">Configure fields</a> for this post type.</p>
                         <?php endif; ?>
                         <?php if ($user_is_admin && $postTypeMode === 'modular'): ?>
-                        <button type="button" class="btn btn-secondary btn-sm" id="add-fields-btn" style="margin-top: 0.5rem;">
-                            <i class="fas fa-plus"></i> Add fields
-                        </button>
+                        <div class="post-edit-fields-head-actions" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-secondary btn-sm" id="add-fields-btn">
+                                <i class="fas fa-plus"></i> Add fields
+                            </button>
+                            <div class="add-layout-wrap" style="position: relative;">
+                                <button type="button" class="btn btn-secondary btn-sm" id="add-layout-btn" aria-haspopup="true" aria-expanded="false">
+                                    <i class="fas fa-columns"></i> Add layout
+                                </button>
+                                <div id="add-layout-menu" class="add-layout-dropdown" style="display: none; position: absolute; left: 0; top: 100%; margin-top: 2px; min-width: 10rem; background: var(--surface, #fff); border: 1px solid var(--border-color, #ddd); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; padding: 4px;">
+                                    <button type="button" class="add-layout-opt" data-cols="1">1 column</button>
+                                    <button type="button" class="add-layout-opt" data-cols="2">2 columns</button>
+                                    <button type="button" class="add-layout-opt" data-cols="3">3 columns</button>
+                                </div>
+                            </div>
+                        </div>
                         <?php endif; ?>
                     </div>
                     <input type="hidden" name="use_schema_form" value="1">
                     <input type="hidden" name="field_data_json" id="field_data_json" value="">
                     <div class="post-edit-fields-area <?php echo $postTypeMode === 'modular' ? 'post-edit-fields-draggable' : ''; ?>" id="post-edit-fields-area" data-fixed="<?php echo $postTypeMode === 'fixed' ? '1' : '0'; ?>">
+                        <script type="application/json" id="modular-field-schema-json"><?php echo json_encode(['fields' => $schemaFields]); ?></script>
+                        <script type="application/json" id="modular-field-data-json"><?php echo json_encode($fieldData); ?></script>
+                        <script type="application/json" id="modular-field-layout-json"><?php echo json_encode($currentLayout); ?></script>
                         <div id="post-edit-fields-vue-app" class="modular-field-renderer-container">
                             <noscript>
                                 <p class="help-text">JavaScript is required for the field editor. Please enable it and refresh.</p>
@@ -263,10 +321,54 @@ $preview_slug = $postData['slug'] ?? '';
                         </div>
                     </div>
                     <script>
-                    window.MODULAR_FIELD_SCHEMA = <?php echo json_encode(['fields' => $schemaFields]); ?>;
-                    window.MODULAR_FIELD_DATA = <?php echo json_encode($fieldData); ?>;
-                    window.MODULAR_FIELD_OPTIONS = {};
+                    (function(){
+                        function parseJsonScript(id, fallback) {
+                            var el = document.getElementById(id);
+                            if (!el || !el.textContent) return fallback;
+                            try { return JSON.parse(el.textContent.trim()); } catch (e) { return fallback; }
+                        }
+                        window.MODULAR_FIELD_SCHEMA = parseJsonScript('modular-field-schema-json', { fields: [] });
+                        window.MODULAR_FIELD_DATA = parseJsonScript('modular-field-data-json', {});
+                        window.MODULAR_FIELD_LAYOUT = parseJsonScript('modular-field-layout-json', null);
+                        window.MODULAR_BASE_URL = '<?php echo defined("BASE_PATH") ? BASE_PATH : "/modular"; ?>';
+                        window.MODULAR_TINYMCE_BASE_URL = '<?php echo defined("ADMIN_URL") ? rtrim(ADMIN_URL, "/") . "/assets/vendor/tinymce" : "/modular/admin/assets/vendor/tinymce"; ?>';
+                        window.MODULAR_CSRF_TOKEN = '<?php echo defined("BASE_PATH") && function_exists("csrf_token") ? csrf_token() : ""; ?>';
+                        window.MODULAR_POST_ID = <?php echo (int)$postId; ?>;
+                    })();
                     </script>
+                    <script>
+                    (function(){
+                        setTimeout(function checkMounted() {
+                            var root = document.getElementById('post-edit-fields-vue-app');
+                            if (!root) return;
+                            if (root.querySelector('.modular-field-renderer-root')) return;
+                            var fallback = document.getElementById('modular-fields-load-fallback');
+                            if (fallback) fallback.style.display = 'block';
+                        }, 2500);
+                    })();
+                    </script>
+                    <script>
+                    (function(){
+                        var form = document.getElementById('post-edit-form');
+                        if (!form) return;
+                        form.addEventListener('submit', function(e) {
+                            if (!window.ModularFieldRendererApp || typeof window.ModularFieldRendererApp._serialize !== 'function') return;
+                            var jsonInput = document.getElementById('field_data_json');
+                            if (!jsonInput) return;
+                            window.ModularFieldRendererApp._serialize();
+                            if (!jsonInput.value || jsonInput.value === '') {
+                                e.preventDefault();
+                                setTimeout(function() {
+                                    window.ModularFieldRendererApp._serialize();
+                                    if (jsonInput.value) form.submit();
+                                }, 50);
+                            }
+                        }, true);
+                    })();
+                    </script>
+                    <div id="modular-fields-load-fallback" style="display: none; padding: 1rem; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; color: #92400e; margin-top: 0.5rem;">
+                        <p><strong>Velden zijn niet geladen.</strong> Vernieuw de pagina. Als het probleem blijft: controleer de browserconsole op foutmeldingen.</p>
+                    </div>
                 <?php else: ?>
                     <h3 style="margin-top: 0;">Component Data</h3>
                     <div class="form-group">
@@ -283,7 +385,7 @@ $preview_slug = $postData['slug'] ?? '';
             <div class="card">
                 <div class="form-group">
                     <label for="status">Status</label>
-                    <select name="status" id="status" class="form-control">
+                    <select name="status" id="status" class="form-control post-edit-status-select" aria-label="Post status">
                         <option value="draft" <?php echo ($postData['status'] ?? 'draft') === 'draft' ? 'selected' : ''; ?>>Draft</option>
                         <option value="published" <?php echo ($postData['status'] ?? '') === 'published' ? 'selected' : ''; ?>>Published</option>
                         <option value="archived" <?php echo ($postData['status'] ?? '') === 'archived' ? 'selected' : ''; ?>>Archived</option>
@@ -293,7 +395,11 @@ $preview_slug = $postData['slug'] ?? '';
                     <button type="submit" class="btn btn-primary" style="width: 100%;">
                         <i class="fas fa-save"></i> Save post
                     </button>
-                    <a href="/modular/admin/posts<?php echo $postTypeId ? '?post_type_id=' . (int)$postTypeId : ''; ?>" class="btn btn-secondary" style="width: 100%; text-align: center;">Cancel</a>
+                    <?php if (!empty($postId)): ?>
+                    <a href="/modular/admin/posts/delete.php?id=<?php echo (int) $postId; ?>" class="btn btn-secondary post-edit-remove-btn" style="width: 100%;" onclick="return confirm('Are you sure you want to remove this post?');">
+                        <i class="fas fa-trash-alt"></i> Remove post
+                    </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </aside>
@@ -309,10 +415,42 @@ $preview_slug = $postData['slug'] ?? '';
             <button type="button" class="btn btn-secondary btn-sm" id="add-fields-modal-close" aria-label="Close">&times;</button>
         </div>
         <div class="post-edit-modal-body">
-            <p class="help-text">To add new field types to this post type, define them in Configure fields. Existing fields below can be reordered when this post type is in modular mode.</p>
-            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/field-builder/?id=<?php echo (int)$postTypeId; ?>" class="btn btn-primary btn-sm btn-inline" style="margin-top: 0.5rem;">
-                <i class="fas fa-cogs"></i> Configure fields
-            </a>
+            <p class="help-text">Click a field below to add it to this post. You can reorder fields by dragging them in the main editor.</p>
+            <div class="post-edit-modal-library">
+                <?php foreach ($schemaFields as $f): ?>
+                    <?php
+                    $name = $f['name'] ?? ($f['key'] ?? '');
+                    if (!$name) continue;
+                    $inLayout = in_array($name, $currentLayout ?? [], true);
+                    ?>
+                    <button type="button"
+                            class="post-edit-modal-library-item"
+                            data-add-field-name="<?php echo htmlspecialchars($name); ?>">
+                        <span class="field-library-drag-handle" aria-hidden="true">
+                            <i class="fas fa-grip-vertical"></i>
+                        </span>
+                        <strong><?php echo htmlspecialchars($f['label'] ?? $name); ?></strong>
+                        <span class="field-type-label">
+                            <?php echo htmlspecialchars($f['type'] ?? ''); ?>
+                            <?php if ($inLayout): ?> · In use<?php endif; ?>
+                        </span>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+            <p class="help-text" style="margin-top:0.75rem;">
+                To change which field types are available for this post type, use Configure fields in the Post Type editor.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm before removing a field that has content -->
+<div id="modular-remove-confirm-modal" class="modular-confirm-overlay" style="display: none;" aria-hidden="true">
+    <div class="modular-confirm-dialog">
+        <p class="modular-confirm-text">Dit veld bevat inhoud. Weet je zeker dat je het wilt verwijderen?</p>
+        <div class="modular-confirm-actions">
+            <button type="button" class="btn btn-secondary" id="modular-remove-cancel">Annuleren</button>
+            <button type="button" class="btn btn-primary btn-danger" id="modular-remove-confirm">Verwijderen</button>
         </div>
     </div>
 </div>
@@ -386,8 +524,16 @@ $preview_slug = $postData['slug'] ?? '';
 </script>
 
 <?php
+$admin_assets = defined('ADMIN_URL') ? rtrim(ADMIN_URL, '/') . '/assets' : '/modular/admin/assets';
+$tinymce_script = $admin_assets . '/vendor/tinymce/tinymce.min.js';
 $additional_scripts = $useSchemaForm
-    ? '<script src="/modular/admin/assets/js/field-renderer/resolveFieldComponent.js?v=1"></script><script src="/modular/admin/assets/js/field-renderer/field-renderer-app.js?v=1"></script>'
-    : '<script src="/modular/admin/assets/js/primevue-fields.js?v=3"></script>';
+    ? '<link rel="stylesheet" href="' . htmlspecialchars($admin_assets) . '/js/wysiwyg-field-bundle.css?v=1">'
+    . '<script src="' . htmlspecialchars($tinymce_script) . '"></script>'
+    . '<script src="' . htmlspecialchars($admin_assets) . '/js/wysiwyg-field-bundle.js?v=1"></script>'
+    . '<script src="' . htmlspecialchars($admin_assets) . '/js/field-renderer/resolveFieldComponent.js?v=1"></script>'
+    . '<script src="' . htmlspecialchars($admin_assets) . '/js/field-renderer/drag-manager.js?v=1"></script>'
+    . '<script src="' . htmlspecialchars($admin_assets) . '/js/field-renderer/field-renderer-app.js?v=7"></script>'
+    . '<script src="' . htmlspecialchars($admin_assets) . '/js/post-edit-fields-draggable.js?v=4"></script>'
+    : '<script src="' . htmlspecialchars($admin_assets) . '/js/primevue-fields.js?v=3"></script>';
 require_once ADMIN_PATH . '/templates/footer.php';
 ?>

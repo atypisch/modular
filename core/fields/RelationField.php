@@ -30,6 +30,8 @@ class RelationField implements FieldInterface
                 'instructions' => ['type' => 'string', 'required' => false],
                 'post_type' => ['type' => 'array', 'default' => []],
                 'taxonomy' => ['type' => 'array', 'default' => []],
+                'show_search' => ['type' => 'boolean', 'default' => true],
+                'show_post_type_filter' => ['type' => 'boolean', 'default' => true],
                 'filters' => ['type' => 'array', 'default' => ['search', 'post_type', 'taxonomy']],
                 'return_format' => ['type' => 'string', 'default' => 'id'],
                 'min' => ['type' => 'integer', 'required' => false],

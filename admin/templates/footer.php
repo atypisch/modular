@@ -10,54 +10,59 @@
     </footer>
     <?php endif; ?>
 
-    <!-- Additional Scripts -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Additional Scripts (vanilla JS, no jQuery) -->
     <script>
-        $(document).ready(function() {
-            // Sidebar collapse toggle: persist state, works even if base.js fails (e.g. module export)
-            (function() {
-                var btn = document.getElementById('sidebar-toggle');
-                if (!btn) return;
+        (function() {
+            // Sidebar collapse toggle: persist state
+            var btn = document.getElementById('sidebar-toggle');
+            if (btn) {
                 var collapsed = localStorage.getItem('modular-sidebar-collapsed') === '1';
                 if (collapsed) document.body.classList.add('sidebar-collapsed');
                 btn.addEventListener('click', function() {
                     document.body.classList.toggle('sidebar-collapsed');
                     localStorage.setItem('modular-sidebar-collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
                 });
-            })();
+            }
 
             // Keep subnavs with active subpages expanded on page load
-            $('.sub-nav').each(function() {
-                if ($(this).find('a.active').length > 0) {
-                    $(this).addClass('active').show();
+            document.querySelectorAll('.sub-nav').forEach(function(subNav) {
+                if (subNav.querySelector('a.active')) {
+                    subNav.classList.add('active');
+                    subNav.style.display = '';
                 }
             });
 
-            // Main nav links always navigate to their href (first subpage when they have sub-nav).
-            $('.sidebar-nav > ul > li').each(function() {
-                var $li = $(this);
-                var $mainLink = $li.children('a').first();
-                var $subNav = $li.find('.sub-nav');
-                if ($subNav.length > 0) {
-                    var $firstSubLink = $subNav.find('a').first();
-                    if ($firstSubLink.length && $firstSubLink.attr('href')) {
-                        $mainLink.attr('href', $firstSubLink.attr('href'));
-                    }
+            // Main nav links: point to first subpage when they have sub-nav
+            document.querySelectorAll('.sidebar-nav > ul > li').forEach(function(li) {
+                var mainLink = li.querySelector(':scope > a');
+                var subNav = li.querySelector('.sub-nav');
+                if (mainLink && subNav) {
+                    var firstSub = subNav.querySelector('a');
+                    if (firstSub && firstSub.getAttribute('href'))
+                        mainLink.setAttribute('href', firstSub.getAttribute('href'));
                 }
             });
 
-            // Optional: clicking the li (e.g. padding) toggles sub-nav; clicking the link navigates
-            $('.sidebar-nav > ul > li').click(function(e) {
-                if ($(e.target).closest('a').length) return;
-                var $subNav = $(this).find('.sub-nav');
-                if ($subNav.length > 0) {
+            // Clicking the li (e.g. padding) toggles sub-nav; clicking the link navigates
+            document.querySelectorAll('.sidebar-nav > ul > li').forEach(function(li) {
+                li.addEventListener('click', function(e) {
+                    if (e.target.closest('a')) return;
+                    var subNav = li.querySelector('.sub-nav');
+                    if (!subNav) return;
                     e.preventDefault();
-                    $('.sub-nav').not($subNav).slideUp(100).removeClass('active');
-                    $subNav.slideToggle(100).toggleClass('active');
+                    document.querySelectorAll('.sidebar-nav .sub-nav').forEach(function(n) {
+                        if (n === subNav) {
+                            n.classList.toggle('active');
+                            n.style.display = n.classList.contains('active') ? '' : 'none';
+                        } else {
+                            n.classList.remove('active');
+                            n.style.display = 'none';
+                        }
+                    });
                     return false;
-                }
+                });
             });
-        });
+        })();
     </script>
     <?php 
     // Load additional scripts if defined

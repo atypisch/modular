@@ -30,6 +30,10 @@ if (isset($GLOBALS['db'])) {
         if ($stmt->rowCount() > 0) {
             $moduleManager = new \Modular\ModuleManager($GLOBALS['db']);
             $GLOBALS['module_manager'] = $moduleManager;
+            // Fire init so modules can register admin menu items (e.g. add_filter('admin_menu_items'))
+            if (function_exists('do_action')) {
+                do_action('init');
+            }
         }
     } catch (\PDOException $e) {
         // Modules table doesn't exist yet - that's okay

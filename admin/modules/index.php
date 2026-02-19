@@ -215,9 +215,25 @@ add_action(\'init\', function() {
     // Module initialization
 });
 
-add_filter(\'the_title\', function($title) {
-    return $title . \' - Modified\';
-});'); ?></code></pre>
+// Optional: add a top-level admin menu item like \"Community\"
+add_filter(\'admin_menu_items\', function ($items) {
+    $base = (defined(\'ADMIN_URL\') ? ADMIN_URL : \'\') . \'/module-page.php?module=my-module&page=\';
+    $items[] = [
+        \'label\' => \'My Module\',
+        \'url\'   => $base . \'settings\',
+        \'icon\'  => \'fas fa-puzzle-piece\',
+        \'match\' => \'my-module\',
+        \'sub\'   => [
+            [\'label\' => \'Settings\', \'url\' => $base . \'settings\'],
+        ],
+    ];
+    return $items;
+});
+'); ?></code></pre>
+
+            <p>Then create admin pages under <code>/public/modules/my-module/admin/</code>, for example:</p>
+            <pre><code>public/modules/my-module/admin/settings.php</code></pre>
+            <p>These will be loaded via <code>/modular/admin/module-page.php?module=my-module&amp;page=settings</code> and show up as their own menu item in the sidebar.</p>
             
             <h3>Available Hooks</h3>
             <p>Modules can use the following hooks:</p>

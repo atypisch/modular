@@ -120,35 +120,25 @@ $is_auth_page = strpos($current_path, (defined('ADMIN_BASE_PATH') ? ADMIN_BASE_P
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/auth.css">
     <?php endif; ?>
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/responsive.css">
+    <?php if (!empty($dashboard_active)): ?>
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/dashboard.css">
+    <?php endif; ?>
     
     <!-- Font Awesome (local; run admin/assets/vendor/download-vendor.sh once) -->
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/vendor/fontawesome/css/all.min.css">
     
     <?php if (!$is_auth_page): ?>
-    <!-- jQuery (local) -->
-    <script src="<?php echo ADMIN_URL; ?>/assets/vendor/jquery/jquery-3.6.0.min.js"></script>
-    
     <!-- SortableJS (local) -->
     <script src="<?php echo ADMIN_URL; ?>/assets/vendor/sortablejs/Sortable.min.js"></script>
     
-    <!-- Vue 3 + PrimeVue (local; run admin/assets/vendor/download-vendor.sh for Quill if using Editor) -->
+    <!-- Vue 3 + PrimeVue (local; run admin/assets/vendor/download-vendor.sh) -->
     <script src="<?php echo ADMIN_URL; ?>/assets/vendor/vue/vue.global.prod.js"></script>
-    <?php
-    $quill_js = ADMIN_PATH . '/assets/vendor/quill/quill.min.js';
-    $quill_css = ADMIN_PATH . '/assets/vendor/quill/quill.snow.css';
-    if (file_exists($quill_js)): ?>
-    <script src="<?php echo ADMIN_URL; ?>/assets/vendor/quill/quill.min.js"></script>
-    <?php endif;
-    ?>
     <script src="<?php echo ADMIN_URL; ?>/assets/vendor/primevue/primevue.min.js"></script>
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/vendor/primevue/primevue.min.css">
     <?php
     $aura_theme = ADMIN_PATH . '/assets/vendor/primevue/themes/aura.js';
     if (file_exists($aura_theme)): ?>
     <script src="<?php echo ADMIN_URL; ?>/assets/vendor/primevue/themes/aura.js"></script>
-    <?php endif; ?>
-    <?php if (file_exists($quill_css)): ?>
-    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/vendor/quill/quill.snow.css">
     <?php endif; ?>
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/vendor/primeicons/primeicons.css">
     

@@ -1,0 +1,112 @@
+:root {
+    --gap: 20px;
+  }
+  
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  body {
+    font-family: sans-serif;
+    background: #f4f4f4;
+    color: #333;
+  }
+  
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--gap);
+  }
+  
+  .fullwidth {
+    padding: var(--gap);
+    background: #e0e0e0;
+  }
+  
+  header,
+  footer {
+    background: #e3e3e3;
+    color: white;
+    padding: var(--gap) 0;
+  }
+  
+  
+  .site-header.sticky {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 999;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  
+  
+  .logo {
+    font-weight: bold;
+    font-size: 1.5em;
+  }
+  
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gap);
+    margin-bottom: var(--gap);
+    background-color: green !important;
+  }
+  
+  .col {
+    background: white;
+    padding: var(--gap);
+    border: 1px solid #ccc;
+    flex-grow: 0;
+    flex-shrink: 0;
+  }
+  
+  /* Grid: 12-column system with fixed gap handling */
+  .col-1  { width: calc((100% - 11 * var(--gap)) / 12); }
+  .col-2  { width: calc((100% - 11 * var(--gap)) / 12 * 2 + var(--gap)); }
+  .col-3  { width: calc((100% - 11 * var(--gap)) / 12 * 3 + var(--gap) * 2); }
+  .col-4  { width: calc((100% - 11 * var(--gap)) / 12 * 4 + var(--gap) * 3); }
+  .col-5  { width: calc((100% - 11 * var(--gap)) / 12 * 5 + var(--gap) * 4); }
+  .col-6  { width: calc((100% - 11 * var(--gap)) / 12 * 6 + var(--gap) * 5); }
+  .col-7  { width: calc((100% - 11 * var(--gap)) / 12 * 7 + var(--gap) * 6); }
+  .col-8  { width: calc((100% - 11 * var(--gap)) / 12 * 8 + var(--gap) * 7); }
+  .col-9  { width: calc((100% - 11 * var(--gap)) / 12 * 9 + var(--gap) * 8); }
+  .col-10 { width: calc((100% - 11 * var(--gap)) / 12 * 10 + var(--gap) * 9); }
+  .col-11 { width: calc((100% - 11 * var(--gap)) / 12 * 11 + var(--gap) * 10); }
+  .col-12 { width: 100%; }
+  
+  /* Sticky effect within scrollable area */
+  .sticky-container {
+    margin-top: 40px;
+    padding: var(--gap);
+    background: #ddd;
+  }
+  
+  .sticky-wrapper {
+    display: flex;
+    gap: var(--gap);
+    align-items: flex-start;
+    max-width: 1200px;
+    margin: auto;
+  }
+  
+  .sticky-scroll {
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+    background: #fffae6;
+    padding: var(--gap);
+    border: 1px solid #aaa;
+    width: 300px;
+    height: fit-content;
+  }
+  
+  .scroll-content {
+    flex: 1;
+    background: #f8f8f8;
+    padding: var(--gap);
+  }
+  

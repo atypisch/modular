@@ -1,0 +1,61 @@
+.main-nav ul,
+.mobile-menu ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.main-nav li {
+  display: inline-block;
+  margin-right: 20px;
+}
+.main-nav a,
+.mobile-menu a {
+  text-decoration: none;
+  color: #000;
+}
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 25px;
+  height: 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 1001;
+}
+.hamburger span {
+  display: block;
+  height: 3px;
+  background: #000;
+  transition: all 0.3s;
+}
+.hamburger.active span:nth-child(1) {
+  transform: rotate(45deg) translate(5px, 5px);
+}
+.hamburger.active span:nth-child(2) {
+  opacity: 0;
+}
+.hamburger.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(6px, -6px);
+}
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  color: white;
+  z-index: 1000;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+.mobile-overlay.active {
+  display: block;
+}
+.mobile-menu .submenu {
+  display: none;
+  padding-left: 20px;
+}
+.mobile-menu .has-submenu.open .submenu {
+  display: block;
+}

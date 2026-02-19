@@ -78,6 +78,11 @@
     background: var(--background-subtle);
 }
 
+.post-edit-slug-edit i {
+    font-family: "Font Awesome 6 Free" !important;
+    font-weight: 900;
+}
+
 .post-edit-slug-inline {
     display: inline-flex;
     align-items: center;
@@ -120,8 +125,52 @@
     margin-bottom: 0;
 }
 
+/* Status dropdown: clearly visible as select */
+.post-edit-status-select {
+    width: 100%;
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    cursor: pointer;
+    appearance: auto;
+    -webkit-appearance: menulist;
+    -moz-appearance: menulist;
+    background-color: var(--surface, #fff);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: var(--radius-sm, 4px);
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
+.post-edit-remove-btn {
+    color: var(--danger, #c00);
+}
+
 .post-edit-fields-head {
     margin-bottom: var(--spacing-md);
+}
+
+/* Add layout dropdown (next to Add fields button) */
+.add-layout-dropdown {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 4px;
+    z-index: 100;
+}
+.add-layout-dropdown .add-layout-opt {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font-size: 0.875rem;
+    cursor: pointer;
+    color: var(--text-color);
+}
+.add-layout-dropdown .add-layout-opt:hover {
+    background: var(--hover-bg, #f0f0f0);
 }
 
 .post-edit-fields-area {
@@ -135,16 +184,577 @@
 
 .post-edit-fields-draggable .form-group[data-field-type] {
     padding-left: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--background-light);
+    padding: 0.75rem 1rem;
+    margin-bottom: var(--spacing-md);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* With toolbar, field is single column: toolbar + content full width (no flex row) */
+.post-edit-fields-draggable .form-group[data-field-type][data-field-id] {
+    display: block;
+}
+
+.post-edit-fields-draggable .form-group[data-field-type] > .field-inner-wrap {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Toolbar as drag handle: cursor move only when draggable (MODULAR mode) */
+.post-edit-fields-draggable .field-toolbar {
+    cursor: move;
+}
+.post-edit-fields-draggable .field-toolbar .field-toolbar-btn {
+    cursor: pointer;
+}
+.modular-renderer-is-fixed .field-toolbar,
+.modular-renderer-is-fixed .field-toolbar-handle {
+    cursor: default;
+}
+
+/* Highlight for field just dropped from library into editor */
+.post-edit-fields-draggable .field-drop-highlight {
+    background: rgba(113, 193, 210, 0.12) !important;
+    box-shadow: 0 0 0 2px rgba(113, 193, 210, 0.4);
+    transition: box-shadow 0.2s, background 0.2s;
+}
+
+/* Insert line when dragging from library (drop-between) */
+.post-edit-fields-area {
+    position: relative;
+}
+.modular-insert-line {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 0;
+    pointer-events: none;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.modular-insert-line.visible {
+    opacity: 1;
+}
+.modular-insert-line::before {
+    content: "";
+    display: block;
+    border-top: 3px dashed #71C1D2;
+    margin: 0 -8px;
+}
+
+/* Field row: full width so content is not warped or cut off */
+.post-edit-fields-draggable [data-field-id] {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+.post-edit-fields-draggable [data-field-id] .field-inner-wrap {
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0; /* allow shrinking only when necessary in constrained layouts */
+}
+.post-edit-fields-draggable [data-field-id] .field-toolbar-content {
+    width: 100%;
+    box-sizing: border-box;
+    overflow: visible;
+}
+
+/* Field toolbar (top of each field) – full-height bar, no extra space above/below */
+.post-edit-fields-draggable .field-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.35rem 0;
+    margin: 0 0 0.5rem 0;
+    box-sizing: border-box;
+}
+
+.field-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+/* Drag handle fills remaining toolbar width for easier grabbing */
+.post-edit-fields-draggable .field-toolbar-handle {
+    flex: 1;
+    min-width: 0;
+}
+
+.field-toolbar-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.field-toolbar-title-text {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.field-toolbar-title-input {
+    font-size: 0.9rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    min-width: 8rem;
+    max-width: 16rem;
+}
+
+.field-toolbar-btn {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: #fafafa;
+    color: var(--text-color-light);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, background 0.2s;
+}
+
+.field-toolbar-btn:hover {
+    background: var(--border-color);
+    color: var(--text-color);
+}
+
+.field-toolbar-remove:hover {
+    background: rgba(185, 28, 28, 0.1);
+    color: #b91c1c;
+}
+
+.field-toolbar-duplicate:hover {
+    background: rgba(59, 130, 246, 0.15);
+    color: #2563eb;
+}
+
+.field-toolbar-content {
+    width: 100%;
+}
+
+/* Extra compacte weergave wanneer veld is geminimaliseerd */
+.post-edit-fields-draggable [data-field-id].field-collapsed {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+}
+
+.post-edit-fields-draggable [data-field-id].field-collapsed .field-toolbar {
+    margin-bottom: 0;
+}
+
+/* Drag placeholder and active state */
+.post-edit-fields-draggable .sortable-ghost {
+    height: 4px !important;
+    min-height: 4px !important;
+    padding: 0 !important;
+    margin: 0.5rem 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+
+.post-edit-fields-draggable .sortable-ghost::after {
+    content: "";
+    display: block;
+    border-top: 3px dashed #71C1D2;
+}
+
+/* Relationship (PickList) styling – full width, both panels visible */
+.post-edit-fields-draggable .form-group.field-type-relationship .p-picklist {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.post-edit-fields-draggable .form-group.field-type-relationship .p-picklist .p-picklist-list-wrapper {
+    max-height: 18rem;
+    overflow-y: auto;
+    flex: 1 1 0;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.post-edit-fields-draggable .form-group.field-type-relationship .p-picklist .p-picklist-container {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.post-edit-fields-draggable .form-group.field-type-relationship .p-picklist-source-controls,
+.post-edit-fields-draggable .form-group.field-type-relationship .p-picklist-target-controls {
+    display: none; /* hide up/down buttons; rely on internal scrollbars */
+}
+
+.post-edit-fields-draggable .form-group.field-type-relationship .p-picklist-buttons .p-button {
+    padding: 0.35rem;
+    border-radius: 999px;
+}
+
+.post-edit-fields-draggable .form-group.field-type-relationship .p-picklist-buttons .p-button .p-button-label {
+    display: none;
+}
+
+.post-edit-fields-draggable .form-group.field-type-relationship .p-picklist-buttons .p-button .p-button-icon {
+    font-family: "Font Awesome 6 Free" !important;
+    font-weight: 900;
+}
+
+/* Relationship toolbar (search + post type filter) */
+.post-edit-fields-draggable .form-group.field-type-relationship .relationship-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.relationship-search-wrap {
+    position: relative;
+    flex: 1 1 220px;
+    max-width: 320px;
+}
+
+.relationship-search-icon {
+    position: absolute;
+    left: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    color: var(--text-color-lighter);
+}
+
+.relationship-search-input {
+    width: 100%;
+    padding: 0.3rem 0.6rem 0.3rem 1.6rem;
+    font-size: 0.8rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--background-subtle);
+}
+
+.relationship-type-filter-wrap {
+    flex: 0 0 auto;
+}
+
+.relationship-type-select {
+    min-width: 140px;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--background-subtle);
+}
+
+.post-edit-fields-draggable .sortable-ghost > * {
+    display: none !important;
+}
+
+/* Mirror field-builder ghost behavior as fallback */
+#post-edit .sortable-ghost {
+    height: 4px;
+    min-height: 4px;
+    padding: 0;
+    margin: 0.5rem 0;
+    border: none;
+    background: transparent;
+}
+
+#post-edit .sortable-ghost::after {
+    content: "";
+    display: block;
+    border-top: 3px dashed #71C1D2;
+}
+
+#post-edit .sortable-ghost > * {
+    display: none !important;
+}
+
+.post-edit-fields-draggable .sortable-drag {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+    background: rgba(45, 128, 22, 0.04);
+}
+
+.post-edit-fields-draggable .sortable-chosen {
+    border-color: var(--primary-color);
+}
+
+/* Page builder: top section + Add layout + layout blocks (drop zones) */
+.modular-top-section {
+    margin-bottom: var(--spacing-md);
+}
+.modular-top-drop {
+    min-height: 60px;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0;
+    background: var(--background-subtle);
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+}
+.modular-top-section .modular-block-header.modular-top-block-header {
+    margin: 0;
+    padding: 0.2rem 0.5rem;
+    min-height: 1.75rem;
+    border-radius: 0;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    box-sizing: border-box;
+}
+.modular-top-section .modular-top-inner {
+    padding: var(--spacing-sm);
+}
+.modular-top-drop.modular-top-drag-over {
+    border-color: var(--primary-color);
+    background: rgba(45, 128, 22, 0.08);
+    box-shadow: 0 0 0 2px rgba(45, 128, 22, 0.2);
+}
+.modular-add-layout {
+    position: relative;
+    margin-bottom: var(--spacing-md);
+}
+.modular-add-layout-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    border: 2px dashed var(--border-color);
+    background: var(--background-light);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+.modular-add-layout-btn:hover {
+    border-color: var(--primary-color);
+    background: rgba(45, 128, 22, 0.06);
+    color: var(--primary-color);
+}
+.modular-add-layout-menu {
+    position: absolute;
+    left: 0;
+    top: 100%;
+    margin-top: 0.35rem;
+    padding: 0.35rem;
+    background: var(--background-light);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    z-index: 10;
+}
+.modular-add-layout-opt {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-size: 0.875rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    cursor: pointer;
+    color: var(--text-color);
+}
+.modular-add-layout-opt:hover {
+    background: var(--hover-bg);
+}
+.modular-layout-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-bottom: var(--spacing-lg);
+    min-height: 100px;
+    padding: 0;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--background-subtle);
+    overflow: hidden;
+}
+/* Header flush to top of layout block, full width, lighter background for drag affordance */
+.modular-layout-block > .modular-block-header.layout-block-toolbar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 1.75rem;
+    padding: 0.2rem 0.5rem;
+    margin: 0;
+    border-radius: 0;
+    border-bottom: 1px solid var(--border-color);
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.06);
+}
+.modular-layout-block-columns {
+    display: grid;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    min-height: 80px;
+}
+.modular-layout-block.modular-layout-1col .modular-layout-block-columns {
+    grid-template-columns: 1fr;
+}
+.modular-layout-block.modular-layout-2col .modular-layout-block-columns {
+    grid-template-columns: 1fr 1fr;
+}
+.modular-layout-block.modular-layout-3col .modular-layout-block-columns {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+/* Collapsed multi-column: show all columns as small strips */
+.modular-layout-block-collapsed .modular-layout-block-columns {
+    padding: 0.25rem 0.5rem;
+}
+.modular-column.modular-column-collapsed {
+    min-height: 0;
+}
+.modular-collapsed-col-label {
+    font-size: 0.8125rem;
+    color: var(--text-color-light);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--background-light);
+}
+.layout-block-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+/* Layout block drag handle fills width for easier grabbing */
+.post-edit-fields-draggable .layout-block-toolbar-handle {
+    flex: 1;
+    min-width: 0;
+    cursor: move;
+}
+.layout-block-toolbar-right {
+    display: inline-flex;
+    align-items: center;
+}
+.post-edit-fields-draggable .layout-block-toolbar .layout-block-toolbar-btn {
+    cursor: pointer;
+}
+.modular-renderer-is-fixed .layout-block-toolbar-handle {
+    cursor: default;
+}
+.layout-block-title-text {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.layout-block-title-input {
+    font-size: 0.9rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    min-width: 10rem;
+    max-width: 20rem;
+}
+.layout-block-toolbar-btn {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--background-subtle);
+    color: var(--text-color-light);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, background 0.2s;
+}
+.layout-block-toolbar-btn:hover {
+    background: var(--border-color);
+    color: var(--text-color);
+}
+.layout-block-toolbar-btn-remove:hover {
+    background: rgba(185, 28, 28, 0.1);
+    color: #b91c1c;
+}
+.modular-layout-block-collapsed .modular-block-header.layout-block-toolbar {
+    margin-bottom: 0;
+    border-bottom: none;
+}
+.modular-column {
+    min-height: 100px;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    background: var(--background-subtle);
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.modular-column.modular-column-drag-over {
+    border-color: var(--primary-color);
+    background: rgba(45, 128, 22, 0.1);
+    box-shadow: 0 0 0 3px rgba(45, 128, 22, 0.25);
+}
+.modular-column-inner {
+    min-height: 80px;
+    width: 100%;
+    min-width: 0; /* allow grid column to shrink correctly */
+    box-sizing: border-box;
+}
+.modular-top-inner {
+    min-height: 40px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Image / file upload buttons: light blue-grey instead of green */
+.modular-field-renderer-root [data-field-type="image"] .p-button,
+.modular-field-renderer-root [data-field-type="file"] .p-button,
+.modular-field-renderer-root [data-field-type="image"] .p-fileupload .p-button {
+    background: #94a3b8;
+    border-color: #94a3b8;
+    color: #fff;
+}
+.modular-field-renderer-root [data-field-type="image"] .p-button:hover,
+.modular-field-renderer-root [data-field-type="file"] .p-button:hover,
+.modular-field-renderer-root [data-field-type="image"] .p-fileupload .p-button:hover {
+    background: #64748b;
+    border-color: #64748b;
 }
 
 /* Modal from the right */
 .post-edit-modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 1100;
+    display: flex;
     align-items: stretch;
     justify-content: flex-end;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1100;
+    pointer-events: auto;
+    transition: background 0.2s;
+}
+/* During drag from library: no dimming so drop zone + insert line + highlight are visible */
+.post-edit-modal-overlay.drag-from-library-active {
+    background: transparent;
+    pointer-events: none;
+}
+.post-edit-modal-overlay.drag-from-library-active .post-edit-modal-panel {
+    pointer-events: auto;
 }
 
 .post-edit-modal-panel {
@@ -178,6 +788,89 @@
 
 .post-edit-modal-library {
     margin-top: var(--spacing-sm);
+}
+
+.post-edit-modal-library-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 0.35rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: #fff;
+    color: var(--text-color);
+    cursor: grab;
+}
+
+.post-edit-modal-library-item:hover {
+    background: var(--hover-bg);
+}
+
+.post-edit-modal-library-item .field-library-drag-handle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--background-subtle);
+    color: var(--text-color-light);
+}
+
+.post-edit-modal-library-item .field-library-drag-handle i {
+    font-size: 0.8rem;
+}
+
+.post-edit-modal-library-item strong {
+    flex: 1 1 auto;
+    font-size: 0.85rem;
+}
+
+.post-edit-modal-library-item span.field-type-label {
+    font-size: 0.75rem;
+    color: var(--text-color-light);
+}
+
+/* Remove-field confirmation modal */
+.modular-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.modular-confirm-dialog {
+    background: var(--background-light);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: var(--spacing-lg);
+    max-width: 360px;
+}
+.modular-confirm-text {
+    margin: 0 0 var(--spacing-md) 0;
+    font-size: 0.95rem;
+}
+.modular-confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+.modular-confirm-actions .btn-danger {
+    background: #b91c1c;
+    border-color: #b91c1c;
+    color: #fff;
+}
+.modular-confirm-actions .btn-danger:hover {
+    background: #991b1b;
+    border-color: #991b1b;
 }
 
 @media (max-width: 768px) {

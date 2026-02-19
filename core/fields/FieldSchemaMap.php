@@ -29,7 +29,7 @@ final class FieldSchemaMap
                 'output' => ['php' => '', 'json' => ''],
             ],
             'wysiwyg' => [
-                'ui' => ['component' => 'Editor', 'props' => ['toolbar' => 'full', 'placeholder' => 'Write content...']],
+                'ui' => ['component' => 'WysiwygField', 'props' => ['editorMode' => 'full', 'placeholder' => 'Write content...']],
                 'storage' => ['format' => 'html', 'column' => ''],
                 'output' => ['php' => '', 'json' => ''],
             ],

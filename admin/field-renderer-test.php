@@ -134,8 +134,8 @@ window.MODULAR_FIELD_OPTIONS = {};
                 todos.push('styledOptions missing for type: ' + t);
             }
         });
-        if (!window.PrimeVue || !window.PrimeVue.Editor) {
-            todos.push('PrimeVue or Editor not available – WYSIWYG may not render.');
+        if (typeof window.ModularWysiwygField === 'undefined') {
+            todos.push('WysiwygField bundle not loaded – WYSIWYG may not render. Load TinyMCE and wysiwyg-field-bundle.js.');
         }
         if (!window.PrimeVue || !window.PrimeVue.Calendar) {
             todos.push('PrimeVue Calendar not available – date/time fields may not render.');

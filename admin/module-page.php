@@ -8,9 +8,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 if (!defined('ADMIN_PATH')) {
-    require_once dirname(__DIR__) . '/config/config.php';
+    require_once dirname(__DIR__) . '/admin/config/config.php';
 }
-require_once dirname(__DIR__) . '/bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
@@ -42,6 +42,14 @@ if (!is_file($file)) {
 }
 
 $page_title = ucfirst(str_replace('-', ' ', $page));
+
+// For POST requests, include the module page first so it can redirect (e.g. after add/edit/delete)
+// before any output. Otherwise "headers already sent" occurs when toolbar/header has been output.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    include $file;
+    exit;
+}
+
 require_once ADMIN_PATH . '/templates/header.php';
 include $file;
 require_once ADMIN_PATH . '/templates/footer.php';

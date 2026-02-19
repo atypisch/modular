@@ -30,7 +30,8 @@ class i18n {
      * Load translations
      */
     private static function loadTranslations() {
-        $langDir = dirname(dirname(__DIR__)) . '/languages';
+        $base = defined('MODULAR_PATH') ? MODULAR_PATH : dirname(dirname(__DIR__));
+        $langDir = $base . '/admin/languages';
         $langFile = $langDir . '/' . self::$locale . '.php';
         
         if (file_exists($langFile)) {

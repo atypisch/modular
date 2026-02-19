@@ -131,26 +131,13 @@
                 break;
 
             case 'wysiwyg':
-                result.component = 'Editor';
-                // Start from base props but ensure the editor is editable by default.
+                result.component = 'WysiwygField';
                 result.props = Object.assign({}, base, {
                     placeholder: o.placeholder || 'Write content...',
-                    editorStyle: { minHeight: (o.rows || 10) * 24 + 'px' },
+                    editorMode: (o.toolbar === 'basic' || o.editor_type === 'basic') ? 'basic' : 'full',
                 });
-                // Only apply readonly/disabled when explicitly set on the field,
-                // otherwise PrimeVue Editor ends up non-editable and toolbar buttons are disabled.
-                if (o.readonly != null) {
-                    result.props.readonly = !!o.readonly;
-                } else {
-                    delete result.props.readonly;
-                }
-                if (o.disabled != null) {
-                    result.props.disabled = !!o.disabled;
-                } else {
-                    delete result.props.disabled;
-                }
-                if (o.toolbar) result.props.toolbar = o.toolbar;
-                if (o.tabs) result.props.tabs = o.tabs;
+                if (o.readonly != null) result.props.readonly = !!o.readonly;
+                if (o.disabled != null) result.props.disabled = !!o.disabled;
                 break;
 
             case 'code':
@@ -222,12 +209,12 @@
 
             case 'radio':
                 result.options = normalizeChoices(o.choices);
-                result.component = 'RadioButton';
+                result.component = 'SelectButton';
                 result.props = Object.assign({}, base, {
                     options: result.options,
                     optionLabel: 'label',
                     optionValue: 'value',
-                    inputId: 'field-' + (name || 'radio').replace(/[^a-z0-9_-]/gi, '-'),
+                    allowEmpty: !!o.allow_null,
                 });
                 break;
 
@@ -355,24 +342,29 @@
             case 'file':
                 result.component = 'FileUpload';
                 result.props = Object.assign({}, base, {
-                    mode: o.mode || 'advanced',
+                    mode: 'basic',
+                    url: (window.MODULAR_BASE_URL || '') + '/admin/media/upload-handler.php?_csrf_token=' + (window.MODULAR_CSRF_TOKEN || ''),
                     accept: type === 'image' ? 'image/*' : (o.accept || '*/*'),
-                    multiple: false,
-                    customUpload: true,
+                    multiple: o.multiple || false,
                     chooseLabel: o.choose_label || 'Choose',
                     uploadLabel: o.upload_label || 'Upload',
                     cancelLabel: o.cancel_label || 'Cancel',
+                    auto: true,
                 });
                 break;
 
             case 'gallery':
-                result.component = 'Galleria';
+                result.component = 'FileUpload';
                 result.props = Object.assign({}, base, {
-                    numVisible: o.numVisible != null ? parseInt(o.numVisible, 10) : 5,
-                    containerStyle: 'max-width: 640px',
-                    showThumbnails: true,
+                    mode: 'basic',
+                    url: (window.MODULAR_BASE_URL || '') + '/admin/media/upload-handler.php?_csrf_token=' + (window.MODULAR_CSRF_TOKEN || ''),
+                    accept: 'image/*',
+                    multiple: true,
+                    chooseLabel: o.choose_label || 'Add Images',
+                    uploadLabel: o.upload_label || 'Upload',
+                    cancelLabel: o.cancel_label || 'Cancel',
+                    auto: true,
                 });
-                result.options = o.options || [];
                 break;
 
             case 'carousel':
@@ -393,12 +385,26 @@
 
             case 'audio':
                 result.component = 'FileUpload';
-                result.props = Object.assign({}, base, { mode: o.mode || 'advanced', accept: 'audio/*', customUpload: true });
+                result.props = Object.assign({}, base, {
+                    mode: 'basic',
+                    url: (window.MODULAR_BASE_URL || '') + '/admin/media/upload-handler.php?_csrf_token=' + (window.MODULAR_CSRF_TOKEN || ''),
+                    accept: 'audio/*',
+                    multiple: false,
+                    chooseLabel: o.choose_label || 'Choose Audio',
+                    auto: true,
+                });
                 break;
 
             case 'video':
                 result.component = 'FileUpload';
-                result.props = Object.assign({}, base, { mode: o.mode || 'advanced', accept: 'video/*', customUpload: true });
+                result.props = Object.assign({}, base, {
+                    mode: 'basic',
+                    url: (window.MODULAR_BASE_URL || '') + '/admin/media/upload-handler.php?_csrf_token=' + (window.MODULAR_CSRF_TOKEN || ''),
+                    accept: 'video/*',
+                    multiple: false,
+                    chooseLabel: o.choose_label || 'Choose Video',
+                    auto: true,
+                });
                 break;
 
             case 'message':
@@ -513,7 +519,7 @@
 
     /** PrimeVue component name to tag name (kebab-case for template). */
     var COMPONENT_TAG_MAP = {
-        InputText: 'p-inputtext', Textarea: 'p-textarea', Editor: 'p-editor', InputNumber: 'p-inputnumber',
+        InputText: 'p-inputtext', Textarea: 'p-textarea', WysiwygField: 'wysiwyg-field', InputNumber: 'p-inputnumber',
         Slider: 'p-slider', Password: 'p-password', Dropdown: 'p-dropdown', MultiSelect: 'p-multiselect',
         Calendar: 'p-calendar', Checkbox: 'p-checkbox', RadioButton: 'p-radiobutton', SelectButton: 'p-selectbutton',
         FileUpload: 'p-fileupload', TreeSelect: 'p-treeselect', Message: 'p-message', Accordion: 'p-accordion',

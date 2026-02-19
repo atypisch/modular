@@ -71,7 +71,14 @@ if (!function_exists('sanitize_field_data_from_schema')) {
             }
 
             $value = $raw[$name] ?? null;
-            $out[$name] = $field->sanitize($value, $fieldDef);
+            // Modular mode: multiple instances per field name (array of values)
+            if (is_array($value) && array_keys($value) === array_keys(array_values($value))) {
+                $out[$name] = array_map(function ($v) use ($field, $fieldDef) {
+                    return $field->sanitize($v, $fieldDef);
+                }, $value);
+            } else {
+                $out[$name] = $field->sanitize($value, $fieldDef);
+            }
         }
         return $out;
     }

@@ -1,8 +1,11 @@
 # Design assets (local)
 ontwerp/
 
+# Internal docs (local)
+docs/
+
 # Local database / file backups (do not commit)
-backups/
+docs/backups/
 
 # Local config (e.g. MAMP DB port)
 admin/config/config.local.php

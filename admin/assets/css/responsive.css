@@ -1,3 +1,11 @@
+/* Ensure Font Awesome is used for all FA icon classes (overrides PrimeIcons etc.) */
+.fas, .far, .fab {
+    font-family: "Font Awesome 6 Free" !important;
+    font-weight: 900;
+}
+.far { font-weight: 400 !important; }
+.fab { font-family: "Font Awesome 6 Brands" !important; font-weight: 400 !important; }
+
 /* Responsive Design Rules */
 
 /* Small devices (phones, 576px and down) */

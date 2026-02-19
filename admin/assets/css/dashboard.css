@@ -81,17 +81,197 @@
     min-width: 0;
 }
 
-/* Cards */
+/* Cards – content-field style: toolbar-like header + body */
 .card {
     background: white;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    padding: 1.5rem;
+    overflow: hidden;
 }
 
 .card h2 {
     margin: 0 0 1rem 0;
     color: #2c3e50;
+}
+
+/* Dashboard columns: drop zones for draggable cards */
+.dashboard-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--spacing-md, 1rem);
+    align-items: start;
+}
+@media (max-width: 1024px) {
+    .dashboard-columns {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+@media (max-width: 640px) {
+    .dashboard-columns {
+        grid-template-columns: 1fr;
+    }
+}
+.dashboard-column {
+    min-height: 80px;
+    border: 2px dashed var(--border-color, #e5e5e5);
+    border-radius: var(--radius-md, 6px);
+    padding: 0.25rem;
+    background: var(--background-subtle, #fafafa);
+}
+.dashboard-column-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-height: 60px;
+}
+.dashboard-stats-column-inner {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.25rem;
+}
+@media (min-width: 768px) {
+    .dashboard-stats-column-inner {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+@media (min-width: 1024px) {
+    .dashboard-stats-column-inner {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Dashboard card: minimal padding, toolbar flush top with no margin */
+.dashboard-container .card {
+    padding: 0;
+    margin-bottom: 0.25rem;
+}
+.dashboard-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    min-height: 1.75rem;
+    padding: 0.2rem 0.4rem !important;
+    margin: 0 !important;
+    border-radius: 0;
+    box-sizing: border-box;
+    background: var(--background-subtle, #f0f0f0);
+    border-bottom: 1px solid var(--border-color, #eee);
+    font-weight: 500;
+    cursor: move;
+}
+.dashboard-card-title {
+    font-size: 0.8125rem;
+    color: var(--text-color, #333);
+}
+.dashboard-card-collapse-btn {
+    flex-shrink: 0;
+    width: 1.35rem;
+    height: 1.35rem;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-color-light);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.dashboard-card-collapse-btn:hover {
+    background: var(--border-color);
+    color: var(--text-color);
+}
+.dashboard-stat-card .card-body,
+.dashboard-actions-card .card-body,
+.dashboard-recent-card .card-body {
+    padding: 0.35rem 0.5rem;
+}
+/* Collapsed: hide entire card body so the whole item is collapsed */
+.dashboard-card-collapsed .dashboard-card-body {
+    display: none !important;
+}
+
+.dashboard-stat-value {
+    font-size: 2rem;
+    font-weight: 500;
+    margin: 0;
+}
+
+.dashboard-stat-primary { color: var(--primary-color, #2d8016); }
+.dashboard-stat-success { color: var(--success-text, #15803d); }
+.dashboard-stat-muted { color: var(--text-color-light, #666); }
+
+.dashboard-empty-state {
+    padding: var(--spacing-lg);
+}
+
+/* Summary list inside stats card */
+.dashboard-summary-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.dashboard-summary-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.875rem;
+    padding: 0.15rem 0;
+}
+.dashboard-summary-label {
+    color: var(--text-color-light, #666);
+}
+.dashboard-summary-value {
+    font-weight: 500;
+    color: var(--text-color, #111);
+}
+
+.dashboard-quick-intro {
+    font-size: 0.85rem;
+    color: var(--text-color-light, #666);
+    margin: 0 0 0.5rem 0;
+}
+
+.dashboard-recent-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-recent-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-light, #eee);
+}
+
+.dashboard-recent-item:last-child {
+    border-bottom: none;
+}
+
+.dashboard-recent-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dashboard-recent-item-title {
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-recent-item-meta {
+    font-size: 0.8125rem;
+    margin-top: 0.2rem;
+}
+
+.dashboard-view-all {
+    width: 100%;
+    margin-top: var(--spacing-md);
 }
 
 /* Stats Card */

@@ -61,6 +61,7 @@ class MediaController {
         $file = $_FILES['file'];
         $title = $_POST['title'] ?? basename($file['name']);
         $altText = $_POST['alt_text'] ?? '';
+        $folderPath = isset($_POST['folder_path']) ? trim((string)$_POST['folder_path']) : null;
         
         // Validate file
         $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
@@ -103,8 +104,8 @@ class MediaController {
         $stmt = $this->db->prepare("
             INSERT INTO media 
             (filename, file_path, file_type, mime_type, file_size, width, height, 
-             variants, title, alt_text, uploaded_by, created_by, updated_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+             variants, title, alt_text, folder_path, uploaded_by, created_by, updated_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         
         $relativePath = (defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') . '/' : '/public/uploads/') . $filename;
@@ -112,7 +113,7 @@ class MediaController {
         
         $stmt->execute([
             $filename, $relativePath, $fileType, $mimeType, $fileSize, $width, $height,
-            $variantsJson, $title, $altText, $userId, $userId, $userId
+            $variantsJson, $title, $altText, $folderPath ?: null, $userId, $userId, $userId
         ]);
         
         $id = $this->db->lastInsertId();
@@ -121,26 +122,38 @@ class MediaController {
     
     private function generateImageVariants($sourcePath, $baseFilename) {
         $variants = [];
-        $sizes = [
-            'thumb' => [150, 150],
-            'small' => [300, 300],
-            'medium' => [768, 768],
-            'large' => [1200, 1200]
+
+        // Load dynamic image size configuration
+        if (!function_exists('media_get_image_settings')) {
+            require_once dirname(__DIR__) . '/functions/media-settings.php';
+        }
+        $settings = media_get_image_settings();
+        $sizes = $settings['sizes'] ?? [
+            'thumb' => ['width' => 150, 'height' => 150, 'crop' => true],
+            'small' => ['width' => 300, 'height' => 300, 'crop' => false],
+            'medium' => ['width' => 768, 'height' => 0, 'crop' => false],
+            'large' => ['width' => 1200, 'height' => 0, 'crop' => false],
         ];
+        $format = $settings['format'] ?? 'original';
+        $quality = (int)($settings['quality'] ?? 85);
         
         $extension = pathinfo($baseFilename, PATHINFO_EXTENSION);
         $baseName = pathinfo($baseFilename, PATHINFO_FILENAME);
         
-        foreach ($sizes as $name => $dimensions) {
+        foreach ($sizes as $name => $cfg) {
+            $maxW = (int)($cfg['width'] ?? 0);
+            $maxH = (int)($cfg['height'] ?? 0);
+            $crop = !empty($cfg['crop']);
+
             $variantFilename = $baseName . '_' . $name . '.' . $extension;
             $variantPath = $this->uploadDir . '/' . $variantFilename;
             
-            if ($this->resizeImage($sourcePath, $variantPath, $dimensions[0], $dimensions[1])) {
+            if ($this->resizeImage($sourcePath, $variantPath, $maxW, $maxH, $crop, $format, $quality)) {
                 $variants[$name] = [
                     'filename' => $variantFilename,
                     'path' => (defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') . '/' : '/public/uploads/') . $variantFilename,
-                    'width' => $dimensions[0],
-                    'height' => $dimensions[1]
+                    'width' => $maxW,
+                    'height' => $maxH
                 ];
             }
         }
@@ -148,7 +161,7 @@ class MediaController {
         return $variants;
     }
     
-    private function resizeImage($source, $destination, $maxWidth, $maxHeight) {
+    private function resizeImage($source, $destination, $maxWidth, $maxHeight, $crop = false, $targetFormat = 'original', $quality = 85) {
         $imageInfo = getimagesize($source);
         if (!$imageInfo) {
             return false;
@@ -157,11 +170,33 @@ class MediaController {
         $sourceWidth = $imageInfo[0];
         $sourceHeight = $imageInfo[1];
         $mimeType = $imageInfo['mime'];
-        
+
+        if ($maxWidth <= 0 && $maxHeight <= 0) {
+            $maxWidth = $sourceWidth;
+            $maxHeight = $sourceHeight;
+        } elseif ($maxWidth <= 0) {
+            $maxWidth = (int)round($sourceWidth * ($maxHeight / $sourceHeight));
+        } elseif ($maxHeight <= 0) {
+            $maxHeight = (int)round($sourceHeight * ($maxWidth / $sourceWidth));
+        }
+
         // Calculate new dimensions
-        $ratio = min($maxWidth / $sourceWidth, $maxHeight / $sourceHeight);
-        $newWidth = (int)($sourceWidth * $ratio);
-        $newHeight = (int)($sourceHeight * $ratio);
+        if ($crop) {
+            $targetRatio = $maxWidth / $maxHeight;
+            $sourceRatio = $sourceWidth / $sourceHeight;
+            if ($sourceRatio > $targetRatio) {
+                // Source is wider
+                $newHeight = $maxHeight;
+                $newWidth = (int)round($maxHeight * $sourceRatio);
+            } else {
+                $newWidth = $maxWidth;
+                $newHeight = (int)round($maxWidth / $sourceRatio);
+            }
+        } else {
+            $ratio = min($maxWidth / $sourceWidth, $maxHeight / $sourceHeight);
+            $newWidth = (int)($sourceWidth * $ratio);
+            $newHeight = (int)($sourceHeight * $ratio);
+        }
         
         // Create image resource
         switch ($mimeType) {
@@ -200,19 +235,17 @@ class MediaController {
         
         // Save resized image
         $result = false;
-        switch ($mimeType) {
-            case 'image/jpeg':
-                $result = imagejpeg($destinationImage, $destination, 85);
-                break;
-            case 'image/png':
-                $result = imagepng($destinationImage, $destination, 9);
-                break;
-            case 'image/gif':
-                $result = imagegif($destinationImage, $destination);
-                break;
-            case 'image/webp':
-                $result = imagewebp($destinationImage, $destination, 85);
-                break;
+        $fmt = $targetFormat === 'original' ? $mimeType : ('image/' . $targetFormat);
+        if ($fmt === 'image/jpeg' || $fmt === 'image/jpg') {
+            $result = imagejpeg($destinationImage, $destination, $quality);
+        } elseif ($fmt === 'image/png') {
+            // For PNG, invert quality: 0 (no compression) - 9 (max). Map 10-100 to 0-9.
+            $pngQuality = (int)round((100 - max(10, min(100, $quality))) / 10);
+            $result = imagepng($destinationImage, $destination, $pngQuality);
+        } elseif ($fmt === 'image/gif') {
+            $result = imagegif($destinationImage, $destination);
+        } elseif ($fmt === 'image/webp') {
+            $result = imagewebp($destinationImage, $destination, $quality);
         }
         
         imagedestroy($sourceImage);

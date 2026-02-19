@@ -127,9 +127,121 @@ require_once CORE_PATH . '/fields/HiddenField.php';
     } else {
         $rawFieldData = isset($_POST['field_data']) && is_array($_POST['field_data']) ? $_POST['field_data'] : [];
     }
+
+    $layoutOrder = [];
+    $layoutJson = null;
+
+    // New format: top section + layout blocks (Add layout → 1/2/3 columns)
+    if (isset($rawFieldData['__layout_top']) && array_key_exists('__layout_blocks', $rawFieldData) && is_array($rawFieldData['__layout_blocks'])) {
+        $valuesByInstance = isset($rawFieldData['__values_by_instance']) && is_array($rawFieldData['__values_by_instance'])
+            ? $rawFieldData['__values_by_instance']
+            : [];
+        $layoutTop = $rawFieldData['__layout_top'];
+        $layoutBlocks = $rawFieldData['__layout_blocks'];
+        $layoutOrderIds = isset($rawFieldData['__layout_order']) && is_array($rawFieldData['__layout_order'])
+            ? array_values($rawFieldData['__layout_order'])
+            : null;
+        unset($rawFieldData['__layout_top'], $rawFieldData['__layout_blocks'], $rawFieldData['__values_by_instance'], $rawFieldData['__layout_order']);
+
+        $groupedByField = [];
+        foreach (is_array($layoutTop) ? $layoutTop : [] as $inst) {
+            if (!is_array($inst)) continue;
+            $id = isset($inst['id']) ? (string)$inst['id'] : null;
+            $name = isset($inst['name']) ? (string)$inst['name'] : null;
+            if (!$id || !$name) continue;
+            $value = $valuesByInstance[$id] ?? null;
+            if (!array_key_exists($name, $groupedByField)) $groupedByField[$name] = [];
+            $groupedByField[$name][] = $value;
+        }
+        foreach ($layoutBlocks as $block) {
+            $cols = isset($block['columns']) && is_array($block['columns']) ? $block['columns'] : [];
+            foreach ($cols as $colList) {
+                if (!is_array($colList)) continue;
+                foreach ($colList as $inst) {
+                    if (!is_array($inst)) continue;
+                    $id = isset($inst['id']) ? (string)$inst['id'] : null;
+                    $name = isset($inst['name']) ? (string)$inst['name'] : null;
+                    if (!$id || !$name) continue;
+                    $value = $valuesByInstance[$id] ?? null;
+                    if (!array_key_exists($name, $groupedByField)) $groupedByField[$name] = [];
+                    $groupedByField[$name][] = $value;
+                }
+            }
+        }
+        $rawFieldData = $groupedByField;
+        foreach ($rawFieldData as $key => $val) {
+            if (is_array($val) && count($val) === 1) {
+                $rawFieldData[$key] = $val[0];
+            }
+        }
+        $layoutOrder = [ 'top' => is_array($layoutTop) ? $layoutTop : [], 'blocks' => $layoutBlocks ];
+        if ($layoutOrderIds !== null) {
+            $layoutOrder['order'] = $layoutOrderIds;
+        }
+        $layoutJson = json_encode($layoutOrder);
+    }
+    // Legacy: __layout_type + __layout_columns
+    elseif (isset($rawFieldData['__layout_type']) && isset($rawFieldData['__layout_columns']) && is_array($rawFieldData['__layout_columns'])) {
+        $valuesByInstance = isset($rawFieldData['__values_by_instance']) && is_array($rawFieldData['__values_by_instance'])
+            ? $rawFieldData['__values_by_instance']
+            : [];
+        $layoutType = $rawFieldData['__layout_type'] === '2col' || $rawFieldData['__layout_type'] === '3col' ? $rawFieldData['__layout_type'] : '1col';
+        $layoutColumns = $rawFieldData['__layout_columns'];
+        unset($rawFieldData['__layout_type'], $rawFieldData['__layout_columns'], $rawFieldData['__values_by_instance']);
+
+        $groupedByField = [];
+        foreach ($layoutColumns as $colList) {
+            if (!is_array($colList)) continue;
+            foreach ($colList as $inst) {
+                if (!is_array($inst)) continue;
+                $id = isset($inst['id']) ? (string)$inst['id'] : null;
+                $name = isset($inst['name']) ? (string)$inst['name'] : null;
+                if (!$id || !$name) continue;
+                $value = $valuesByInstance[$id] ?? null;
+                if (!array_key_exists($name, $groupedByField)) $groupedByField[$name] = [];
+                $groupedByField[$name][] = $value;
+            }
+        }
+        $rawFieldData = $groupedByField;
+        $layoutOrder = [ 'type' => $layoutType, 'columns' => $layoutColumns ];
+        $layoutJson = json_encode($layoutOrder);
+    }
+    // Legacy: __layout_instances (flat list) + __values_by_instance
+    elseif (isset($rawFieldData['__layout_instances']) && is_array($rawFieldData['__layout_instances'])) {
+        $instances = $rawFieldData['__layout_instances'];
+        $valuesByInstance = isset($rawFieldData['__values_by_instance']) && is_array($rawFieldData['__values_by_instance'])
+            ? $rawFieldData['__values_by_instance']
+            : [];
+        unset($rawFieldData['__layout_instances'], $rawFieldData['__values_by_instance']);
+
+        $layoutOrder = [];
+        $groupedByField = [];
+        foreach ($instances as $inst) {
+            if (!is_array($inst)) continue;
+            $id = isset($inst['id']) ? (string)$inst['id'] : null;
+            $name = isset($inst['name']) ? (string)$inst['name'] : null;
+            if (!$id || !$name) continue;
+            $layoutOrder[] = ['id' => $id, 'name' => $name];
+            $value = $valuesByInstance[$id] ?? null;
+            if (!array_key_exists($name, $groupedByField)) $groupedByField[$name] = [];
+            $groupedByField[$name][] = $value;
+        }
+        $rawFieldData = $groupedByField;
+        $layoutJson = !empty($layoutOrder) ? json_encode($layoutOrder) : null;
+    } elseif (isset($rawFieldData['__layout']) && is_array($rawFieldData['__layout'])) {
+        $layoutOrder = array_values(array_filter($rawFieldData['__layout'], 'strlen'));
+        unset($rawFieldData['__layout']);
+        $layoutJson = !empty($layoutOrder) ? json_encode($layoutOrder) : null;
+    }
+
     $data = sanitize_field_data_from_schema($schemaFields, $rawFieldData);
     $dataJson = json_encode($data);
-    $layoutJson = json_encode(build_layout_order_from_schema($schemaFields));
+    if ($dataJson === 'null' || $dataJson === false) {
+        $dataJson = '{}';
+    }
+    if ($layoutJson === null) {
+        $layoutJson = json_encode(build_layout_order_from_schema($schemaFields));
+    }
     $componentData = json_encode(['data' => $data]);
 } else {
     $rawComponent = filter_input(INPUT_POST, 'component_data', FILTER_UNSAFE_RAW) ?? '[]';
@@ -175,6 +287,8 @@ try {
             $componentData, $dataJson, $layoutJson, $publishedAt, $userId, $postId
         ]);
         $_SESSION['success'] = 'Post updated successfully.';
+        header('Location: /modular/admin/posts/edit.php?id=' . (int)$postId);
+        exit;
     } else {
         $stmt = $db->prepare("
             INSERT INTO posts 
@@ -186,11 +300,11 @@ try {
             $postTypeId, $slug, $title, $excerpt, $status, $componentData, $dataJson, $layoutJson,
             $userId, $userId, $userId, $publishedAt
         ]);
+        $newId = (int)$db->lastInsertId();
         $_SESSION['success'] = 'Post created successfully.';
+        header('Location: /modular/admin/posts/edit.php?id=' . $newId);
+        exit;
     }
-
-    header('Location: /modular/admin/posts?post_type_id=' . $postTypeId);
-    exit;
 
 } catch (Exception $e) {
     $_SESSION['error'] = 'An error occurred: ' . $e->getMessage();

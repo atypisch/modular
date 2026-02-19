@@ -156,45 +156,63 @@ require_once ADMIN_PATH . '/templates/header.php';
             </div>
         </div>
 
-        <!-- Canvas -->
-        <div class="card active-schema" style="padding: var(--spacing-md); display: flex; flex-direction: column; min-width: 0;">
-            <h3 class="active-schema-title" style="margin: 0 0 var(--spacing-md); font-size: 1rem;">Active fields</h3>
-            <p class="field-library-hint" style="margin: 0 0 0.5rem 0; font-size: 0.8rem; color: var(--text-muted);">These fields will appear when editors create or edit a post of this type.</p>
-            <div ref="dropZoneRef"
-                class="active-fields-list"
-                style="flex:1;min-height:240px;border:2px dashed var(--border-color);border-radius:var(--radius-md);padding:var(--spacing-md);position:relative;transition: border-color 0.15s, background 0.15s;"
-                :class="{ 'drop-active': isDropActive }"
-                @dragover.prevent="onCanvasDragOver"
-                @dragleave="onCanvasDragLeave"
-                @drop.prevent="onCanvasDrop">
-                <div v-if="activeFields.length === 0" class="empty-state" style="text-align:center;padding:2rem;color:var(--text-muted);">
-                    <i class="fas fa-mouse-pointer" style="font-size:2rem;margin-bottom:0.5rem;"></i>
-                    <p>No fields yet. Drag from the library or click a field type to add.</p>
+        <!-- Canvas + Modular fields config -->
+        <div class="active-schema-wrapper" style="display:flex;flex-direction:column;gap:var(--spacing-md);min-width:0;">
+            <!-- Active fields (always visible when creating a post) -->
+            <div class="card active-schema" style="padding: var(--spacing-md); display: flex; flex-direction: column; min-width: 0;">
+                <h3 class="active-schema-title" style="margin: 0 0 var(--spacing-md); font-size: 1rem;">Active fields</h3>
+                <p class="field-library-hint" style="margin: 0 0 0.5rem 0; font-size: 0.8rem; color: var(--text-muted);">
+                    These fields are available for this post type. In modular mode you can choose which ones are shown when a new post is created.
+                </p>
+                <div v-if="config.mode === 'modular'" class="show-on-creation-controls" style="margin:0 0 0.5rem 0;font-size:0.8rem;color:var(--text-muted);display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                    <span style="margin-left:1.25rem;"></span>
+                    <label class="flex align-center gap-2">
+                        <input type="checkbox" v-model="allShowOnCreationSelected">
+                        <span>Show all fields on creation</span>
+                    </label>
+                    <i class="fas fa-info-circle" style="color:var(--text-muted);cursor:help;" title="Uncheck individual fields below to hide them on creation but keep them available in the &quot;Add fields&quot; panel." aria-label="Help"></i>
                 </div>
-                <ul ref="canvasListRef" v-show="activeFields.length > 0" :key="canvasListKey" class="active-fields-ul" style="list-style:none;margin:0;padding:0;">
-                    <li v-for="(field, index) in activeFields" :key="field._uid || ('f-' + index)"
-                        class="active-field-row"
-                        :class="{ selected: selectedIndex === index }"
-                        style="display:flex;align-items:center;gap:var(--spacing-sm);padding:0.5rem 0.75rem;margin:0.4rem 0;background:var(--surface);border:1px solid var(--border-color);border-radius:var(--radius-sm);cursor:pointer;"
-                        :data-index="index"
-                        @click="selectField(index)">
-                        <span class="drag-handle" title="Drag to reorder" style="cursor:grab;color:var(--text-muted);"><i class="fas fa-grip-vertical"></i></span>
-                        <button type="button" class="field-row-collapse" style="width:1.25rem;height:1.25rem;padding:0;margin:0;border:none;background:none;cursor:pointer;color:var(--text-muted);" @click.stop="toggleSettings(index)" :aria-label="selectedIndex === index ? 'Close settings' : 'Open settings'">
-                            <i class="fas" :class="selectedIndex === index ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
-                        </button>
-                        <span class="field-label" style="flex:1;min-width:0;font-weight:500;display:flex;align-items:center;gap:0.35rem;">
-                            <i class="fas" :class="getFieldIcon(field)" style="color:var(--text-muted);"></i>
-                            {{ field.label || field.name || field.type }}
-                            <span v-if="field.required" class="required-badge" style="color:var(--error-text);font-weight:600;">*</span>
-                        </span>
-                        <span class="field-type-badge" style="font-size:0.7rem;color:var(--text-muted);background:var(--background-subtle);padding:0.2rem 0.5rem;border-radius:4px;">{{ field.type }}</span>
-                        <button type="button" class="btn-row" title="Edit settings" @click.stop="selectField(index)"><i class="fas fa-cog"></i></button>
-                        <button type="button" class="btn-row" title="Duplicate" @click.stop="duplicateField(index)"><i class="fas fa-copy"></i></button>
-                        <button type="button" class="btn-row btn-delete" title="Delete" @click.stop="deleteField(index)"><i class="fas fa-trash-alt"></i></button>
-                    </li>
-                </ul>
-                <div v-show="isDropActive && libraryInsertIndex >= 0" class="active-fields-insert-line visible" style="position:absolute;left:var(--spacing-md);right:var(--spacing-md);height:0;border-top:3px dashed #2d8016;pointer-events:none;z-index:10;" :style="{ top: insertLineTop + 'px' }"></div>
+                <div ref="dropZoneRef"
+                    class="active-fields-list"
+                    style="flex:1;min-height:240px;border:2px dashed var(--border-color);border-radius:var(--radius-md);padding:var(--spacing-md);position:relative;transition: border-color 0.15s, background 0.15s;"
+                    :class="{ 'drop-active': isDropActive }"
+                    @dragover.prevent="onCanvasDragOver"
+                    @dragleave="onCanvasDragLeave"
+                    @drop.prevent="onCanvasDrop">
+                    <div v-if="activeFields.length === 0" class="empty-state" style="text-align:center;padding:2rem;color:var(--text-muted);">
+                        <i class="fas fa-mouse-pointer" style="font-size:2rem;margin-bottom:0.5rem;"></i>
+                        <p>No fields yet. Drag from the library or click a field type to add.</p>
+                    </div>
+                    <ul ref="canvasListRef" v-show="activeFields.length > 0" :key="canvasListKey" class="active-fields-ul" style="list-style:none;margin:0;padding:0;">
+                        <li v-for="(field, index) in activeFields" :key="field._uid || ('f-' + index)"
+                            class="active-field-row"
+                            :class="{ selected: selectedIndex === index }"
+                            style="display:flex;align-items:center;gap:var(--spacing-sm);padding:0.5rem 0.75rem;margin:0.4rem 0;background:var(--surface);border:1px solid var(--border-color);border-radius:var(--radius-sm);cursor:pointer;"
+                            :data-index="index"
+                            @click="selectField(index)">
+                            <label v-if="config.mode === 'modular'" class="show-on-creation-toggle" style="display:flex;align-items:center;flex-shrink:0;" @click.stop>
+                                <input type="checkbox" v-model="field.show_on_creation">
+                            </label>
+                            <span class="drag-handle" title="Drag to reorder" style="cursor:grab;color:var(--text-muted);"><i class="fas fa-grip-vertical"></i></span>
+                            <button type="button" class="field-row-collapse" style="width:1.25rem;height:1.25rem;padding:0;margin:0;border:none;background:none;cursor:pointer;color:var(--text-muted);" @click.stop="toggleSettings(index)" :aria-label="selectedIndex === index ? 'Close settings' : 'Open settings'">
+                                <i class="fas" :class="selectedIndex === index ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                            </button>
+                            <span class="field-label" style="flex:1;min-width:0;font-weight:500;display:flex;align-items:center;gap:0.35rem;">
+                                <i class="fas" :class="getFieldIcon(field)" style="color:var(--text-muted);"></i>
+                                {{ field.label || field.name || field.type }}
+                                <span v-if="field.required" class="required-badge" style="color:var(--error-text);font-weight:600;">*</span>
+                            </span>
+                            <span class="field-type-badge" style="font-size:0.7rem;color:var(--text-muted);background:var(--background-subtle);padding:0.2rem 0.5rem;border-radius:4px;">{{ field.type }}</span>
+                            <button type="button" class="btn-row" title="Edit settings" @click.stop="selectField(index)"><i class="fas fa-cog"></i></button>
+                            <button type="button" class="btn-row" title="Duplicate" @click.stop="duplicateField(index)"><i class="fas fa-copy"></i></button>
+                            <button type="button" class="btn-row btn-delete" title="Delete" @click.stop="deleteField(index)"><i class="fas fa-trash-alt"></i></button>
+                        </li>
+                    </ul>
+                    <div v-show="isDropActive && libraryInsertIndex >= 0" class="active-fields-insert-line visible" style="position:absolute;left:var(--spacing-md);right:var(--spacing-md);height:0;border-top:3px dashed #2d8016;pointer-events:none;z-index:10;" :style="{ top: insertLineTop + 'px' }"></div>
+                </div>
             </div>
+
+            <!-- Geen aparte Modular fields-card meer: alle active fields zijn beschikbaar in Add fields -->
         </div>
     </div>
 
