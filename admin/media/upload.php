@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -28,19 +28,19 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1>Upload Media</h1>
-            <a href="/modular/admin/media" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Media Library
             </a>
         </div>
     </div>
 
     <div class="card">
-        <form id="upload-form" enctype="multipart/form-data" action="/modular/admin/media/upload-handler.php" method="POST">
+        <form id="upload-form" enctype="multipart/form-data" action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media/upload-handler.php" method="POST">
             <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label for="file">Select File <span style="color: var(--error-text);">*</span></label>
-                <input type="file" id="file" name="file" class="form-control" required accept="image/*,application/pdf">
-                <div class="help-text">Select an image or PDF file to upload.</div>
+                <input type="file" id="file" name="file" class="form-control" required accept="image/*,application/pdf,audio/*">
+                <div class="help-text">Select an image, PDF, or audio file to upload.</div>
             </div>
             
             <div class="form-group">
@@ -62,7 +62,7 @@ require_once ADMIN_PATH . '/templates/header.php';
             </div>
             
             <div class="form-actions">
-                <a href="/modular/admin/media" class="btn btn-secondary">Cancel</a>
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media" class="btn btn-secondary">Cancel</a>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-upload"></i> Upload
                 </button>

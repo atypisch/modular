@@ -15,17 +15,17 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/classes/Taxonomy.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
 }
 if (!csrf_verify()) {
     $_SESSION['error'] = 'Invalid request. Please try again.';
-    header('Location: /modular/admin/taxonomies' . (isset($_POST['id']) ? '/edit.php?id=' . (int)$_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies' . (isset($_POST['id']) ? '/edit.php?id=' . (int)$_POST['id'] : ''));
     exit;
 }
 
@@ -45,7 +45,7 @@ $taxonomy = [
 // Validate required fields
 if (empty($taxonomy['name'])) {
     $_SESSION['error'] = 'Name is required.';
-    header('Location: /modular/admin/taxonomies/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
     exit;
 }
 
@@ -63,12 +63,12 @@ try {
         $_SESSION['success'] = 'Taxonomy created successfully.';
     }
     
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
     
 } catch (Exception $e) {
     $_SESSION['error'] = 'An error occurred: ' . $e->getMessage();
-    header('Location: /modular/admin/taxonomies/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
     exit;
 }
 

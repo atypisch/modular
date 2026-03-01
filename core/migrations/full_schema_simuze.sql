@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS post_types (
     capability_type VARCHAR(50) NOT NULL DEFAULT 'post',
     settings JSON,
     mode VARCHAR(20) NOT NULL DEFAULT 'fixed',
-    schema JSON NULL,
+    `schema` JSON NULL,
     created_by INT NOT NULL,
     updated_by INT NOT NULL,
     created_at DATETIME NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS component_definitions (
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL,
     type VARCHAR(50) NOT NULL,
-    schema JSON NOT NULL,
+    `schema` JSON NOT NULL,
     is_fixed TINYINT(1) NOT NULL DEFAULT 1,
     is_flexible TINYINT(1) NOT NULL DEFAULT 0,
     `order` INT NOT NULL DEFAULT 0,
@@ -432,24 +432,17 @@ INSERT IGNORE INTO post_type_taxonomies (post_type_id, taxonomy_id)
 SELECT pt.id, t.id FROM post_types pt CROSS JOIN taxonomies t WHERE pt.slug = 'track' AND t.slug = 'genre';
 
 -- -----------------------------------------------------------------------------
--- 5. Location taxonomies (country, province, city)
+-- 5. Track, album, playlist fields (schema JSON) – lowercase_underscores, human-readable labels
 -- -----------------------------------------------------------------------------
 
-INSERT IGNORE INTO taxonomies (name, slug, description, hierarchical, public, show_in_menu, show_in_rest, created_by, updated_by, created_at, updated_at) VALUES
-('Country', 'country', 'Country (location)', 0, 1, 1, 1, 1, 1, NOW(), NOW()),
-('Province', 'province', 'Province / region', 0, 1, 1, 1, 1, 1, NOW(), NOW()),
-('City', 'city', 'City (location)', 0, 1, 1, 1, 1, 1, NOW(), NOW());
+UPDATE post_types SET `schema` = '{\"fields\":[{\"type\":\"relationship\",\"name\":\"album\",\"key\":\"album\",\"label\":\"Album\",\"instructions\":\"Album this track belongs to.\",\"required\":false,\"post_type\":[\"album\"],\"return_format\":\"id\",\"max\":1},{\"type\":\"date\",\"name\":\"release_date\",\"key\":\"release_date\",\"label\":\"Release date\"},{\"type\":\"number\",\"name\":\"duration_seconds\",\"key\":\"duration_seconds\",\"label\":\"Duration (seconds)\"},{\"type\":\"text\",\"name\":\"isrc\",\"key\":\"isrc\",\"label\":\"ISRC\"},{\"type\":\"image\",\"name\":\"cover_image\",\"key\":\"cover_image\",\"label\":\"Cover image\"},{\"type\":\"number\",\"name\":\"track_number\",\"key\":\"track_number\",\"label\":\"Track number\"}]}', updated_at = NOW() WHERE slug = 'track';
+
+UPDATE post_types SET `schema` = '{\"fields\":[{\"type\":\"image\",\"name\":\"cover_image\",\"key\":\"cover_image\",\"label\":\"Cover image\"},{\"type\":\"date\",\"name\":\"release_date\",\"key\":\"release_date\",\"label\":\"Release date\"}]}', updated_at = NOW() WHERE slug = 'album';
+
+UPDATE post_types SET `schema` = '{\"fields\":[{\"type\":\"relationship\",\"name\":\"tracks\",\"key\":\"tracks\",\"label\":\"Tracks\",\"instructions\":\"Tracks in this playlist.\",\"required\":false,\"post_type\":[\"track\"],\"return_format\":\"id\"}]}', updated_at = NOW() WHERE slug = 'playlist';
 
 -- -----------------------------------------------------------------------------
--- 6. Track and playlist relation fields (schema JSON)
--- -----------------------------------------------------------------------------
-
-UPDATE post_types SET schema = '{\"fields\":[{\"type\":\"relationship\",\"name\":\"album\",\"key\":\"album\",\"label\":\"Album\",\"instructions\":\"Album this track belongs to.\",\"required\":false,\"post_type\":[\"album\"],\"return_format\":\"id\",\"max\":1}]}', updated_at = NOW() WHERE slug = 'track';
-
-UPDATE post_types SET schema = '{\"fields\":[{\"type\":\"relationship\",\"name\":\"tracks\",\"key\":\"tracks\",\"label\":\"Tracks\",\"instructions\":\"Tracks in this playlist.\",\"required\":false,\"post_type\":[\"track\"],\"return_format\":\"id\"}]}', updated_at = NOW() WHERE slug = 'playlist';
-
--- -----------------------------------------------------------------------------
--- 7. Simuze Community module tables
+-- 6. Simuze Community module tables
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS simuze_groups (
@@ -570,6 +563,94 @@ CREATE TABLE IF NOT EXISTS simuze_activity (
     created_at DATETIME NOT NULL,
     KEY idx_author (author_type, author_id),
     KEY idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
+-- 7b. Simuze music tables (md_ prefix) – uploads, reports, reviews, albums, playlists
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS md_music_uploads (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    media_id INT UNSIGNED DEFAULT NULL,
+    file_path VARCHAR(500) NOT NULL DEFAULT '',
+    mime_type VARCHAR(100) NOT NULL DEFAULT 'audio/mpeg',
+    file_size INT UNSIGNED NOT NULL DEFAULT 0,
+    uploaded_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    deleted_at DATETIME DEFAULT NULL,
+    INDEX idx_media_id (media_id),
+    INDEX idx_uploaded_by (uploaded_by),
+    INDEX idx_deleted (deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS md_music_reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    reporter_id INT UNSIGNED NOT NULL,
+    content_type VARCHAR(50) NOT NULL,
+    content_id INT UNSIGNED NOT NULL,
+    report_type VARCHAR(50) NOT NULL,
+    comment TEXT DEFAULT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    reviewed_by INT UNSIGNED DEFAULT NULL,
+    reviewed_at DATETIME DEFAULT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    INDEX idx_reporter (reporter_id),
+    INDEX idx_content (content_type, content_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS md_music_reviews (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    reviewer_id INT UNSIGNED NOT NULL,
+    content_type VARCHAR(50) NOT NULL,
+    content_id INT UNSIGNED NOT NULL,
+    rating TINYINT UNSIGNED DEFAULT NULL,
+    body TEXT DEFAULT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    INDEX idx_reviewer (reviewer_id),
+    INDEX idx_content (content_type, content_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS md_music_review_comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    review_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    body TEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    deleted_at DATETIME DEFAULT NULL,
+    INDEX idx_review (review_id),
+    INDEX idx_user (user_id),
+    INDEX idx_deleted (deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS md_music_albums (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    post_id INT UNSIGNED DEFAULT NULL,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    deleted_at DATETIME DEFAULT NULL,
+    INDEX idx_post_id (post_id),
+    INDEX idx_created_by (created_by),
+    INDEX idx_deleted (deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS md_music_playlists (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    post_id INT UNSIGNED DEFAULT NULL,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    deleted_at DATETIME DEFAULT NULL,
+    INDEX idx_post_id (post_id),
+    INDEX idx_created_by (created_by),
+    INDEX idx_deleted (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================

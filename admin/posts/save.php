@@ -15,17 +15,17 @@ require_once dirname(__DIR__) . '/data/init.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /modular/admin/posts');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts');
     exit;
 }
 if (!csrf_verify()) {
     $_SESSION['error'] = 'Invalid request. Please try again.';
-    header('Location: /modular/admin/posts');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts');
     exit;
 }
 
@@ -86,7 +86,7 @@ $passwordCol = ($visibility === 'password') ? $postPassword : null;
 // Validate required
 if (empty($title) || empty($postTypeId)) {
     $_SESSION['error'] = 'Title and Post Type are required.';
-    header('Location: /modular/admin/posts/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
     exit;
 }
 
@@ -148,7 +148,7 @@ require_once CORE_PATH . '/fields/HiddenField.php';
     $ptRow = $stmt->fetch(\PDO::FETCH_ASSOC);
     if (!$ptRow || empty($ptRow['schema'])) {
         $_SESSION['error'] = 'Post type schema not found. Save without schema form or configure fields first.';
-        header('Location: /modular/admin/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
         exit;
     }
     $schema = is_string($ptRow['schema']) ? json_decode($ptRow['schema'], true) : $ptRow['schema'];
@@ -280,7 +280,7 @@ require_once CORE_PATH . '/fields/HiddenField.php';
     $decoded = json_decode($rawComponent, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
         $_SESSION['error'] = 'Invalid JSON in component data.';
-        header('Location: /modular/admin/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
         exit;
     }
     $componentData = json_encode($decoded);
@@ -319,7 +319,7 @@ try {
             $userId, $postId
         ]);
         $_SESSION['success'] = 'Post updated successfully.';
-        header('Location: /modular/admin/posts/edit.php?id=' . (int)$postId);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . (int)$postId);
         exit;
     } else {
         $stmt = $db->prepare("
@@ -334,13 +334,13 @@ try {
         ]);
         $newId = (int)$db->lastInsertId();
         $_SESSION['success'] = 'Post created successfully.';
-        header('Location: /modular/admin/posts/edit.php?id=' . $newId);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . $newId);
         exit;
     }
 
 } catch (Exception $e) {
     $_SESSION['error'] = 'An error occurred: ' . $e->getMessage();
     error_log("Post save error: " . $e->getMessage());
-    header('Location: /modular/admin/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
     exit;
 }

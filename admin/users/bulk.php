@@ -13,12 +13,12 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /modular/admin/users');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
     exit;
 }
 
@@ -27,7 +27,7 @@ $ids = isset($_POST['ids']) && is_array($_POST['ids']) ? array_map('intval', $_P
 
 if (!$action || empty($ids)) {
     $_SESSION['error'] = 'Select at least one user and a bulk action.';
-    header('Location: /modular/admin/users');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
     exit;
 }
 
@@ -39,7 +39,7 @@ if (in_array($currentUserId, $ids, true) && $action === 'delete') {
     }));
     if (empty($ids)) {
         $_SESSION['error'] = 'You cannot delete your own account.';
-        header('Location: /modular/admin/users');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
         exit;
     }
 }
@@ -75,7 +75,7 @@ try {
             break;
         default:
             $_SESSION['error'] = 'Invalid bulk action.';
-            header('Location: /modular/admin/users');
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
             exit;
     }
 } catch (Exception $e) {
@@ -83,6 +83,6 @@ try {
     error_log('Users bulk error: ' . $e->getMessage());
 }
 
-header('Location: /modular/admin/users');
+header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
 exit;
 

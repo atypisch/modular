@@ -11,7 +11,7 @@ require_once dirname(dirname(__DIR__)) . '/core/functions/admin.php';
 
 // Require authentication
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 

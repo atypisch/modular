@@ -470,6 +470,43 @@ $router->addRoute('GET', '/api/v1/public/posts/{slug}', function($slug) use ($GL
     return $resolved;
 });
 
+// Simuze theme: public endpoints (rate_limit only) for genres and discography counts
+$router->addRoute('GET', '/api/v1/simuze/genres', function() use ($GLOBALS) {
+    $db = $GLOBALS['db'];
+    $stmt = $db->query("
+        SELECT t.id, t.name, t.slug FROM terms t
+        INNER JOIN taxonomies tax ON t.taxonomy_id = tax.id
+        WHERE tax.slug = 'genre' AND t.deleted_at IS NULL
+        ORDER BY t.name ASC
+    ");
+    $terms = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+    return ['genres' => $terms];
+}, ['rate_limit']);
+
+$router->addRoute('GET', '/api/v1/simuze/discography/counts', function() use ($GLOBALS) {
+    $db = $GLOBALS['db'];
+    $user_id = isset($GLOBALS['current_user']['user_id']) ? (int) $GLOBALS['current_user']['user_id'] : null;
+    $counts = ['album' => ['draft' => 0, 'pending' => 0, 'published' => 0, 'scheduled' => 0], 'track' => ['draft' => 0, 'pending' => 0, 'published' => 0, 'scheduled' => 0]];
+    foreach (['album', 'track'] as $type) {
+        $sql = "SELECT p.status, COUNT(*) as c FROM posts p INNER JOIN post_types pt ON p.post_type_id = pt.id WHERE pt.slug = ? AND p.deleted_at IS NULL";
+        $params = [$type];
+        if ($user_id !== null) {
+            $sql .= " AND p.author_id = ?";
+            $params[] = $user_id;
+        }
+        $sql .= " GROUP BY p.status";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+            $s = $row['status'] ?? 'draft';
+            if (isset($counts[$type][$s])) {
+                $counts[$type][$s] = (int) $row['c'];
+            }
+        }
+    }
+    return $counts;
+}, ['rate_limit']);
+
 // Handle request: normalize path so /modular/admin/api/index.php/api/v1/forms -> /api/v1/forms
 $method = $_SERVER['REQUEST_METHOD'];
 $path = $_SERVER['REQUEST_URI'];

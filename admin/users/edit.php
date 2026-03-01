@@ -15,7 +15,7 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once ADMIN_PATH . '/data/userdata.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -37,7 +37,7 @@ if (isset($_GET['id'])) {
     $user = $userData->getUserById($_GET['id']);
     if (!$user) {
         $_SESSION['error'] = 'User not found.';
-        header('Location: /modular/admin/users');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
         exit;
     }
     $userData_array = [
@@ -57,7 +57,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1><?php echo $page_title; ?></h1>
-            <a href="/modular/admin/users" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Users
             </a>
         </div>
@@ -76,7 +76,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <?php endif; ?>
 
     <div class="card">
-        <form method="POST" action="/modular/admin/users/save.php">
+        <form method="POST" action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users/save.php">
             <?php echo csrf_field(); ?>
             <?php if (isset($_GET['id'])): ?>
                 <input type="hidden" name="id" value="<?php echo htmlspecialchars($_GET['id']); ?>">
@@ -139,7 +139,7 @@ require_once ADMIN_PATH . '/templates/header.php';
             </div>
             
             <div class="form-actions">
-                <a href="/modular/admin/users" class="btn btn-secondary">Cancel</a>
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users" class="btn btn-secondary">Cancel</a>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save"></i> <?php echo isset($_GET['id']) ? 'Update' : 'Create'; ?> User
                 </button>

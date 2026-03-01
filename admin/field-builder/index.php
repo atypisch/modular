@@ -19,14 +19,14 @@ use Modular\Fields\FieldRegistry;
 FieldRegistry::bootDefaultFields();
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 if ($id <= 0) {
     $_SESSION['error'] = 'Invalid post type.';
-    header('Location: /modular/admin/post-types');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types');
     exit;
 }
 
@@ -36,7 +36,7 @@ $stmt->execute([$id]);
 $postType = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$postType) {
     $_SESSION['error'] = 'Post type not found.';
-    header('Location: /modular/admin/post-types');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types');
     exit;
 }
 

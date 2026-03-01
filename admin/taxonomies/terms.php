@@ -16,7 +16,7 @@ require_once CORE_PATH . '/functions/database.php';
 require_once CORE_PATH . '/classes/Taxonomy.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -24,7 +24,7 @@ $taxonomyId = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 
 if (!$taxonomyId) {
     $_SESSION['error'] = 'Invalid taxonomy ID.';
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
 }
 
@@ -33,7 +33,7 @@ $taxonomyData = $taxonomy->getById($taxonomyId);
 
 if (!$taxonomyData) {
     $_SESSION['error'] = 'Taxonomy not found.';
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
 }
 
@@ -75,10 +75,10 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <p class="text-muted" style="margin-top: 0.5rem;">Manage terms for this taxonomy</p>
             </div>
             <div class="flex gap-2">
-                <a href="/modular/admin/taxonomies" class="btn btn-secondary">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Back to Taxonomies
                 </a>
-                <a href="/modular/admin/taxonomies/terms/edit.php?taxonomy_id=<?php echo $taxonomyId; ?>" class="btn btn-primary">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/terms/edit.php?taxonomy_id=<?php echo $taxonomyId; ?>" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Add New Term
                 </a>
             </div>
@@ -109,7 +109,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <i class="fas fa-tags"></i>
                 <h3>No Terms Found</h3>
                 <p>Create your first term for this taxonomy.</p>
-                <a href="/modular/admin/taxonomies/terms/edit.php?taxonomy_id=<?php echo $taxonomyId; ?>" class="btn btn-primary mt-4">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/terms/edit.php?taxonomy_id=<?php echo $taxonomyId; ?>" class="btn btn-primary mt-4">
                     <i class="fas fa-plus"></i> Create Term
                 </a>
             </div>
@@ -145,10 +145,10 @@ require_once ADMIN_PATH . '/templates/header.php';
                             <td><?php echo date('Y-m-d', strtotime($term['created_at'] ?? 'now')); ?></td>
                             <td style="text-align: right;">
                                 <div class="flex gap-2 justify-end">
-                                    <a href="/modular/admin/taxonomies/terms/edit.php?taxonomy_id=<?php echo $taxonomyId; ?>&id=<?php echo $term['id']; ?>" class="btn btn-sm btn-secondary">
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/terms/edit.php?taxonomy_id=<?php echo $taxonomyId; ?>&id=<?php echo $term['id']; ?>" class="btn btn-sm btn-secondary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <a href="/modular/admin/taxonomies/terms/delete.php?id=<?php echo $term['id']; ?>&taxonomy_id=<?php echo $taxonomyId; ?>" 
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/terms/delete.php?id=<?php echo $term['id']; ?>&taxonomy_id=<?php echo $taxonomyId; ?>" 
                                        class="btn btn-sm btn-danger"
                                        data-confirm="Are you sure you want to delete this term?">
                                         <i class="fas fa-trash"></i> Delete

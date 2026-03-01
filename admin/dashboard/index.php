@@ -14,7 +14,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -139,13 +139,13 @@ require_once ADMIN_PATH . '/templates/header.php';
                                     $name = $type['name'] ?? '';
                                     $label = trim($name) !== '' ? 'Add ' . $name . ' item' : 'Add item';
                                     ?>
-                                    <a href="/modular/admin/posts/edit.php?post_type_id=<?php echo (int) $type['id']; ?>" class="btn btn-secondary">
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/edit.php?post_type_id=<?php echo (int) $type['id']; ?>" class="btn btn-secondary">
                                         <i class="fas fa-file-alt"></i> <?php echo htmlspecialchars($label); ?>
                                     </a>
                                 <?php endforeach; ?>
                             <?php endif; ?>
-                            <a href="/modular/admin/media/upload.php" class="btn btn-secondary"><i class="fas fa-upload"></i> Upload Media</a>
-                            <a href="/modular/admin/users/edit.php" class="btn btn-secondary"><i class="fas fa-user-plus"></i> Add User</a>
+                            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media/upload.php" class="btn btn-secondary"><i class="fas fa-upload"></i> Upload Media</a>
+                            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users/edit.php" class="btn btn-secondary"><i class="fas fa-user-plus"></i> Add User</a>
                         </div>
                     </div>
                 </div>
@@ -169,7 +169,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                                     <li class="dashboard-recent-item">
                                         <div class="dashboard-recent-item-header">
                                             <span class="dashboard-recent-item-title"><?php echo htmlspecialchars($post['title'] ?? 'Untitled'); ?></span>
-                                            <a href="/modular/admin/posts/edit.php?id=<?php echo (int) $post['id']; ?>" class="btn btn-sm btn-secondary dashboard-recent-edit" aria-label="Edit post"><i class="fas fa-edit"></i></a>
+                                            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/edit.php?id=<?php echo (int) $post['id']; ?>" class="btn btn-sm btn-secondary dashboard-recent-edit" aria-label="Edit post"><i class="fas fa-edit"></i></a>
                                         </div>
                                         <div class="dashboard-recent-item-meta text-muted">
                                             <?php echo htmlspecialchars($post['post_type_name'] ?? ''); ?> • <?php echo date('M j, Y', strtotime($post['created_at'] ?? 'now')); ?>
@@ -177,7 +177,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
-                            <a href="/modular/admin/posts" class="btn btn-secondary dashboard-view-all">View All Posts</a>
+                            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts" class="btn btn-secondary dashboard-view-all">View All Posts</a>
                         <?php endif; ?>
                     </div>
                 </div>

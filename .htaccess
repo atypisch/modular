@@ -1,5 +1,5 @@
 RewriteEngine On
-RewriteBase /simezu-mdlr/
+RewriteBase /simuze-mdlr/
 
 # Allow direct access to existing files
 RewriteCond %{REQUEST_FILENAME} -f [OR]

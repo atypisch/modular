@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -21,14 +21,14 @@ $id = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 
 if (!$id) {
     $_SESSION['error'] = 'User ID is required.';
-    header('Location: /modular/admin/users');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
     exit;
 }
 
 // Prevent deleting yourself
 if ($id == ($_SESSION['user_id'] ?? 0)) {
     $_SESSION['error'] = 'You cannot delete your own account.';
-    header('Location: /modular/admin/users');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
     exit;
 }
 
@@ -45,5 +45,5 @@ try {
     error_log("User delete error: " . $e->getMessage());
 }
 
-header('Location: /modular/admin/users');
+header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
 exit;

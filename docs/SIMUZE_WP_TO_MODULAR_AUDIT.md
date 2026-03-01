@@ -62,27 +62,30 @@
 
 **Vraag:** Is het huidige templating-systeem voldoende om Simuze-thema’s (page templates, single-{type}, template-by-slug) binnen Modular om te zetten? Kunnen we nu al templates maken?
 
-**Huidige stand (gescand):**
+**Huidige stand (bijgewerkt na Simuze-integratie):**
 
 | Onderdeel | Status | Toelichting |
 |-----------|--------|-------------|
-| **Thema’s** | ✅ | `public/themes/` (default, MDLR-2025). Actief thema in settings (`active_theme`), Admin → Appearance. |
+| **Thema’s** | ✅ | `public/themes/` (default, MDLR-2025, simuze). Actief thema in settings (`active_theme`), Admin → Appearance. |
 | **Theme class** | ✅ | `core/classes/Theme.php`: `render($template, $data)`, `renderPost($post)` (kiest `single` of `single-{post_type_slug}`), `renderArchive($postType, $posts)`, `asset()`, `getSetting()` (theme.json). |
-| **Public entry** | Beperkt | `public/index.php`: alleen (1) single post via `?type=&slug=` of PATH_INFO `/{type}/{slug}`, (2) home. Geen path-based routing voor pagina’s. |
-| **Template-keuze single** | Beperkt | Entry point laadt alleen `single.php` (vaste volgorde MDLR-2025 → default). **Geen** fallback op `single-{post_type}.php` in de entry; Theme::renderPost() ondersteunt het wel maar wordt niet gebruikt. |
-| **Block/component rendering** | ✅ | `render_blocks($blocks, $theme_path)` in `core/functions/blocks.php`; theme `modules/{type}.php` per block (text, image, wysiwyg, group, repeater, flexible_content, …). Nieuwe block types = nieuw bestand in theme/modules/. |
-| **Beschikbare templates** | ✅ | In thema kun je nu toevoegen: `index.php`, `single.php`, `404.php`, en eventueel `single-{post_type}.php`, `archive.php`, `archive-{post_type}.php`. Bestanden bestaan = mogelijk. |
-| **Routing op pad/slug** | ❌ | Geen routes voor `/music`, `/network`, `/city/amsterdam` of “page by slug”. Alleen type+slug voor één post, rest = home. |
-| **Template-by-slug (pagina → template)** | ❌ | Geen equivalent van Simuze’s “page slug music → template_music.php”. Geen koppeling path/slug → templatebestand. |
-| **Archive / lijst-pagina’s** | ❌ | Theme class heeft `renderArchive()` maar public/index.php roept het nergens aan; geen URL-structuur voor archives. |
+| **Public entry** | ✅ | `public/index.php`: single post via PATH_INFO `/{type}/{slug}`; fixed routes; path-by-slug; archive segment. |
+| **Template-keuze single** | ✅ | Entry laadt `single-{post_type_slug}.php` of `single.php` per theme (MDLR-2025, simuze, active). |
+| **Block/component rendering** | ✅ | `render_blocks($blocks, $theme_path)` in `core/functions/blocks.php`; theme `modules/{type}.php` per block. |
+| **Beschikbare templates** | ✅ | index.php, single.php, single-{type}.php, archive.php, archive-{type}.php, template_*.php. |
+| **Routing op pad/slug** | ✅ | Fixed routes: music, network, live, weblog, dashboard, login, signup, profile, about, howto, singles, store, subscription; location taxonomies: country, province, city; sub-routes music/albums, music/tracks. |
+| **Template-by-slug (pagina → template)** | ✅ | Eén path-segment → fixed route template (bijv. /music → template_music.php); path-by-slug voor posts. |
+| **Archive / lijst-pagina’s** | ✅ | Eén segment als post-type slug laadt archive-{type}.php of archive.php. |
 
-**Conclusie:** Je kunt **wel** templates maken (PHP in een theme, block-modules toevoegen), maar het **routing- en template-selectielaag** is nog minimaal. Om Simuze-achtige front-end te ondersteunen ontbreekt:
+**Conclusie:** Routing en template-selectie zijn in public/index.php aangesloten. Simuze-thema kan in Modular draaien met theme `public/themes/simuze` en bridge (inc/modular-bridge.php).
 
-- Gebruik van **Theme class** (of gelijkwaardige template-resolutie) in de public entry, met **single-{post_type}.php**-hiërarchie.
-- **Path-based routing** (of “page by slug”) zodat o.a. `/music`, `/network`, `/weblog` een specifiek template kunnen laden (bijv. template_music.php).
-- Optioneel: **archive**-routes en -templates voor post-type-lijsten.
+#### Simuze theme in Modular (full port)
 
-Zonder deze uitbreidingen is het **nog niet voldoende** om het Simuze-thema 1-op-1 om te zetten; met uitbreidingen (zie TODO hieronder) wel.
+- **Pad:** `public/themes/simuze/` (Modular-port); referentie-WP-thema: `public/themes/simuze-wp/`.
+- **Geen WordPress-code in theme:** Alle templates gebruiken alleen Modular-API en de bridge (`inc/modular-bridge.php`). Theme-specifieke logica staat in `inc/theme-functions.php` (Modular-only: `simuze_get_tracks_for_discovery`, `simuze_get_albums_for_discovery`, `simuze_get_track_data`, `simuze_get_album_data`, `simuze_get_album_tracks`, `simuze_get_playlist_track_ids`, `simuze_get_artists_for_search`, en render-helpers). Header/footer/single-album/single-track/single-playlist/template_music zijn omgezet naar Modular; geen `$wpdb`, geen `get_field`, geen Simuze_Group/Simuze_Auth in templates.
+- **Tabellen:** Theme-level music: `md_music_*`; artists: `simuze_groups` (group_type = 'artist').
+- **Uploadpad:** `/public/uploads` (UPLOADS_PATH); geen mappen in projectroot.
+- **Veldnamen:** lowercase_underscores; labels human-readable (field editor).
+- **Auth/payments (optioneel):** Placeholders `SIMEZU_AUTH_*`, `SIMEZU_PAYMENTS_*` (env/config); stub classes in core; geen logica tot .env is geconfigureerd. Zie core/config/simuze.php.
 
 ---
 
@@ -104,7 +107,7 @@ Bron: **Simuze theme** (§1.1) + **Simuze Community plugin** (§1.2).
 | Plugins / modules | WP plugins | — | ✅ Modular **Modules** = zelfde rol als WP-plugins; Simuze Community wordt Module. |
 | REST API | ✅ | ✅ | /api/v1/*. |
 | Revisies / audit | ✅ | ✅ | post_revisions, activity_log; feature-gated. |
-| Front-end templating (hierarchy, routing) | ✅ Template-by-slug, single-{type} | — | Gedeeltelijk | §1.4: templates maken kan; routing + single-{type} + template-by-slug ontbreekt in entry. |
+| Front-end templating (hierarchy, routing) | ✅ Template-by-slug, single-{type} | — | ✅ | §1.4: fixed routes, single-{type}, template-by-slug, location taxonomies, music/albums|tracks; Simuze theme in public/themes/simuze. |
 | Responsive admin | ✅ | ✅ | responsive.css, layout. |
 | Toegankelijkheid | ? | ? | Te auditen | P1 a11y. |
 
@@ -283,6 +286,16 @@ Nieuw ontdekte items hieronder toevoegen; status na fix op `done` zetten en regr
 **Oorzaak:** Niet geïmplementeerd.  
 **Oplossing:** Cache voor queries of rendered output (bijv. file of Redis); cache invalidation bij wijzigingen.  
 **Status:** done (core/functions/cache.php: cache_get, cache_set, cache_delete, file-based; bootstrap laadt cache.php)  
+
+---
+
+[P2] Simuze theme template-parts en JS (volledige port)  
+**Type:** frontend / theme  
+**Locatie:** public/themes/simuze/template-parts/, public/themes/simuze/js/  
+**Probleem:** Template-parts (album-grid, view-album, view-track, album-edit, track-edit-form, edit-music-form) en theme-JS (discography, music-upload, player, etc.) zijn gekopieerd uit simuze-wp; kunnen nog WP- of AJAX-aanroepen bevatten.  
+**Oorzaak:** Eerste port levert bridge + routing + hoofdtemplates; diepere port van alle template-parts en JS naar Modular API is optioneel.  
+**Oplossing:** Per template-part en JS-bestand controleren op wp_ajax_, get_option, e.d.; vervangen door Modular-equivalenten (API-endpoints, get_meta, settings).  
+**Status:** open  
 
 ---
 

@@ -11,18 +11,18 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/classes/Taxonomy.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
 }
 if (!csrf_verify()) {
     $_SESSION['error'] = 'Invalid request. Please try again.';
     $tid = filter_input(INPUT_POST, 'taxonomy_id', FILTER_SANITIZE_NUMBER_INT);
-    header('Location: /modular/admin/taxonomies/terms/edit.php?taxonomy_id=' . ($tid ?: '') . (isset($_POST['id']) ? '&id=' . (int)$_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies/terms/edit.php?taxonomy_id=' . ($tid ?: '') . (isset($_POST['id']) ? '&id=' . (int)$_POST['id'] : ''));
     exit;
 }
 
@@ -34,7 +34,7 @@ $term_id = filter_input(INPUT_POST, 'id', FILTER_SANITIZE_NUMBER_INT);
 
 if (!$taxonomy_id) {
     $_SESSION['error'] = 'No taxonomy ID provided.';
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
 }
 
@@ -48,7 +48,7 @@ $term_data = [
 
 if (empty($term_data['name'])) {
     $_SESSION['error'] = 'Term name is required.';
-    header('Location: /modular/admin/taxonomies/terms/edit.php' . ($term_id ? '?id=' . $term_id : '') . '&taxonomy_id=' . $taxonomy_id);
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies/terms/edit.php' . ($term_id ? '?id=' . $term_id : '') . '&taxonomy_id=' . $taxonomy_id);
     exit;
 }
 
@@ -67,12 +67,12 @@ try {
         $_SESSION['success'] = 'Term created successfully.';
     }
     
-    header('Location: /modular/admin/taxonomies/terms.php?taxonomy_id=' . $taxonomy_id);
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies/terms.php?taxonomy_id=' . $taxonomy_id);
     exit;
     
 } catch (Exception $e) {
     $_SESSION['error'] = 'An error occurred: ' . $e->getMessage();
-    header('Location: /modular/admin/taxonomies/terms/edit.php' . ($term_id ? '?id=' . $term_id : '') . '&taxonomy_id=' . $taxonomy_id);
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies/terms/edit.php' . ($term_id ? '?id=' . $term_id : '') . '&taxonomy_id=' . $taxonomy_id);
     exit;
 }
 

@@ -208,7 +208,7 @@ $missingTables = array_diff($requiredTables, $existingTables);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modular CMS - Database Installation</title>
-    <link rel="stylesheet" href="/modular/admin/assets/css/base.css">
+    <link rel="stylesheet" href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/assets/css/base.css">
     <style>
         .install-container {
             max-width: 800px;
@@ -289,7 +289,7 @@ $missingTables = array_diff($requiredTables, $existingTables);
                 <?php if ($output): ?>
                     <pre><?php echo htmlspecialchars($output); ?></pre>
                 <?php endif; ?>
-                <p><a href="/modular/admin/auth/login.php" class="btn">Go to Login</a></p>
+                <p><a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/auth/login.php" class="btn">Go to Login</a></p>
             </div>
         <?php elseif ($error): ?>
             <div class="status-box status-error">
@@ -346,10 +346,10 @@ $missingTables = array_diff($requiredTables, $existingTables);
                 <h2>Alternative Installation</h2>
                 <p>If the installation above doesn't work, try the direct installation methods:</p>
                 <div style="margin-top: 1rem; display: flex; gap: 1rem; flex-wrap: wrap;">
-                    <a href="/modular/admin/install-tables-direct.php" class="btn">Direct Install All Tables</a>
-                    <a href="/modular/admin/create-missing-tables.php" class="btn">Create Missing Tables Only</a>
+                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/install-tables-direct.php" class="btn">Direct Install All Tables</a>
+                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/create-missing-tables.php" class="btn">Create Missing Tables Only</a>
                     <?php if (in_array('component_definitions', $missingTables)): ?>
-                    <a href="/modular/admin/fix-component-definitions.php" class="btn">Fix component_definitions</a>
+                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/fix-component-definitions.php" class="btn">Fix component_definitions</a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -358,7 +358,7 @@ $missingTables = array_diff($requiredTables, $existingTables);
             <div class="status-box status-success">
                 <h2>✓ Installation Complete</h2>
                 <p>All database tables are installed and ready.</p>
-                <p><a href="/modular/admin/auth/login.php" class="btn">Go to Login</a></p>
+                <p><a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/auth/login.php" class="btn">Go to Login</a></p>
             </div>
         <?php endif; ?>
     </div>

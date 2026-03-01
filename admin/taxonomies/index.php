@@ -16,7 +16,7 @@ require_once CORE_PATH . '/functions/database.php';
 require_once CORE_PATH . '/classes/Taxonomy.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -70,10 +70,10 @@ require_once ADMIN_PATH . '/templates/header.php';
         <div class="flex justify-between items-center">
             <h1>Taxonomies</h1>
             <div class="flex gap-2">
-                <a href="/modular/admin/post-types" class="btn btn-secondary">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/post-types" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Back to Post Types
                 </a>
-                <a href="/modular/admin/taxonomies/edit.php" class="btn btn-primary">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/edit.php" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Add New Taxonomy
                 </a>
             </div>
@@ -88,7 +88,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <p style="margin: var(--spacing-sm) 0 0 0;"><?php echo htmlspecialchars($message); ?></p>
                 </div>
                 <div>
-                    <a href="/modular/admin/install.php" class="btn btn-primary" style="white-space: nowrap;">
+                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/install.php" class="btn btn-primary" style="white-space: nowrap;">
                         <i class="fas fa-database"></i> Install Database
                     </a>
                 </div>
@@ -114,7 +114,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <i class="fas fa-tags"></i>
                 <h3>No Taxonomies Found</h3>
                 <p>Create your first taxonomy to organize content. Taxonomies can be attached to post types.</p>
-                <a href="/modular/admin/taxonomies/edit.php" class="btn btn-primary mt-4">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/edit.php" class="btn btn-primary mt-4">
                     <i class="fas fa-plus"></i> Create Taxonomy
                 </a>
             </div>
@@ -167,13 +167,13 @@ require_once ADMIN_PATH . '/templates/header.php';
                             <td><?php echo $termCount; ?> terms</td>
                             <td style="text-align: right;">
                                 <div class="flex gap-2 justify-end">
-                                    <a href="/modular/admin/taxonomies/edit.php?id=<?php echo $tax['id']; ?>" class="btn btn-sm btn-secondary">
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/edit.php?id=<?php echo $tax['id']; ?>" class="btn btn-sm btn-secondary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <a href="/modular/admin/taxonomies/terms.php?id=<?php echo $tax['id']; ?>" class="btn btn-sm btn-secondary">
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/terms.php?id=<?php echo $tax['id']; ?>" class="btn btn-sm btn-secondary">
                                         <i class="fas fa-list"></i> Terms
                                     </a>
-                                    <a href="/modular/admin/taxonomies/delete.php?id=<?php echo $tax['id']; ?>" 
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/delete.php?id=<?php echo $tax['id']; ?>" 
                                        class="btn btn-sm btn-danger"
                                        data-confirm="Are you sure you want to delete this taxonomy?">
                                         <i class="fas fa-trash"></i> Delete

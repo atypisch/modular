@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['file'])) {
         exit;
     }
     $_SESSION['error'] = 'No file uploaded.';
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 if (!csrf_verify()) {
@@ -46,7 +46,7 @@ if (!csrf_verify()) {
             exit;
         }
         $_SESSION['error'] = 'Invalid request. Please try again.';
-        header('Location: /modular/admin/media/upload.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
         exit;
     }
 }
@@ -70,7 +70,7 @@ if ($file['error'] !== UPLOAD_ERR_OK) {
         exit;
     }
     $_SESSION['error'] = $errorMsg;
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 
@@ -88,7 +88,7 @@ if (!in_array($file['type'], $allowedTypes)) {
         exit;
     }
     $_SESSION['error'] = $errorMsg;
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 
@@ -106,7 +106,7 @@ $filePath = $uploadDir . '/' . $filename;
 // Move uploaded file
 if (!move_uploaded_file($file['tmp_name'], $filePath)) {
     $_SESSION['error'] = 'Failed to save file.';
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 
@@ -170,7 +170,7 @@ try {
     }
     
     $_SESSION['success'] = 'Media uploaded successfully.';
-    header('Location: /modular/admin/media');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media');
     exit;
     
 } catch (Exception $e) {
@@ -193,7 +193,7 @@ try {
     }
     
     $_SESSION['error'] = $errorMsg;
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 

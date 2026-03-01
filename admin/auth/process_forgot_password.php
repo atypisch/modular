@@ -10,13 +10,13 @@ require_once CORE_PATH . '/classes/RateLimiter.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (function_exists('csrf_verify') && !csrf_verify()) {
         $_SESSION['error'] = 'Invalid request. Please try again.';
-        header('Location: /modular/admin/auth/forgot_password.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
         exit;
     }
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     if (!\Modular\RateLimiter::check('forgot_password_' . $ip, 5, 3600)) {
         $_SESSION['error'] = 'Too many requests. Try again later.';
-        header('Location: /modular/admin/auth/forgot_password.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
         exit;
     }
     $email = $_POST['email'] ?? '';
@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate input
     if (empty($email)) {
         $_SESSION['error'] = 'Please enter your email address';
-        header('Location: /modular/admin/auth/forgot_password.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
         exit;
     }
 
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$user) {
             $_SESSION['error'] = 'No account found with that email address';
-            header('Location: /modular/admin/auth/forgot_password.php');
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
             exit;
         }
 
@@ -86,17 +86,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['error'] = 'Failed to send reset email. Please try again later.';
         }
 
-        header('Location: /modular/admin/auth/forgot_password.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
         exit;
 
     } catch(PDOException $e) {
         // Log the error for debugging
         error_log("Password reset error: " . $e->getMessage());
         $_SESSION['error'] = 'An error occurred. Please try again later.';
-        header('Location: /modular/admin/auth/forgot_password.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
         exit;
     }
 } else {
-    header('Location: /modular/admin/auth/forgot_password.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
     exit;
 } 

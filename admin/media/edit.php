@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -24,7 +24,7 @@ $db = $GLOBALS['db'];
 $id = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 
 if (!$id) {
-    header('Location: /modular/admin/media');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media');
     exit;
 }
 
@@ -37,12 +37,12 @@ try {
     
     if (!$media) {
         $_SESSION['error'] = 'Media not found.';
-        header('Location: /modular/admin/media');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media');
         exit;
     }
 } catch (Exception $e) {
     $_SESSION['error'] = 'Error loading media: ' . $e->getMessage();
-    header('Location: /modular/admin/media');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media');
     exit;
 }
 
@@ -50,7 +50,7 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $_SESSION['error'] = 'Invalid request. Please try again.';
-        header('Location: /modular/admin/media/edit.php?id=' . (int)$id);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/edit.php?id=' . (int)$id);
         exit;
     }
     $title = filter_input(INPUT_POST, 'title', FILTER_SANITIZE_STRING) ?? '';
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$title, $altText, $folderPath ?: null, $caption, $description, $id]);
         
         $_SESSION['success'] = 'Media updated successfully.';
-        header('Location: /modular/admin/media');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media');
         exit;
     } catch (Exception $e) {
         $_SESSION['error'] = 'Error updating media: ' . $e->getMessage();
@@ -82,7 +82,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1>Edit Media</h1>
-            <a href="/modular/admin/media" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Media Library
             </a>
         </div>
@@ -178,7 +178,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                             formData.append('h', hv);
                             formData.append('<?php echo htmlspecialchars(csrf_token_name() ?? "_csrf_token"); ?>', '<?php echo htmlspecialchars(csrf_token() ?? ""); ?>');
 
-                            fetch('/modular/admin/media/crop.php', {
+                            fetch('<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media/crop.php', {
                                 method: 'POST',
                                 body: formData,
                                 credentials: 'same-origin'
@@ -234,7 +234,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 </div>
                 
                 <div class="form-actions">
-                    <a href="/modular/admin/media" class="btn btn-secondary">Cancel</a>
+                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media" class="btn btn-secondary">Cancel</a>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> Save Changes
                     </button>

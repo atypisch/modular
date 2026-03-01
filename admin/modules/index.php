@@ -17,7 +17,7 @@ require_once CORE_PATH . '/classes/Update/VersionService.php';
 require_once CORE_PATH . '/classes/Update/QueueService.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -273,7 +273,7 @@ require_once ADMIN_PATH . '/templates/header.php';
         <div class="card">
             <div class="card-body">
                 <p class="error">The modules table is not installed. Please install it first.</p>
-                <p><a href="/modular/admin/install-modules-table.php" class="btn btn-primary">Install Modules Table</a></p>
+                <p><a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/install-modules-table.php" class="btn btn-primary">Install Modules Table</a></p>
             </div>
         </div>
     <?php elseif (!$moduleManager): ?>

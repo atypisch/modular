@@ -69,6 +69,107 @@ if (!function_exists('get_site_name')) {
     }
 }
 
+if (!function_exists('base_url')) {
+    /** Site base URL (no trailing slash). Use for links. */
+    function base_url(string $path = ''): string {
+        $base = defined('BASE_PATH') ? rtrim(BASE_PATH, '/') : '';
+        return $path !== '' ? $base . '/' . ltrim($path, '/') : $base;
+    }
+}
+
+if (!function_exists('trailing_slash')) {
+    function trailing_slash(string $url): string {
+        return rtrim($url, '/') . '/';
+    }
+}
+
+if (!function_exists('get_permalink')) {
+    /** Permalink for a post by ID. Returns base_url/slug. */
+    function get_permalink(int $post_id): string {
+        $post = function_exists('get_post') ? get_post($post_id) : null;
+        return $post && !empty($post['slug']) ? base_url('/' . $post['slug']) : base_url('/');
+    }
+}
+
+if (!function_exists('get_pages')) {
+    /** Published pages for menus/links. Returns array of objects with ID, post_title, post_name. */
+    function get_pages(array $args = []): array {
+        if (!isset($GLOBALS['db'])) return [];
+        try {
+            $stmt = $GLOBALS['db']->query("
+                SELECT p.id, p.title, p.slug FROM posts p
+                INNER JOIN post_types pt ON p.post_type_id = pt.id
+                WHERE pt.slug = 'page' AND p.deleted_at IS NULL AND p.status = 'published'
+                ORDER BY p.`order` ASC, p.title ASC
+            ");
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $out = [];
+            foreach ($rows as $r) {
+                $o = new \stdClass();
+                $o->ID = (int) $r['id'];
+                $o->post_title = $r['title'];
+                $o->post_name = $r['slug'];
+                $out[] = $o;
+            }
+            return $out;
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+}
+
+if (!function_exists('current_path')) {
+    /** Current request path (no query string), relative to site base. */
+    function current_path(): string {
+        $uri = $_SERVER['REQUEST_URI'] ?? '';
+        $path = strpos($uri, '?') !== false ? strstr($uri, '?', true) : $uri;
+        $path = trim($path, '/');
+        $base = defined('BASE_PATH') ? trim(BASE_PATH, '/') : '';
+        if ($base !== '' && strpos($path, $base) === 0) {
+            $path = trim(substr($path, strlen($base)), '/');
+        }
+        return $path;
+    }
+}
+
+if (!function_exists('include_header')) {
+    /** Include the active theme's header.php. */
+    function include_header(): void {
+        $theme = defined('ACTIVE_THEME') ? ACTIVE_THEME : (defined('DEFAULT_THEME') ? DEFAULT_THEME : 'default');
+        $path = (defined('THEMES_PATH') ? rtrim(THEMES_PATH, '/') : '') . '/' . $theme . '/header.php';
+        if (is_file($path)) include $path;
+    }
+}
+
+if (!function_exists('include_footer')) {
+    /** Include the active theme's footer.php. */
+    function include_footer(): void {
+        $theme = defined('ACTIVE_THEME') ? ACTIVE_THEME : (defined('DEFAULT_THEME') ? DEFAULT_THEME : 'default');
+        $path = (defined('THEMES_PATH') ? rtrim(THEMES_PATH, '/') : '') . '/' . $theme . '/footer.php';
+        if (is_file($path)) include $path;
+    }
+}
+
+if (!function_exists('render_menu')) {
+    /**
+     * Output navigation menu markup. Uses get_menu($location).
+     * Modular equivalent of wp_nav_menu – themes should use this only.
+     */
+    function render_menu(string $location = 'primary', string $menu_class = 'menu'): void {
+        $items = get_menu($location);
+        if (empty($items)) {
+            return;
+        }
+        echo '<ul class="' . e($menu_class) . '">';
+        foreach ($items as $item) {
+            $url = $item['url'] ?? '#';
+            $label = $item['label'] ?? '';
+            echo '<li><a href="' . e($url) . '">' . e($label) . '</a></li>';
+        }
+        echo '</ul>';
+    }
+}
+
 if (!function_exists('get_menu')) {
     /**
      * Get navigation menu. Returns array of items: [ ['label' => '', 'url' => '', 'children' => [] ], ... ]
@@ -205,8 +306,147 @@ if (!function_exists('get_meta')) {
     }
 }
 
+if (!function_exists('taxonomy_exists')) {
+    function taxonomy_exists(string $taxonomy): bool {
+        if (!isset($GLOBALS['db'])) return false;
+        try {
+            $stmt = $GLOBALS['db']->prepare("SELECT id FROM taxonomies WHERE slug = ? LIMIT 1");
+            $stmt->execute([$taxonomy]);
+            return $stmt->fetchColumn() !== false;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+}
+
+if (!function_exists('get_terms')) {
+    /**
+     * Get terms for a taxonomy (WP-style). Returns array of stdClass with id, name, slug, taxonomy, etc.
+     */
+    function get_terms(array $args = []): array {
+        if (!isset($GLOBALS['db'])) return [];
+        $taxonomy = $args['taxonomy'] ?? '';
+        $hide_empty = !empty($args['hide_empty']);
+        $orderby = $args['orderby'] ?? 'name';
+        $order = strtoupper($args['order'] ?? 'ASC');
+        $number = isset($args['number']) ? (int) $args['number'] : 0;
+        $search = isset($args['search']) ? trim((string) $args['search']) : '';
+        if (!in_array($order, ['ASC', 'DESC'], true)) $order = 'ASC';
+        $col = $orderby === 'term_id' ? 'id' : (in_array($orderby, ['name', 'slug', 'id'], true) ? $orderby : 'name');
+        try {
+            $sql = "SELECT t.id, t.name, t.slug, t.description, t.parent_id, tax.slug as taxonomy_slug
+                FROM terms t
+                INNER JOIN taxonomies tax ON t.taxonomy_id = tax.id
+                WHERE t.deleted_at IS NULL";
+            $params = [];
+            if ($taxonomy !== '') {
+                $sql .= " AND tax.slug = ?";
+                $params[] = $taxonomy;
+            }
+            if ($search !== '') {
+                $sql .= " AND (t.name LIKE ? OR t.slug LIKE ? OR t.description LIKE ?)";
+                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search) . '%';
+                $params[] = $like;
+                $params[] = $like;
+                $params[] = $like;
+            }
+            $sql .= " ORDER BY t.`" . $col . "` " . $order;
+            if ($number > 0) $sql .= " LIMIT " . $number;
+            $stmt = $GLOBALS['db']->prepare($sql);
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $out = [];
+            foreach ($rows as $r) {
+                $o = new \stdClass();
+                $o->term_id = (int) $r['id'];
+                $o->id = (int) $r['id'];
+                $o->name = $r['name'];
+                $o->slug = $r['slug'];
+                $o->description = $r['description'] ?? '';
+                $o->parent = (int) ($r['parent_id'] ?? 0);
+                $o->taxonomy = $r['taxonomy_slug'] ?? $taxonomy;
+                $out[] = $o;
+            }
+            return $out;
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+}
+
+if (!function_exists('get_post_thumbnail_id')) {
+    function get_post_thumbnail_id(int $post_id): int {
+        if (!isset($GLOBALS['db'])) return 0;
+        try {
+            $stmt = $GLOBALS['db']->prepare("SELECT featured_image FROM posts WHERE id = ? AND deleted_at IS NULL");
+            $stmt->execute([$post_id]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $id = $row && $row['featured_image'] !== null ? (int) $row['featured_image'] : 0;
+            return $id > 0 ? $id : 0;
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+}
+
+if (!function_exists('get_attachment_url')) {
+    function get_attachment_url(int $media_id): string {
+        if (!isset($GLOBALS['db']) || $media_id <= 0) return '';
+        try {
+            $stmt = $GLOBALS['db']->prepare("SELECT file_path FROM media WHERE id = ?");
+            $stmt->execute([$media_id]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!$row || empty($row['file_path'])) return '';
+            $base = defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') : (defined('BASE_PATH') ? BASE_PATH . '/public/uploads' : '');
+            return $base . '/' . ltrim($row['file_path'], '/');
+        } catch (\Throwable $e) {
+            return '';
+        }
+    }
+}
+
 if (!function_exists('e')) {
     function e(string $s): string {
         return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('checked')) {
+    /** Output checked="checked" when $checked equals $current. */
+    function checked($checked, $current = true, bool $echo = true): string {
+        $out = ((string) $checked === (string) $current) ? ' checked="checked"' : '';
+        if ($echo) echo $out;
+        return $out;
+    }
+}
+
+if (!function_exists('selected')) {
+    /** Output selected="selected" when $selected equals $current. */
+    function selected($selected, $current = true, bool $echo = true): string {
+        $out = ((string) $selected === (string) $current) ? ' selected="selected"' : '';
+        if ($echo) echo $out;
+        return $out;
+    }
+}
+
+if (!function_exists('admin_base_url')) {
+    /** Admin base URL (no trailing slash). */
+    function admin_base_url(string $path = ''): string {
+        $base = defined('ADMIN_URL') ? rtrim(ADMIN_URL, '/') : base_url('/admin');
+        return $path !== '' ? $base . '/' . ltrim($path, '/') : $base;
+    }
+}
+
+if (!function_exists('nonce')) {
+    /** Generate a simple nonce for forms/AJAX. */
+    function nonce(string $action): string {
+        return md5($action . (session_id() ?: '') . (defined('BASE_PATH') ? BASE_PATH : ''));
+    }
+}
+
+if (!function_exists('clean_input')) {
+    /** Trim and strip tags from input. For GET/POST string values. */
+    function clean_input($value): string {
+        return trim(strip_tags(stripslashes(is_array($value) ? '' : (string) $value)));
     }
 }

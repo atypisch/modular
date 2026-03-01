@@ -15,7 +15,7 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once ADMIN_PATH . '/data/userdata.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -27,7 +27,7 @@ $user = $userData->getUserById($_SESSION['user_id']);
 
 if (!$user) {
     $_SESSION['error'] = 'User not found.';
-    header('Location: /modular/admin/dashboard');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/dashboard');
     exit;
 }
 

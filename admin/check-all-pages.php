@@ -82,7 +82,7 @@ header('Content-Type: text/html; charset=utf-8');
     
     if (!empty($missingTables)) {
         echo '<div class="test-item warning">Missing: ' . implode(', ', $missingTables) . '</div>';
-        echo '<div class="test-item"><a href="/modular/admin/install.php">Install Missing Tables</a></div>';
+        echo '<div class="test-item"><a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/install.php">Install Missing Tables</a></div>';
         $allTests['tables'] = false;
     } else {
         echo '<div class="test-item pass">✓ All required tables exist!</div>';

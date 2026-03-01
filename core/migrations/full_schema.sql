@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS post_types (
     capability_type VARCHAR(50) NOT NULL DEFAULT 'post',
     settings JSON,
     mode VARCHAR(20) NOT NULL DEFAULT 'fixed',
-    schema JSON NULL,
+    `schema` JSON NULL,
     created_by INT NOT NULL,
     updated_by INT NOT NULL,
     created_at DATETIME NOT NULL,
@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS component_definitions (
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL,
     type VARCHAR(50) NOT NULL,
-    schema JSON NOT NULL,
+    `schema` JSON NOT NULL,
     is_fixed TINYINT(1) NOT NULL DEFAULT 1,
     is_flexible TINYINT(1) NOT NULL DEFAULT 0,
     `order` INT NOT NULL DEFAULT 0,
@@ -448,15 +448,6 @@ SET @supports = '[\"title\",\"editor\"]';
 INSERT IGNORE INTO post_types (name, slug, description, public, show_in_menu, supports, created_by, updated_by, created_at, updated_at) VALUES
 ('Post', 'post', 'Blog post', 1, 1, @supports, 1, 1, NOW(), NOW()),
 ('Page', 'page', 'Static page', 1, 1, @supports, 1, 1, NOW(), NOW());
-
--- -----------------------------------------------------------------------------
--- 4. Location taxonomies (country, province, city) – generic
--- -----------------------------------------------------------------------------
-
-INSERT IGNORE INTO taxonomies (name, slug, description, hierarchical, public, show_in_menu, show_in_rest, created_by, updated_by, created_at, updated_at) VALUES
-('Country', 'country', 'Country (location)', 0, 1, 1, 1, 1, 1, NOW(), NOW()),
-('Province', 'province', 'Province / region', 0, 1, 1, 1, 1, 1, NOW(), NOW()),
-('City', 'city', 'City (location)', 0, 1, 1, 1, 1, 1, NOW(), NOW());
 
 -- =============================================================================
 -- End of full_schema.sql (Modular core only)

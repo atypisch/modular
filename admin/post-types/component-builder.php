@@ -17,7 +17,7 @@ require_once CORE_PATH . '/classes/ComponentTypes.php';
 use Modular\Components\ComponentTypes;
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 

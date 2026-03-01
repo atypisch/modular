@@ -17,7 +17,7 @@ require_once CORE_PATH . '/classes/Taxonomy.php';
 require_once CORE_PATH . '/classes/PostType.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -35,7 +35,7 @@ if (isset($_GET['id'])) {
     $taxonomyData = $taxonomy->getById($_GET['id']);
     if (!$taxonomyData) {
         $_SESSION['error'] = 'Taxonomy not found.';
-        header('Location: /modular/admin/taxonomies');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
         exit;
     }
     $linkedPostTypes = $taxonomy->getLinkedPostTypes($_GET['id']);
@@ -59,14 +59,14 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1><?php echo $page_title; ?></h1>
-            <a href="/modular/admin/taxonomies" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Taxonomies
             </a>
         </div>
     </div>
 
     <div class="card">
-        <form action="/modular/admin/taxonomies/save.php" method="POST">
+        <form action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/save.php" method="POST">
             <?php echo csrf_field(); ?>
             <?php if (isset($_GET['id'])): ?>
             <input type="hidden" name="id" value="<?php echo htmlspecialchars($_GET['id']); ?>">
@@ -118,7 +118,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <p class="text-sm text-gray-500 mb-4">Select which post types this taxonomy should be available for.</p>
                     <div class="space-y-2">
                         <?php if (empty($allPostTypes)): ?>
-                            <p class="text-sm text-gray-500">No post types available. <a href="/modular/admin/post-types/edit.php" class="text-blue-600">Create a post type first</a>.</p>
+                            <p class="text-sm text-gray-500">No post types available. <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/post-types/edit.php" class="text-blue-600">Create a post type first</a>.</p>
                         <?php else: ?>
                             <?php foreach ($allPostTypes as $pt): ?>
                                 <div class="flex items-start">
@@ -175,7 +175,7 @@ require_once ADMIN_PATH . '/templates/header.php';
             </div>
 
             <div class="mt-6 flex items-center justify-end space-x-4">
-                <a href="/modular/admin/taxonomies" class="btn btn-secondary">Cancel</a>
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies" class="btn btn-secondary">Cancel</a>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save"></i> Save Taxonomy
                 </button>

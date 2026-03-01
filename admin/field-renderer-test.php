@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -74,7 +74,7 @@ $fieldData = [
 
 require_once ADMIN_PATH . '/templates/header.php';
 ?>
-<link rel="stylesheet" href="/modular/admin/assets/css/post-edit.css">
+<link rel="stylesheet" href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/assets/css/post-edit.css">
 <div class="main-content" style="max-width: 900px; margin: 0 auto;">
     <h1>Field Renderer Test</h1>
     <p class="help-text">Every Modular CMS field type rendered with PrimeVue. Check styling, labels, hints, and validation.</p>
@@ -98,8 +98,8 @@ window.MODULAR_FIELD_SCHEMA = { fields: <?php echo json_encode($schemaFields); ?
 window.MODULAR_FIELD_DATA = <?php echo json_encode($fieldData); ?>;
 window.MODULAR_FIELD_OPTIONS = {};
 </script>
-<script src="/modular/admin/assets/js/field-renderer/resolveFieldComponent.js?v=1"></script>
-<script src="/modular/admin/assets/js/field-renderer/field-renderer-app.js?v=1"></script>
+<script src="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/assets/js/field-renderer/resolveFieldComponent.js?v=1"></script>
+<script src="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/assets/js/field-renderer/field-renderer-app.js?v=1"></script>
 <script>
 (function() {
     function reportTodo(items) {

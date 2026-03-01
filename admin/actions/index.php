@@ -15,14 +15,14 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/functions/subscription.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 // Feature gating: Actions/automations are Pro+ only (except for super admins)
 if (!subscription_has_feature('automations') && !(function_exists('is_admin') && is_admin())) {
     // Soft, informational warning instead of hard red error
     $_SESSION['warning'] = 'Actions & automation are available in Pro and Agency tiers.';
-    header('Location: /modular/admin/index.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/index.php');
     exit;
 }
 

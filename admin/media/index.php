@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -86,7 +86,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1>Media Library</h1>
-            <a href="/modular/admin/media/upload.php" class="btn btn-primary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media/upload.php" class="btn btn-primary">
                 <i class="fas fa-upload"></i> Upload Media
             </a>
         </div>
@@ -133,14 +133,14 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <?php if ($folder !== ''): ?>
                 <h3>This folder is empty</h3>
                 <p>Upload a file to add content to this folder.</p>
-                <a href="/modular/admin/media/upload.php?folder_path=<?php echo rawurlencode($folder); ?>" class="btn btn-primary mt-4">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media/upload.php?folder_path=<?php echo rawurlencode($folder); ?>" class="btn btn-primary mt-4">
                     <i class="fas fa-upload"></i> Upload here
                 </a>
                 <a href="<?php echo ADMIN_URL; ?>/media" class="btn btn-secondary mt-4">All folders</a>
                 <?php else: ?>
                 <h3>No Media Files</h3>
                 <p>Upload your first media file to get started.</p>
-                <a href="/modular/admin/media/upload.php" class="btn btn-primary mt-4">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media/upload.php" class="btn btn-primary mt-4">
                     <i class="fas fa-upload"></i> Upload Media
                 </a>
                 <?php endif; ?>
@@ -186,10 +186,10 @@ require_once ADMIN_PATH . '/templates/header.php';
                             <?php echo number_format($item['file_size'] / 1024, 1); ?> KB
                         </div>
                         <div class="media-item-actions">
-                            <a href="/modular/admin/media/edit.php?id=<?php echo $item['id']; ?>" class="btn btn-sm btn-secondary">
+                            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media/edit.php?id=<?php echo $item['id']; ?>" class="btn btn-sm btn-secondary">
                                 <i class="fas fa-edit"></i> Edit
                             </a>
-                            <a href="/modular/admin/media/delete.php?id=<?php echo $item['id']; ?>" 
+                            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media/delete.php?id=<?php echo $item['id']; ?>" 
                                class="btn btn-sm btn-danger"
                                data-confirm="Are you sure you want to delete this file?">
                                 <i class="fas fa-trash"></i>

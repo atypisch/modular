@@ -14,7 +14,7 @@ require_once dirname(__DIR__) . '/data/init.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -112,7 +112,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                         <?php endforeach; ?>
                     </select>
                 <?php endif; ?>
-                <a href="/modular/admin/posts/edit.php<?php echo $postTypeId ? '?post_type_id=' . $postTypeId : ''; ?>" class="btn btn-primary">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/edit.php<?php echo $postTypeId ? '?post_type_id=' . $postTypeId : ''; ?>" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Add New Post
                 </a>
             </div>
@@ -137,7 +137,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <i class="fas fa-file-alt"></i>
                 <h3>No Posts Found</h3>
                 <p>Create your first post to get started.</p>
-                <a href="/modular/admin/posts/edit.php<?php echo $postTypeId ? '?post_type_id=' . $postTypeId : ''; ?>" class="btn btn-primary mt-4">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/edit.php<?php echo $postTypeId ? '?post_type_id=' . $postTypeId : ''; ?>" class="btn btn-primary mt-4">
                     <i class="fas fa-plus"></i> Create Post
                 </a>
             </div>
@@ -179,10 +179,10 @@ require_once ADMIN_PATH . '/templates/header.php';
                             <td><?php echo date('Y-m-d H:i', strtotime($post['created_at'] ?? 'now')); ?></td>
                             <td style="text-align: right;">
                                 <div class="flex gap-2 justify-end">
-                                    <a href="/modular/admin/posts/edit.php?id=<?php echo $post['id']; ?>" class="btn btn-sm btn-secondary">
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/edit.php?id=<?php echo $post['id']; ?>" class="btn btn-sm btn-secondary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <a href="/modular/admin/posts/delete.php?id=<?php echo $post['id']; ?>" 
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/delete.php?id=<?php echo $post['id']; ?>" 
                                        class="btn btn-sm btn-danger"
                                        data-confirm="Are you sure you want to delete this post?">
                                         <i class="fas fa-trash"></i> Delete

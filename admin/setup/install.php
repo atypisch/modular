@@ -75,7 +75,7 @@ if (file_exists(__DIR__ . '/../config/installed.php')) {
                         <strong>Installation completed successfully!</strong><br>
                         All database tables have been created.<br>
                         ' . ($result['count'] == 0 ? 'Default admin user created:<br>Username: <strong>admin</strong><br>Password: <strong>admin</strong><br>Please change these credentials immediately!<br>' : '') . '
-                        <a href="/modular/admin/auth/login.php" class="underline font-bold">Click here to login</a>
+                        <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/auth/login.php" class="underline font-bold">Click here to login</a>
                     </div>';
                 } catch (Exception $e) {
                     echo '<div class="msg-error border rounded px-4 py-3 mb-4">

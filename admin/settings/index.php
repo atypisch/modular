@@ -14,7 +14,7 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/functions/subscription.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -39,7 +39,7 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $_SESSION['error'] = 'Invalid request. Please try again.';
-        header('Location: /modular/admin/settings');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/settings');
         exit;
     }
     $siteTitle = filter_input(INPUT_POST, 'site_title', FILTER_SANITIZE_STRING) ?? '';
@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateStmt->execute(['dev_mode_tier_override', strtolower($devModeTierOverride), strtolower($devModeTierOverride)]);
         
         $_SESSION['success'] = 'Settings saved successfully.';
-        header('Location: /modular/admin/settings');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/settings');
         exit;
     } catch (Exception $e) {
         $_SESSION['error'] = 'Error saving settings: ' . $e->getMessage();

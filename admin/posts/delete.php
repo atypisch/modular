@@ -14,7 +14,7 @@ require_once dirname(__DIR__) . '/data/init.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -22,7 +22,7 @@ $id = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 
 if (!$id) {
     $_SESSION['error'] = 'Post ID is required.';
-    header('Location: /modular/admin/posts');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts');
     exit;
 }
 
@@ -40,5 +40,5 @@ try {
     error_log("Post delete error: " . $e->getMessage());
 }
 
-header('Location: /modular/admin/posts');
+header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts');
 exit;

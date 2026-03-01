@@ -21,7 +21,7 @@ $content = '
                     <button type="submit" class="btn btn-primary w-full">Send Reset Link</button>
                 </div>
                 <div class="auth-links">
-                    <a href="/modular/admin/auth/login.php" class="text-blue-600 hover:text-blue-800">Back to Login</a>
+                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/auth/login.php" class="text-blue-600 hover:text-blue-800">Back to Login</a>
                 </div>
             </form>
         </div>

@@ -78,6 +78,11 @@ $fixedRoutes = [
     'login' => 'template_login',
     'signup' => 'template_signup',
     'profile' => 'template_profile',
+    'about' => 'template_about',
+    'howto' => 'template_howto',
+    'singles' => 'template_singles',
+    'store' => 'template_store',
+    'subscription' => 'template_subscription',
 ];
 if (function_exists('apply_filters')) {
     $fixedRoutes = apply_filters('public_fixed_routes', $fixedRoutes);
@@ -121,6 +126,13 @@ if ($postTypeSlug === null || $postSlug === null) {
                         foreach ($themes as $theme) {
                             $theme_path = THEMES_PATH . '/' . $theme;
                             if (is_file($theme_path . '/' . $templateName . '.php')) {
+                                if ($theme === 'simuze' && is_dir($theme_path . '/inc')) {
+                                    $GLOBALS['simuze_theme_path'] = $theme_path;
+                                    $GLOBALS['route_segment'] = $taxSlug;
+                                    if (!function_exists('get_header')) {
+                                        require_once $theme_path . '/inc/modular-bridge.php';
+                                    }
+                                }
                                 include $theme_path . '/' . $templateName . '.php';
                                 exit;
                             }
@@ -129,6 +141,27 @@ if ($postTypeSlug === null || $postSlug === null) {
                             include THEMES_PATH . '/MDLR-2025/template_location.php';
                             exit;
                         }
+                    }
+                }
+            }
+            // Music sub-routes: /music/albums, /music/tracks
+            if (count($segments) >= 2 && $segments[0] === 'music' && in_array($segments[1], ['albums', 'tracks'], true)) {
+                $musicSubTemplate = 'template_' . $segments[1];
+                $themes = ['simuze', 'MDLR-2025', $activeTheme];
+                foreach ($themes as $theme) {
+                    $theme_path = THEMES_PATH . '/' . $theme;
+                    if (is_file($theme_path . '/' . $musicSubTemplate . '.php')) {
+                        $route_segment = $segments[1];
+                        $route_parent = 'music';
+                        if ($theme === 'simuze' && is_dir($theme_path . '/inc')) {
+                            $GLOBALS['simuze_theme_path'] = $theme_path;
+                            $GLOBALS['route_segment'] = $route_segment;
+                            if (!function_exists('get_header')) {
+                                require_once $theme_path . '/inc/modular-bridge.php';
+                            }
+                        }
+                        include $theme_path . '/' . $musicSubTemplate . '.php';
+                        exit;
                     }
                 }
             }
@@ -145,6 +178,13 @@ if ($postTypeSlug === null || $postSlug === null) {
                     $templateFile = $theme_path . '/' . $templateName . '.php';
                     if (is_file($templateFile)) {
                         $route_segment = $slugOnly;
+                        if ($theme === 'simuze' && is_dir($theme_path . '/inc')) {
+                            $GLOBALS['simuze_theme_path'] = $theme_path;
+                            $GLOBALS['route_segment'] = $route_segment;
+                            if (!function_exists('get_header')) {
+                                require_once $theme_path . '/inc/modular-bridge.php';
+                            }
+                        }
                         include $templateFile;
                         exit;
                     }
@@ -302,15 +342,39 @@ if ($postTypeSlug !== null && $postSlug !== null) {
         $theme_path = THEMES_PATH . '/' . $theme;
         // Template-by-slug: if post has template set (e.g. template_music), load that first
         if ($post_template !== '' && is_file($theme_path . '/' . $post_template . '.php')) {
+            if ($theme === 'simuze' && is_dir($theme_path . '/inc')) {
+                $GLOBALS['simuze_theme_path'] = $theme_path;
+                if (!function_exists('get_header')) require_once $theme_path . '/inc/modular-bridge.php';
+            }
+            if (is_array($post) && function_exists('_simuze_post_array_to_object')) {
+                $post = _simuze_post_array_to_object($post);
+                $GLOBALS['post'] = $post;
+            }
             include $theme_path . '/' . $post_template . '.php';
             exit;
         }
         $single_type = $theme_path . '/single-' . $post_type_slug . '.php';
         if (is_file($single_type)) {
+            if ($theme === 'simuze' && is_dir($theme_path . '/inc')) {
+                $GLOBALS['simuze_theme_path'] = $theme_path;
+                if (!function_exists('get_header')) require_once $theme_path . '/inc/modular-bridge.php';
+            }
+            if (is_array($post) && function_exists('_simuze_post_array_to_object')) {
+                $post = _simuze_post_array_to_object($post);
+                $GLOBALS['post'] = $post;
+            }
             include $single_type;
             exit;
         }
         if (is_file($theme_path . '/single.php')) {
+            if ($theme === 'simuze' && is_dir($theme_path . '/inc')) {
+                $GLOBALS['simuze_theme_path'] = $theme_path;
+                if (!function_exists('get_header')) require_once $theme_path . '/inc/modular-bridge.php';
+            }
+            if (is_array($post) && function_exists('_simuze_post_array_to_object')) {
+                $post = _simuze_post_array_to_object($post);
+                $GLOBALS['post'] = $post;
+            }
             include $theme_path . '/single.php';
             exit;
         }
