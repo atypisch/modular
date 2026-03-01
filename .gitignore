@@ -1,5 +1,6 @@
 # Design assets (local)
 ontwerp/
+design/
 
 # Internal docs (local)
 docs/
@@ -9,3 +10,7 @@ docs/backups/
 
 # Local config (e.g. MAMP DB port)
 admin/config/config.local.php
+
+# Models and themes have their own repos
+core/models/
+public/themes/

@@ -17,20 +17,27 @@
 import Editor from '@tinymce/tinymce-vue';
 
 const BASE_PLUGINS = 'lists link paste';
-const BASIC_PLUGINS = BASE_PLUGINS + ' link';
-const FULL_PLUGINS = BASE_PLUGINS + ' code table charmap hr visualblocks fullscreen wordcount autoresize';
+// Basic: echt minimale set
+const BASIC_PLUGINS = BASE_PLUGINS;
+// Full: compact maar met wat extra opties, nog steeds icon-only
+const FULL_PLUGINS = BASE_PLUGINS + ' code table charmap hr autoresize';
 
-const BASIC_TOOLBAR = 'bold italic underline | bullist numlist | link | removeformat';
-const FULL_TOOLBAR = 'blocks fontsize | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist indent | table hr charmap | code visualblocks fullscreen | wordcount';
+// Toolbar: blocks (Heading/Paragraph) eerst, dan iconen; extra items in overflow (toolbar_mode: sliding)
+const BASIC_TOOLBAR = 'blocks | undo redo | bold italic | bullist numlist | link blockquote | removeformat';
+const FULL_TOOLBAR = 'blocks | undo redo | bold italic underline | bullist numlist blockquote | alignleft aligncenter alignright | link | table charmap hr | removeformat | code';
 
 const SAFE_INIT = {
-  min_height: 250,
-  height: 250,
-  content_style: 'body { padding: 12px 14px; min-height: 220px; font-family: inherit; }',
+  min_height: 220,
+  content_style: 'body { padding: 0 10px; min-height: 220px; font-family: inherit; }',
   placeholder: 'Write content...',
   branding: false,
   promotion: false,
+  // Handgreep onderaan om de editor verticaal te resizen
   resize: true,
+  // Alleen icon-toolbar, geen tekst-menubalk
+  menubar: false,
+  // Overtollige iconen schuiven in een \"»\" overflow, vergelijkbaar met WordPress
+  toolbar_mode: 'sliding',
   // Paste: clean Word junk, optional strip inline styles, safe HTML
   paste_as_text: false,
   paste_remove_styles_if_webkit: true,
@@ -137,15 +144,38 @@ export default {
 <style scoped>
 .modular-wysiwyg-field {
   width: 100%;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: var(--radius-sm, 4px);
+  outline: none;
+}
+/* Alleen bij focus: rand donkerder grijs, geen blauw */
+.modular-wysiwyg-field:focus-within {
+  border-color: #6b7280;
+  box-shadow: none;
 }
 .modular-wysiwyg-field :deep(.tox-tinymce) {
   border-radius: var(--radius-sm, 4px);
-  border-color: var(--border-color, #e8e6e3);
+  border: none !important;
+}
+/* Buitenste TinyMCE-container: geen rand */
+.modular-wysiwyg-field :deep(.tox-tinymce:focus-within) {
+  border: none !important;
+  outline: none;
+  box-shadow: none;
+}
+/* Binnenste focusrand (rond het typveld): grijs i.p.v. blauw */
+.modular-wysiwyg-field :deep(.tox .tox-edit-area),
+.modular-wysiwyg-field :deep(.tox .tox-edit-area:focus),
+.modular-wysiwyg-field :deep(.tox .tox-edit-area:focus-within),
+.modular-wysiwyg-field :deep(.tox .tox-edit-area.tox-edit-area--focused) {
+  border-color: #6b7280 !important;
+  box-shadow: none !important;
 }
 .modular-wysiwyg-field :deep(.tox .tox-edit-area__iframe) {
-  min-height: 250px;
+  min-height: 200px;
+  outline: none !important;
 }
 .modular-wysiwyg-field :deep(.tox .tox-editor-container) {
-  min-height: 250px;
+  min-height: 200px;
 }
 </style>

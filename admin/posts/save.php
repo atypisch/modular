@@ -50,6 +50,38 @@ if ($postId && array_key_exists('excerpt', $_POST)) {
     $excerpt = filter_input(INPUT_POST, 'excerpt', FILTER_SANITIZE_STRING) ?? '';
 }
 $status = filter_input(INPUT_POST, 'status', FILTER_SANITIZE_STRING) ?? 'draft';
+$template = isset($_POST['template']) ? trim((string) $_POST['template']) : null;
+$publishedAtRaw = isset($_POST['published_at']) ? trim((string) $_POST['published_at']) : '';
+$visibility = in_array($_POST['visibility'] ?? '', ['public', 'private', 'password'], true) ? $_POST['visibility'] : 'public';
+$postPassword = isset($_POST['post_password']) ? trim((string) $_POST['post_password']) : null;
+
+// Publication date: accept datetime-local (YYYY-MM-DDTHH:MM) or empty
+$publishedAt = null;
+if ($publishedAtRaw !== '') {
+    $ts = strtotime($publishedAtRaw);
+    if ($ts !== false) {
+        $publishedAt = date('Y-m-d H:i:s', $ts);
+    }
+}
+// If user chose Published but set a future date, treat as scheduled
+if ($status === 'published' && $publishedAt !== null && strtotime($publishedAt) > time()) {
+    $status = 'scheduled';
+}
+// When saving as draft/archived with no date submitted, preserve existing published_at
+if ($status !== 'published' && $status !== 'scheduled' && $publishedAt === null && $postId) {
+    try {
+        $stmt = $db->prepare("SELECT published_at FROM posts WHERE id = ?");
+        $stmt->execute([$postId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if ($row && !empty($row['published_at'])) {
+            $publishedAt = $row['published_at'];
+        }
+    } catch (\Throwable $e) { /* ignore */ }
+}
+if ($status === 'published' && $publishedAt === null) {
+    $publishedAt = date('Y-m-d H:i:s');
+}
+$passwordCol = ($visibility === 'password') ? $postPassword : null;
 
 // Validate required
 if (empty($title) || empty($postTypeId)) {
@@ -273,18 +305,18 @@ try {
         throw new Exception("A post with this slug already exists for this post type");
     }
 
-    $publishedAt = ($status === 'published') ? date('Y-m-d H:i:s') : null;
-
     if ($postId) {
         $stmt = $db->prepare("
             UPDATE posts 
             SET post_type_id = ?, slug = ?, title = ?, excerpt = ?, status = ?, 
-                component_data = ?, data = ?, layout = ?, published_at = ?, updated_by = ?, updated_at = NOW()
+                component_data = ?, data = ?, layout = ?, published_at = ?, template = ?, visibility = ?, password = ?,
+                updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
         $stmt->execute([
             $postTypeId, $slug, $title, $excerpt, $status,
-            $componentData, $dataJson, $layoutJson, $publishedAt, $userId, $postId
+            $componentData, $dataJson, $layoutJson, $publishedAt, $template, $visibility, $passwordCol,
+            $userId, $postId
         ]);
         $_SESSION['success'] = 'Post updated successfully.';
         header('Location: /modular/admin/posts/edit.php?id=' . (int)$postId);
@@ -293,12 +325,12 @@ try {
         $stmt = $db->prepare("
             INSERT INTO posts 
             (post_type_id, slug, title, excerpt, status, component_data, data, layout,
-             author_id, created_by, updated_by, published_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+             author_id, created_by, updated_by, published_at, template, visibility, password, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         $stmt->execute([
             $postTypeId, $slug, $title, $excerpt, $status, $componentData, $dataJson, $layoutJson,
-            $userId, $userId, $userId, $publishedAt
+            $userId, $userId, $userId, $publishedAt, $template, $visibility, $passwordCol
         ]);
         $newId = (int)$db->lastInsertId();
         $_SESSION['success'] = 'Post created successfully.';

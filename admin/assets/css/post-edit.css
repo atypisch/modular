@@ -604,8 +604,8 @@
 }
 .modular-layout-block-columns {
     display: grid;
-    gap: var(--spacing-md);
-    padding: var(--spacing-md);
+    gap: 0.5rem;
+    padding: 0.5rem;
     min-height: 80px;
 }
 .modular-layout-block.modular-layout-1col .modular-layout-block-columns {
@@ -700,7 +700,7 @@
     min-height: 100px;
     border: 2px dashed var(--border-color);
     border-radius: var(--radius-md);
-    padding: var(--spacing-md);
+    padding: 5px;
     background: var(--background-subtle);
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
@@ -712,13 +712,19 @@
 .modular-column-inner {
     min-height: 80px;
     width: 100%;
-    min-width: 0; /* allow grid column to shrink correctly */
+    min-width: 0;
     box-sizing: border-box;
+    padding: 0;
 }
 .modular-top-inner {
     min-height: 40px;
     width: 100%;
     box-sizing: border-box;
+    padding: 0;
+}
+.post-edit-fields-draggable .modular-column-inner,
+.post-edit-fields-draggable .modular-top-inner {
+    padding: 0;
 }
 
 /* Image / file upload buttons: light blue-grey instead of green */

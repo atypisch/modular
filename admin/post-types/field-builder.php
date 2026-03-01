@@ -730,7 +730,7 @@ require_once ADMIN_PATH . '/templates/header.php';
         const idx = parseInt(row.dataset.index, 10);
         if (e.target.closest('.delete-field')) {
             const label = activeFields[idx].label || activeFields[idx].name || activeFields[idx].type;
-            (window.ModularModal ? window.ModularModal.confirm('Delete field "' + label + '"? This cannot be undone.') : Promise.resolve(confirm('Delete field "' + label + '"? This cannot be undone.'))).then(function(ok) {
+            (window.ModularModal && window.ModularModal.confirm('Veld "' + label + '" verwijderen? Dit kan niet ongedaan worden gemaakt.') || Promise.resolve(false)).then(function(ok) {
             if (!ok) return;
             collectSettingsFromPanel();
             activeFields.splice(idx, 1);
@@ -812,11 +812,11 @@ require_once ADMIN_PATH . '/templates/header.php';
             });
         })
         .then(function(data) {
-            if (data && data.error) (window.ModularModal ? window.ModularModal.alert('Error: ' + data.error) : alert('Error: ' + data.error));
-            else (window.ModularModal ? window.ModularModal.alert('Schema saved.') : alert('Schema saved.'));
+            if (data && data.error) (window.ModularModal && window.ModularModal.alert('Error: ' + data.error));
+            else (window.ModularModal && window.ModularModal.alert('Schema opgeslagen.'));
         })
         .catch(function(err) {
-            (window.ModularModal ? window.ModularModal.alert('Request failed: ' + (err && err.message ? err.message : 'Check the console.')) : alert('Request failed: ' + (err && err.message ? err.message : 'Check the console.')));
+            (window.ModularModal && window.ModularModal.alert('Request mislukt: ' + (err && err.message ? err.message : 'Controleer de console.')));
             console.error('Save schema failed:', err);
         });
     });

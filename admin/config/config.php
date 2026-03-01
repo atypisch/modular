@@ -3,7 +3,9 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Optional local override (e.g. for MAMP: DB_PORT 8889, BASE_PATH)
+// Local override: database credentials and optional BASE_PATH, DB_PORT, etc.
+// Copy config.local.php.example to config.local.php and set your credentials there.
+// config.local.php is in .gitignore – do not put real credentials in config.php.
 $configLocalPath = __DIR__ . '/config.local.php';
 if (file_exists($configLocalPath)) {
     require_once $configLocalPath;
@@ -19,22 +21,22 @@ if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.use_strict_mode', 1);
 }
 
-// Define base paths
-define('MODULAR_PATH', dirname(dirname(__DIR__)));
-define('ADMIN_PATH', MODULAR_PATH . '/admin');
-define('CORE_PATH', MODULAR_PATH . '/core');
-define('PUBLIC_PATH', MODULAR_PATH . '/public');
-define('THEMES_PATH', MODULAR_PATH . '/public/themes');
-define('DEFAULT_THEME', 'default');
+// Define base paths (only if not already set, e.g. when public/index.php is included from root)
+if (!defined('MODULAR_PATH')) define('MODULAR_PATH', dirname(dirname(__DIR__)));
+if (!defined('ADMIN_PATH')) define('ADMIN_PATH', MODULAR_PATH . '/admin');
+if (!defined('CORE_PATH')) define('CORE_PATH', MODULAR_PATH . '/core');
+if (!defined('PUBLIC_PATH')) define('PUBLIC_PATH', MODULAR_PATH . '/public');
+if (!defined('THEMES_PATH')) define('THEMES_PATH', MODULAR_PATH . '/public/themes');
+if (!defined('DEFAULT_THEME')) define('DEFAULT_THEME', 'default');
 
 // Setup helpers (isInstalled, directory checks)
 require_once CORE_PATH . '/config-check.php';
 
-// Database configuration (override in config.local.php for MAMP)
+// Database configuration – fallback only. Prefer config.local.php for all environments.
 if (!defined('DB_HOST')) define('DB_HOST', '127.0.0.1');
-if (!defined('DB_PORT')) define('DB_PORT', '3306'); // MAMP: 8889
+if (!defined('DB_PORT')) define('DB_PORT', '3306');
 if (!defined('DB_USER')) define('DB_USER', 'root');
-if (!defined('DB_PASS')) define('DB_PASS', 'root');
+if (!defined('DB_PASS')) define('DB_PASS', '');
 if (!defined('DB_NAME')) define('DB_NAME', 'modular');
 
 // Create database connection with error handling.
@@ -62,13 +64,12 @@ try {
     $GLOBALS['db_error'] = $e;
 }
 
-// Only run migrations when we're in the admin area and not on the setup flow.
-// Otherwise, visiting / would recreate tables and show "Go to Admin" instead of setup;
-// and visiting /admin/setup/ would recreate tables before the user completes step 2.
+// Run pending migrations on every admin request (except setup) so that a fresh install
+// gets all core tables (users, roles, posts, etc.) on first visit to /admin.
 $requestUri = $_SERVER['REQUEST_URI'] ?? '';
 $isAdminRequest = (strpos($requestUri, '/admin') !== false);
 $isSetupRequest = (strpos($requestUri, '/admin/setup') !== false);
-if (isset($GLOBALS['db']) && function_exists('isInstalled') && isInstalled() && $isAdminRequest && !$isSetupRequest) {
+if (isset($GLOBALS['db']) && $isAdminRequest && !$isSetupRequest) {
     require_once CORE_PATH . '/functions/database.php';
     if (function_exists('run_pending_migrations')) {
         run_pending_migrations();
@@ -83,13 +84,13 @@ if (!defined('BASE_PATH')) {
 }
 $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-define('SITE_URL', $protocol . '://' . $host . BASE_PATH);
-define('ADMIN_URL', SITE_URL . '/admin');
-define('ADMIN_BASE_PATH', BASE_PATH . '/admin');
+if (!defined('SITE_URL')) define('SITE_URL', $protocol . '://' . $host . BASE_PATH);
+if (!defined('ADMIN_URL')) define('ADMIN_URL', SITE_URL . '/admin');
+if (!defined('ADMIN_BASE_PATH')) define('ADMIN_BASE_PATH', BASE_PATH . '/admin');
 
 // Define asset paths
-define('ADMIN_ASSETS_PATH', ADMIN_URL . '/assets');
-define('ADMIN_CSS_PATH', ADMIN_ASSETS_PATH . '/css');
+if (!defined('ADMIN_ASSETS_PATH')) define('ADMIN_ASSETS_PATH', ADMIN_URL . '/assets');
+if (!defined('ADMIN_CSS_PATH')) define('ADMIN_CSS_PATH', ADMIN_ASSETS_PATH . '/css');
 
 // Uploads: configurable so external/app base path works
 if (!defined('UPLOADS_PATH')) {
@@ -105,5 +106,14 @@ $additional_styles = '
     <link rel="stylesheet" href="' . ADMIN_CSS_PATH . '/auth.css">
     <link rel="stylesheet" href="' . ADMIN_CSS_PATH . '/responsive.css">
 ';
+
+// Helper for admin URLs (use this instead of hardcoding /modular/admin so copy-installs work)
+if (!function_exists('admin_url')) {
+    function admin_url($path = '') {
+        $base = defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin';
+        $path = ltrim((string) $path, '/');
+        return $base . ($path !== '' ? '/' . $path : '');
+    }
+}
 
 ?>

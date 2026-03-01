@@ -18,7 +18,9 @@
             if (btn) {
                 var collapsed = localStorage.getItem('modular-sidebar-collapsed') === '1';
                 if (collapsed) document.body.classList.add('sidebar-collapsed');
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     document.body.classList.toggle('sidebar-collapsed');
                     localStorage.setItem('modular-sidebar-collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
                 });

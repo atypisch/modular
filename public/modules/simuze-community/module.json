@@ -1,0 +1,11 @@
+{
+    "name": "Simuze Community",
+    "slug": "simuze-community",
+    "version": "1.0.0",
+    "author": "Atypisch / Simuze",
+    "description": "Community features: users, groups, activity, messages, reviews, reports.",
+    "compatibility": {
+        "min_core_version": "1.0"
+    },
+    "github_repo": ""
+}

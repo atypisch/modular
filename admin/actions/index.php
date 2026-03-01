@@ -406,14 +406,14 @@ document.getElementById('action-form').addEventListener('submit', function(e) {
     .then(response => response.json())
     .then(result => {
         if (result.error) {
-            (window.ModularModal ? window.ModularModal.alert('Error: ' + result.error) : alert('Error: ' + result.error));
+            (window.ModularModal && window.ModularModal.alert('Error: ' + result.error));
         } else {
             closeModal();
             location.reload();
         }
     })
     .catch(error => {
-        alert('Error: ' + error.message);
+        (window.ModularModal && window.ModularModal.alert('Error: ' + error.message));
     });
 });
 
@@ -457,7 +457,7 @@ function toggleAction(id, enabled) {
 }
 
 function deleteAction(id) {
-    (window.ModularModal ? window.ModularModal.confirm('Are you sure you want to delete this action?') : Promise.resolve(confirm('Are you sure you want to delete this action?'))).then(function(ok) {
+    (window.ModularModal && window.ModularModal.confirm('Weet u zeker dat u deze actie wilt verwijderen?') || Promise.resolve(false)).then(function(ok) {
         if (!ok) return;
     fetch('/modular/admin/api/index.php/api/v1/actions/' + id, {
         method: 'DELETE',

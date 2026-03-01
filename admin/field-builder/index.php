@@ -49,7 +49,7 @@ $mode = $postType['mode'] ?? 'fixed';
 $modularAllowed = function_exists('subscription_has_feature') && subscription_has_feature('modular_post_types');
 
 $fieldLibrary = FieldRegistry::listForAdminGrouped();
-$categoryOrder = ['basic', 'content', 'choice', 'relational', 'media', 'date_time', 'layout', 'utility'];
+$categoryOrder = ['basic', 'content', 'choice', 'relational', 'media', 'date_time', 'layout', 'event', 'utility'];
 $categoryLabels = [
     'basic' => 'Basic',
     'content' => 'Content',
@@ -58,6 +58,7 @@ $categoryLabels = [
     'media' => 'Media',
     'date_time' => 'Date & Time',
     'layout' => 'Layout',
+    'event' => 'Event',
     'utility' => 'Utility',
 ];
 

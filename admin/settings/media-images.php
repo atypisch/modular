@@ -216,10 +216,10 @@ require_once ADMIN_PATH . '/templates/header.php';
             <h3>Maintenance</h3>
             <p class="help-text">Use these tools carefully on larger sites; regenerating thumbnails processes all image files.</p>
 
-            <form method="POST" onsubmit="return confirm('Regenerate thumbnails for all images? This may take a while.');">
+            <form method="POST">
                 <?php echo function_exists('csrf_field') ? csrf_field() : ''; ?>
                 <input type="hidden" name="action" value="regenerate_thumbnails">
-                <button type="submit" class="btn btn-secondary">
+                <button type="submit" class="btn btn-secondary" data-confirm="Miniaturen voor alle afbeeldingen opnieuw genereren? Dit kan even duren.">
                     <i class="fas fa-redo"></i> Regenerate all thumbnails
                 </button>
             </form>

@@ -1,5 +1,5 @@
 RewriteEngine On
-RewriteBase /modular/
+RewriteBase /simezu-mdlr/
 
 # Allow direct access to existing files
 RewriteCond %{REQUEST_FILENAME} -f [OR]
@@ -32,3 +32,9 @@ RewriteRule ^admin/auth/([^/]+)/?$ admin/auth/$1.php [L]
 
 # Handle main admin page
 RewriteRule ^admin/?$ admin/index.php [L]
+
+# Frontend: pretty URLs (e.g. /modular/home, /modular/blog/post-slug)
+# Existing files and directories are already allowed above (-f / -d).
+# Everything else goes through the root index.php, which includes public/index.php.
+RewriteRule ^$ index.php [L]
+RewriteRule ^(.+)$ index.php [L,QSA]

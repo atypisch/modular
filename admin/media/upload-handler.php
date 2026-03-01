@@ -74,10 +74,13 @@ if ($file['error'] !== UPLOAD_ERR_OK) {
     exit;
 }
 
-$allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+$allowedTypes = [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
+    'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm', 'audio/flac', 'audio/aac', 'audio/mp4',
+];
 if (!in_array($file['type'], $allowedTypes)) {
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-    $errorMsg = 'File type not allowed. Only images and PDFs are allowed.';
+    $errorMsg = 'File type not allowed. Allowed: images, PDF, and audio (MP3, WAV, OGG, WebM, FLAC, AAC).';
     if ($isAjax) {
         header('Content-Type: application/json');
         http_response_code(400);
@@ -110,7 +113,7 @@ if (!move_uploaded_file($file['tmp_name'], $filePath)) {
 // Get file info
 $fileSize = filesize($filePath);
 $mimeType = $file['type'];
-$fileType = strpos($mimeType, 'image/') === 0 ? 'image' : 'file';
+$fileType = strpos($mimeType, 'image/') === 0 ? 'image' : (strpos($mimeType, 'audio/') === 0 ? 'audio' : 'file');
 
 $width = null;
 $height = null;

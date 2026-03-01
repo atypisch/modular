@@ -147,9 +147,78 @@ class PostTypeResolver
             return $this->normalizeLayoutBlock($field, $fieldDef, $raw);
         }
 
+        if ($type === 'latest_posts') {
+            $resolved = $this->resolveLatestPostsBlock($fieldDef, $raw, $dataContext);
+            $frontend = $field->frontend($resolved);
+            return ['type' => $type, 'data' => $frontend];
+        }
+
         $normalized = $field->normalize($raw, $fieldDef);
         $frontend = $field->frontend($normalized);
         return ['type' => $type, 'data' => $frontend];
+    }
+
+    /**
+     * Fetch latest posts. Allowed post types from fieldDef (schema); selected type(s) and limit from raw (stored per post).
+     */
+    private function resolveLatestPostsBlock(array $fieldDef, $raw, array $dataContext): array
+    {
+        $allowed = $fieldDef['post_type'] ?? [];
+        if (!is_array($allowed)) {
+            $allowed = $allowed ? [$allowed] : [];
+        }
+        $stored = is_array($raw) ? $raw : [];
+        $selected = $stored['post_type'] ?? [];
+        if (!is_array($selected)) {
+            $selected = $selected !== '' && $selected !== null ? [$selected] : [];
+        }
+        $selected = array_values(array_intersect($selected, $allowed));
+        if (empty($selected) && count($allowed) === 1) {
+            $selected = $allowed;
+        }
+        $limit = isset($stored['limit']) ? (int) $stored['limit'] : 5;
+        $limit = max(1, min(100, $limit));
+        $returnFormat = $fieldDef['return_format'] ?? 'array';
+
+        $postTypes = $selected;
+        $posts = [];
+        $ids = [];
+        if (empty($postTypes)) {
+            $stmt = $this->db->prepare("
+                SELECT p.id, p.title, p.slug, p.excerpt, p.published_at, p.created_at, pt.slug as post_type_slug
+                FROM posts p
+                INNER JOIN post_types pt ON p.post_type_id = pt.id
+                WHERE p.deleted_at IS NULL
+                AND (p.status = 'published' OR (p.status = 'scheduled' AND p.published_at IS NOT NULL AND p.published_at <= NOW()))
+                ORDER BY p.published_at DESC, p.created_at DESC
+                LIMIT ?
+            ");
+            $stmt->execute([$limit]);
+        } else {
+            $placeholders = implode(',', array_fill(0, count($postTypes), '?'));
+            $stmt = $this->db->prepare("
+                SELECT p.id, p.title, p.slug, p.excerpt, p.published_at, p.created_at, pt.slug as post_type_slug
+                FROM posts p
+                INNER JOIN post_types pt ON p.post_type_id = pt.id
+                WHERE pt.slug IN ({$placeholders}) AND p.deleted_at IS NULL
+                AND (p.status = 'published' OR (p.status = 'scheduled' AND p.published_at IS NOT NULL AND p.published_at <= NOW()))
+                ORDER BY p.published_at DESC, p.created_at DESC
+                LIMIT ?
+            ");
+            $stmt->execute(array_merge($postTypes, [$limit]));
+        }
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+            $posts[] = $row;
+            $ids[] = (int) $row['id'];
+        }
+
+        if ($returnFormat === 'id') {
+            return ['ids' => $ids, 'posts' => [], 'json' => ''];
+        }
+        if ($returnFormat === 'json') {
+            return ['posts' => $posts, 'ids' => $ids, 'json' => json_encode($posts)];
+        }
+        return ['posts' => $posts, 'ids' => $ids, 'json' => ''];
     }
 
     private function normalizeLayoutBlock(LayoutFieldInterface $field, array $fieldDef, $raw): array
@@ -398,6 +467,9 @@ class PostTypeResolver
             'created_at' => $post['created_at'] ?? null,
             'updated_at' => $post['updated_at'] ?? null,
             'post_type' => $post['post_type_slug'] ?? null,
+            'template' => isset($post['template']) ? trim((string) $post['template']) : '',
+            'visibility' => $post['visibility'] ?? 'public',
+            'password' => $post['password'] ?? '',
         ];
         if ($includeAuthor) {
             $out['author_id'] = (int) $post['author_id'];

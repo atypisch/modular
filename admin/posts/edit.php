@@ -13,8 +13,29 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once dirname(__DIR__) . '/data/init.php';
 require_once CORE_PATH . '/functions/auth.php';
 
+// Theme path and active theme for template discovery (WordPress-style Template Name)
+if (!defined('THEMES_PATH')) {
+    define('THEMES_PATH', defined('PUBLIC_PATH') ? PUBLIC_PATH . '/themes' : dirname(__DIR__, 2) . '/public/themes');
+}
+if (!defined('ACTIVE_THEME')) {
+    $activeThemeSlug = 'default';
+    if (isset($GLOBALS['db'])) {
+        try {
+            $st = $GLOBALS['db']->query("SELECT option_value FROM settings WHERE option_name = 'active_theme' LIMIT 1");
+            $r = $st ? $st->fetch(\PDO::FETCH_ASSOC) : null;
+            if ($r && !empty(trim((string) $r['option_value']))) {
+                $activeThemeSlug = trim($r['option_value']);
+            }
+        } catch (\Throwable $e) { /* ignore */ }
+    }
+    define('ACTIVE_THEME', $activeThemeSlug);
+}
+if (is_file(CORE_PATH . '/functions/template-helpers.php')) {
+    require_once CORE_PATH . '/functions/template-helpers.php';
+}
+
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . admin_url('auth/login.php'));
     exit;
 }
 
@@ -35,6 +56,10 @@ $postData = [
     'title' => '',
     'slug' => '',
     'status' => 'draft',
+    'template' => '',
+    'published_at' => null,
+    'visibility' => 'public',
+    'password' => '',
     'component_data' => []
 ];
 
@@ -59,12 +84,12 @@ if ($postId) {
             $postTypeSlug = $post['post_type_slug'] ?? '';
         } else {
             $_SESSION['error'] = 'Post not found.';
-            header('Location: /modular/admin/posts');
+            header('Location: ' . admin_url('posts'));
             exit;
         }
     } catch (Exception $e) {
         $_SESSION['error'] = 'Error loading post: ' . $e->getMessage();
-        header('Location: /modular/admin/posts');
+        header('Location: ' . admin_url('posts'));
         exit;
     }
 }
@@ -72,7 +97,7 @@ if ($postId) {
 // When adding new, post type must be in URL
 if (!$postId && !$postTypeId) {
     $_SESSION['error'] = 'Post type is required.';
-    header('Location: /modular/admin/posts');
+    header('Location: ' . admin_url('posts'));
     exit;
 }
 
@@ -233,11 +258,11 @@ $base_url = rtrim(SITE_URL ?? '', '/') . '/public/';
 $preview_slug = $postData['slug'] ?? '';
 ?>
 
-<link rel="stylesheet" href="/modular/admin/assets/css/post-edit.css">
+<link rel="stylesheet" href="<?php echo admin_url('assets/css/post-edit.css'); ?>">
 
 <div class="post-edit-wrap">
     <div class="post-edit-header">
-        <a href="/modular/admin/posts<?php echo $postTypeId ? '?post_type_id=' . (int)$postTypeId : ''; ?>" class="btn btn-secondary btn-sm back-link">
+        <a href="<?php echo admin_url('posts') . ($postTypeId ? '?post_type_id=' . (int)$postTypeId : ''); ?>" class="btn btn-secondary btn-sm back-link">
             <i class="fas fa-arrow-left"></i> Back to Posts
         </a>
         <h1 class="post-edit-title-label"><?php echo $postId ? 'Edit post' : 'Add new'; ?></h1>
@@ -254,7 +279,7 @@ $preview_slug = $postData['slug'] ?? '';
         </div>
     <?php endif; ?>
 
-    <form action="/modular/admin/posts/save.php" method="POST" id="post-edit-form">
+    <form action="<?php echo admin_url('posts/save.php'); ?>" method="POST" id="post-edit-form">
         <?php echo csrf_field(); ?>
         <?php if ($postId): ?>
         <input type="hidden" name="id" value="<?php echo (int)$postId; ?>">
@@ -382,21 +407,55 @@ $preview_slug = $postData['slug'] ?? '';
         </main>
 
         <aside class="post-edit-sidebar">
+            <?php
+            $availableTemplates = function_exists('get_theme_templates') ? get_theme_templates() : [ '' => 'Default' ];
+            $pubDate = $postData['published_at'] ?? null;
+            $pubDateLocal = $pubDate ? date('Y-m-d\TH:i', strtotime($pubDate)) : '';
+            $vis = $postData['visibility'] ?? 'public';
+            $postPassword = $postData['password'] ?? '';
+            ?>
             <div class="card">
                 <div class="form-group">
                     <label for="status">Status</label>
                     <select name="status" id="status" class="form-control post-edit-status-select" aria-label="Post status">
                         <option value="draft" <?php echo ($postData['status'] ?? 'draft') === 'draft' ? 'selected' : ''; ?>>Draft</option>
                         <option value="published" <?php echo ($postData['status'] ?? '') === 'published' ? 'selected' : ''; ?>>Published</option>
+                        <option value="scheduled" <?php echo ($postData['status'] ?? '') === 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
                         <option value="archived" <?php echo ($postData['status'] ?? '') === 'archived' ? 'selected' : ''; ?>>Archived</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="published_at">Publication date</label>
+                    <input type="datetime-local" name="published_at" id="published_at" class="form-control" value="<?php echo htmlspecialchars($pubDateLocal); ?>" aria-label="Publication date and time">
+                    <div class="help-text">Past or future. Future + Published will be treated as scheduled.</div>
+                </div>
+                <div class="form-group">
+                    <label for="template">Template</label>
+                    <select name="template" id="template" class="form-control" aria-label="Page template">
+                        <?php foreach ($availableTemplates as $tplKey => $tplLabel): ?>
+                        <option value="<?php echo htmlspecialchars($tplKey); ?>" <?php echo (isset($postData['template']) && (string)$postData['template'] === (string)$tplKey) ? 'selected' : ''; ?>><?php echo htmlspecialchars($tplLabel); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="help-text">Templates are theme PHP files with <code>Template Name: …</code> in a comment block.</div>
+                </div>
+                <div class="form-group">
+                    <label for="visibility">Visibility</label>
+                    <select name="visibility" id="visibility" class="form-control" aria-label="Post visibility">
+                        <option value="public" <?php echo $vis === 'public' ? 'selected' : ''; ?>>Public</option>
+                        <option value="private" <?php echo $vis === 'private' ? 'selected' : ''; ?>>Private</option>
+                        <option value="password" <?php echo $vis === 'password' ? 'selected' : ''; ?>>Password protected</option>
+                    </select>
+                </div>
+                <div class="form-group post-edit-password-wrap" id="post-edit-password-wrap" style="<?php echo $vis === 'password' ? '' : 'display:none;'; ?>">
+                    <label for="post_password">Post password</label>
+                    <input type="text" name="post_password" id="post_password" class="form-control" value="<?php echo htmlspecialchars($postPassword); ?>" autocomplete="off" placeholder="Enter password to view">
+                </div>
                 <div class="form-actions post-edit-sidebar-actions">
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> Save post
                     </button>
                     <?php if (!empty($postId)): ?>
-                    <a href="/modular/admin/posts/delete.php?id=<?php echo (int) $postId; ?>" class="btn btn-secondary post-edit-remove-btn" style="width: 100%;" onclick="return confirm('Are you sure you want to remove this post?');">
+                    <a href="<?php echo admin_url('posts/delete.php?id=' . (int) $postId); ?>" class="btn btn-secondary post-edit-remove-btn" data-confirm="Weet u zeker dat u dit bericht wilt verwijderen?">
                         <i class="fas fa-trash-alt"></i> Remove post
                     </a>
                     <?php endif; ?>
@@ -520,11 +579,21 @@ $preview_slug = $postData['slug'] ?? '';
             if (e.target === modal) closeModal();
         });
     }
+
+    // Visibility: show/hide post password field
+    var visibilitySelect = document.getElementById('visibility');
+    var passwordWrap = document.getElementById('post-edit-password-wrap');
+    if (visibilitySelect && passwordWrap) {
+        function togglePasswordWrap() {
+            passwordWrap.style.display = visibilitySelect.value === 'password' ? '' : 'none';
+        }
+        visibilitySelect.addEventListener('change', togglePasswordWrap);
+    }
 })();
 </script>
 
 <?php
-$admin_assets = defined('ADMIN_URL') ? rtrim(ADMIN_URL, '/') . '/assets' : '/modular/admin/assets';
+$admin_assets = rtrim(admin_url(), '/') . '/assets';
 $tinymce_script = $admin_assets . '/vendor/tinymce/tinymce.min.js';
 $additional_scripts = $useSchemaForm
     ? '<link rel="stylesheet" href="' . htmlspecialchars($admin_assets) . '/js/wysiwyg-field-bundle.css?v=1">'

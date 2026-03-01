@@ -151,6 +151,7 @@ if (!function_exists('run_pending_migrations')) {
                 ob_start();
                 try {
                     require $file;
+                    $migration->recordMigration($version, $name);
                     $ran[] = $version . '_' . $name;
                 } finally {
                     ob_end_clean();

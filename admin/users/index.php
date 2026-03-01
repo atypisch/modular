@@ -227,7 +227,7 @@ require_once ADMIN_PATH . '/templates/header.php';
         bulkForm.addEventListener('submit', function(e) {
             if (!bulkAction.value) {
                 e.preventDefault();
-                alert('Please choose a bulk action first.');
+                (window.ModularModal && window.ModularModal.alert('Kies eerst een bulkactie.')) || alert('Kies eerst een bulkactie.');
                 return;
             }
             var anyChecked = false;
@@ -237,13 +237,14 @@ require_once ADMIN_PATH . '/templates/header.php';
             });
             if (!anyChecked) {
                 e.preventDefault();
-                alert('Please select at least one user.');
+                (window.ModularModal && window.ModularModal.alert('Selecteer minimaal één gebruiker.')) || alert('Selecteer minimaal één gebruiker.');
                 return;
             }
             if (bulkAction.value === 'delete') {
-                if (!confirm('Are you sure you want to delete the selected users?')) {
-                    e.preventDefault();
-                }
+                e.preventDefault();
+                var form = bulkForm;
+                var p = (window.ModularModal && window.ModularModal.confirm('Weet u zeker dat u de geselecteerde gebruikers wilt verwijderen?')) || Promise.resolve(false);
+                p.then(function(yes) { if (yes) form.submit(); });
             }
         });
     }

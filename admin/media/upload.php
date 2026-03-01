@@ -19,6 +19,7 @@ if (!is_logged_in()) {
 
 $page_title = 'Upload Media';
 $media_active = true;
+$folder_path = isset($_GET['folder_path']) ? trim((string) $_GET['folder_path']) : '';
 
 require_once ADMIN_PATH . '/templates/header.php';
 ?>
@@ -50,7 +51,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
             <div class="form-group">
                 <label for="folder_path">Folder</label>
-                <input type="text" id="folder_path" name="folder_path" class="form-control" placeholder="e.g. blog/2025 or assets/icons">
+                <input type="text" id="folder_path" name="folder_path" class="form-control" placeholder="e.g. blog/2025 or assets/icons" value="<?php echo htmlspecialchars($folder_path); ?>">
                 <div class="help-text">Optional folder path to organise your media (stored in <code>folder_path</code>).</div>
             </div>
 

@@ -9,6 +9,10 @@ if (!defined('CORE_PATH')) {
     define('CORE_PATH', MODULAR_PATH . '/core');
 }
 
+if (is_file(CORE_PATH . '/config/update.php')) {
+    require_once CORE_PATH . '/config/update.php';
+}
+
 // Include core files
 require_once CORE_PATH . '/config-check.php';
 require_once CORE_PATH . '/functions/auth.php';

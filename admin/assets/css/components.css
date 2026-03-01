@@ -49,7 +49,7 @@
 }
 
 .card-header {
-    padding: 1rem;
+    padding: 0.5rem;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
@@ -57,18 +57,44 @@
 }
 
 .card-body {
-    padding: 1rem;
+    padding: 0.5rem;
 }
 
 .card-footer {
-    padding: 1rem;
+    padding: 0.5rem;
     border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-/* Dropdown Component */
+/* Updates page: collapsible Themes and modules */
+.updates-themes-modules-details {
+    border: none;
+    outline: none;
+}
+.updates-themes-modules-details summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.updates-themes-modules-details summary::-webkit-details-marker {
+    display: none;
+}
+.updates-themes-modules-details summary::after {
+    content: '▼';
+    font-size: 0.75rem;
+    opacity: 0.7;
+    transition: transform 0.2s;
+}
+.updates-themes-modules-details[open] summary::after {
+    transform: rotate(-180deg);
+}
+
 .dropdown {
     position: relative;
     display: inline-block;

@@ -247,14 +247,47 @@ class Module {
     }
     
     /**
-     * Run module migrations
+     * Run module migrations (PHP and SQL files in migrations/)
      */
     private function runMigrations($migrationsDir) {
-        $migrations = glob($migrationsDir . '/*.php');
-        sort($migrations);
-        
-        foreach ($migrations as $migration) {
+        $phpMigrations = glob($migrationsDir . '/*.php');
+        sort($phpMigrations);
+        foreach ($phpMigrations as $migration) {
             require_once $migration;
+        }
+
+        $sqlMigrations = glob($migrationsDir . '/*.sql');
+        sort($sqlMigrations);
+        foreach ($sqlMigrations as $migration) {
+            $this->runSqlFile($migration);
+        }
+    }
+
+    /**
+     * Execute a SQL migration file (multiple statements split by ;\n)
+     */
+    private function runSqlFile($filePath) {
+        $sql = file_get_contents($filePath);
+        if ($sql === false || trim($sql) === '') {
+            return;
+        }
+        $statements = preg_split('/;\s*\n/', $sql);
+        foreach ($statements as $statement) {
+            $statement = trim($statement);
+            if ($statement === '') {
+                continue;
+            }
+            // Strip leading comment-only lines so statements that start with -- or # are still run
+            $statement = preg_replace('/^(\s*(--[^\n]*|#[^\n]*)\s*\n)+/s', '', $statement);
+            $statement = trim($statement);
+            if ($statement === '') {
+                continue;
+            }
+            try {
+                $this->db->exec($statement);
+            } catch (\PDOException $e) {
+                throw new \RuntimeException("SQL migration failed: " . basename($filePath) . " – " . $e->getMessage(), 0, $e);
+            }
         }
     }
     

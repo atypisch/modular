@@ -244,20 +244,44 @@
     width: 100%;
 }
 
-/* WYSIWYG (TinyMCE) – clickable area, min height, theme consistency */
+/* WYSIWYG (TinyMCE) – flexible height, resize handle bottom-right, theme consistency */
 .field-type-wysiwyg .modular-wysiwyg-field {
     width: 100%;
-    min-height: 250px;
+    min-height: 220px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: var(--radius-sm, 4px);
+}
+/* Alleen bij focus: rand donkerder grijs, geen blauw */
+.field-type-wysiwyg div.modular-wysiwyg-field.w-full:focus-within {
+    border-color: #6b7280 !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 .field-type-wysiwyg .modular-wysiwyg-field .tox .tox-edit-area__iframe {
-    min-height: 250px;
+    min-height: 220px;
 }
 .field-type-wysiwyg .modular-wysiwyg-field .tox .tox-editor-container {
-    min-height: 250px;
+    min-height: 220px;
 }
 .field-type-wysiwyg .modular-wysiwyg-field .tox-tinymce {
     border-radius: var(--radius-sm, 4px);
-    border-color: var(--border-color, #e8e6e3);
+    border: none !important;
+}
+.field-type-wysiwyg .modular-wysiwyg-field .tox-tinymce:focus-within {
+    border: none !important;
+    outline: none;
+    box-shadow: none;
+}
+/* Binnenste focusrand (rond typveld in editor): grijs i.p.v. blauw */
+.field-type-wysiwyg .modular-wysiwyg-field .tox .tox-edit-area,
+.field-type-wysiwyg .modular-wysiwyg-field .tox .tox-edit-area:focus,
+.field-type-wysiwyg .modular-wysiwyg-field .tox .tox-edit-area:focus-within,
+.field-type-wysiwyg .modular-wysiwyg-field .tox .tox-edit-area.tox-edit-area--focused {
+    border-color: #6b7280 !important;
+    box-shadow: none !important;
+}
+.field-type-wysiwyg .modular-wysiwyg-field .tox .tox-edit-area__iframe {
+    outline: none !important;
 }
 
 .w-full { width: 100%; }

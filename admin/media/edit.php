@@ -166,7 +166,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                             var wv = parseInt(w && w.value || '0', 10);
                             var hv = parseInt(h && h.value || '0', 10);
                             if (!wv || !hv) {
-                                alert('Please enter width and height for the crop area.');
+                                (window.ModularModal && window.ModularModal.alert('Vul breedte en hoogte in voor het bijsnijden.')) || alert('Vul breedte en hoogte in voor het bijsnijden.');
                                 return;
                             }
                             var formData = new FormData();
@@ -186,10 +186,10 @@ require_once ADMIN_PATH . '/templates/header.php';
                                 if (text.trim() === 'ok') {
                                     location.reload();
                                 } else {
-                                    alert('Crop failed: ' + text);
+                                    (window.ModularModal && window.ModularModal.alert('Bijsnijden mislukt: ' + text)) || alert('Bijsnijden mislukt: ' + text);
                                 }
                             }).catch(function(err) {
-                                alert('Crop request failed. Check console.');
+                                (window.ModularModal && window.ModularModal.alert('Bijsnijden mislukt. Controleer de console.')) || alert('Bijsnijden mislukt. Controleer de console.');
                                 console.error(err);
                             });
                         });

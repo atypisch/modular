@@ -484,16 +484,16 @@ function saveComponents() {
     .then(response => response.json())
     .then(result => {
         if (result.error) {
-            alert('Error: ' + result.error);
+            (window.ModularModal && window.ModularModal.alert('Error: ' + result.error));
         } else {
-            alert('Saved successfully!');
+            (window.ModularModal && window.ModularModal.alert('Opgeslagen!'));
             if (result.id && !data.post_id) {
                 window.location.href = window.location.href + '&post_id=' + result.id;
             }
         }
     })
     .catch(error => {
-        (window.ModularModal ? window.ModularModal.alert('Error: ' + error.message) : alert('Error: ' + error.message));
+        (window.ModularModal && window.ModularModal.alert('Error: ' + error.message));
     });
 }
 

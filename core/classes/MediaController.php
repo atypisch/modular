@@ -63,8 +63,11 @@ class MediaController {
         $altText = $_POST['alt_text'] ?? '';
         $folderPath = isset($_POST['folder_path']) ? trim((string)$_POST['folder_path']) : null;
         
-        // Validate file
-        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+        // Validate file (images, PDF, audio for Simuze music)
+        $allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
+            'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm', 'audio/flac', 'audio/aac', 'audio/mp4',
+        ];
         if (!in_array($file['type'], $allowedTypes)) {
             return ['error' => 'File type not allowed', 'code' => 400];
         }
@@ -82,7 +85,7 @@ class MediaController {
         // Get file info
         $fileSize = filesize($filePath);
         $mimeType = $file['type'];
-        $fileType = strpos($mimeType, 'image/') === 0 ? 'image' : 'file';
+        $fileType = strpos($mimeType, 'image/') === 0 ? 'image' : (strpos($mimeType, 'audio/') === 0 ? 'audio' : 'file');
         
         $width = null;
         $height = null;

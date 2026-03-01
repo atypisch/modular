@@ -134,12 +134,14 @@ body:not(.auth-page) {
     overflow: hidden;
 }
 
-/* Sidebar - flex column: nav grows, toggle at bottom; width transitions for collapse */
+/* Sidebar - full height, flex column: nav grows, toggle at bottom; width transitions for collapse */
 .sidebar {
     flex: 0 0 var(--sidebar-width);
     width: var(--sidebar-width);
     min-width: var(--sidebar-width);
     max-width: var(--sidebar-width);
+    min-height: 100%;
+    align-self: stretch;
     background: var(--background-light);
     border-right: 1px solid var(--border-color);
     padding: 0;
@@ -192,8 +194,8 @@ body:not(.auth-page) {
 
 .sidebar-nav > ul > li > a.active {
     background: var(--background-subtle);
-    color: var(--text-color);
-    border-left-color: #77D0E4; /* active stripe in lighter teal */
+    color: #1f2937;
+    border-left-color: #12b4c9;
     font-weight: 500;
 }
 
@@ -206,7 +208,7 @@ body:not(.auth-page) {
 
 .sidebar-nav > ul > li > a.active i {
     opacity: 1;
-    color: #77D0E4; /* active icon in accent color */
+    color: #12b4c9;
 }
 
 /* Sub-navigation */
@@ -234,22 +236,22 @@ body:not(.auth-page) {
 }
 
 .sub-nav a:hover {
-    color: #71C1D2;
-    background: rgba(113, 193, 210, 0.08);
+    color: #374151;
+    background: rgba(0, 0, 0, 0.04);
 }
 
 .sub-nav a.active {
-    color: #77D0E4;
+    color: #1f2937;
     font-weight: 500;
-    background: rgba(119, 208, 228, 0.1);
+    background: #cff2f7;
 }
 
 /* Sidebar collapsed: icons only, narrow width */
-body.sidebar-collapsed .sidebar {
-    flex: 0 0 var(--sidebar-width-collapsed);
-    min-width: var(--sidebar-width-collapsed);
-    max-width: var(--sidebar-width-collapsed);
-    width: var(--sidebar-width-collapsed);
+body.sidebar-collapsed .main-body .sidebar {
+    flex: 0 0 var(--sidebar-width-collapsed) !important;
+    min-width: var(--sidebar-width-collapsed) !important;
+    max-width: var(--sidebar-width-collapsed) !important;
+    width: var(--sidebar-width-collapsed) !important;
 }
 
 body.sidebar-collapsed .sidebar .sidebar-nav > ul > li > a {
@@ -279,12 +281,12 @@ body.sidebar-collapsed .sidebar .sub-nav {
 .sidebar-divider::before,
 .sidebar-divider a { display: none !important; }
 
-/* Sidebar footer: toggle at bottom, one small button */
+/* Sidebar footer: toggle at bottom, same white as sidebar so minimize arrow sits in white strip */
 .sidebar-footer {
     flex: 0 0 auto;
     padding: 0.5rem;
     border-top: 1px solid var(--border-color);
-    background: var(--background-subtle);
+    background: var(--background-light);
 }
 
 .sidebar-toggle {
@@ -446,12 +448,12 @@ body.auth-page .main-content {
     padding: 0;
 }
 
-/* Cards */
+/* Cards – reduced padding for more content space */
 .card {
     background: var(--background-light);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
-    padding: var(--spacing-xl);
+    padding: var(--spacing-md);
     border: 1px solid var(--border-color);
     margin-bottom: var(--spacing-lg);
     box-sizing: border-box;
@@ -606,12 +608,15 @@ input[type="radio"] {
     white-space: nowrap;
 }
 
+/* Buttons: never full width – always auto */
+.btn,
 .btn-inline {
     width: auto;
     max-width: max-content;
     align-self: flex-start;
 }
 
+form .btn,
 form .btn.btn-inline {
     width: auto !important;
     max-width: max-content;

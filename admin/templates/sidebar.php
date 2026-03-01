@@ -25,7 +25,8 @@ $profile_active = $profile_active ?? false;
                 $dashboard_sub_active = $dashboard_active;
                 ?>
                 <ul class="sub-nav <?php echo $dashboard_sub_active ? 'active' : ''; ?>">
-                    <li><a href="<?php echo ADMIN_URL; ?>/dashboard" class="<?php echo $dashboard_active && !str_contains($_SERVER['REQUEST_URI'], 'analytics') && !str_contains($_SERVER['REQUEST_URI'], 'reports') ? 'active' : ''; ?>">Overview</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/dashboard" class="<?php echo $dashboard_active && !str_contains($_SERVER['REQUEST_URI'], 'analytics') && !str_contains($_SERVER['REQUEST_URI'], 'reports') && !str_contains($_SERVER['REQUEST_URI'], 'updates') ? 'active' : ''; ?>">Overview</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/dashboard/updates" class="<?php echo check_active_path($adminBase . '/dashboard/updates') ? 'active' : ''; ?>">Updates</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/dashboard/analytics.php" class="<?php echo check_active_path($adminBase . '/dashboard/analytics.php') ? 'active' : ''; ?>">Analytics</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/dashboard/reports.php" class="<?php echo check_active_path($adminBase . '/dashboard/reports.php') ? 'active' : ''; ?>">Reports</a></li>
                 </ul>
@@ -224,10 +225,11 @@ $profile_active = $profile_active ?? false;
                 $settings_sub_active = $settings_active;
                 ?>
                 <ul class="sub-nav <?php echo $settings_sub_active ? 'active' : ''; ?>">
-                    <li><a href="<?php echo ADMIN_URL; ?>/settings" class="<?php echo $settings_active && !check_active_path($adminBase . '/settings/appearance') && !check_active_path($adminBase . '/settings/security') ? 'active' : ''; ?>">General</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/settings" class="<?php echo $settings_active && !check_active_path($adminBase . '/settings/appearance') && !check_active_path($adminBase . '/settings/security') && !check_active_path($adminBase . '/settings/navigation') ? 'active' : ''; ?>">General</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/appearance" class="<?php echo check_active_path($adminBase . '/settings/appearance') ? 'active' : ''; ?>">Appearance</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/security" class="<?php echo check_active_path($adminBase . '/settings/security') ? 'active' : ''; ?>">Security</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/media-images.php" class="<?php echo check_active_path($adminBase . '/settings/media-images.php') ? 'active' : ''; ?>">Media Images</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/settings/navigation.php" class="<?php echo check_active_path($adminBase . '/settings/navigation') ? 'active' : ''; ?>">Navigation</a></li>
                 </ul>
             </li>
         </ul>

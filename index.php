@@ -6,7 +6,6 @@ $hasConfig  = file_exists($configPath);
 $needsSetup = true;
 
 if ($hasConfig) {
-    // Try to load config and check DB / tables
     require_once $configPath;
 
     if (isset($GLOBALS['db_error'])) {
@@ -14,7 +13,6 @@ if ($hasConfig) {
     } elseif (!isset($GLOBALS['db'])) {
         $needsSetup = true;
     } else {
-        // Check critical tables; if missing, we still consider it "not installed"
         require_once __DIR__ . '/core/functions/database.php';
         if (function_exists('check_database_tables')) {
             $status = check_database_tables();
@@ -28,6 +26,11 @@ if ($hasConfig) {
 } else {
     $needsSetup = true;
 }
+
+if (!$needsSetup) {
+    require_once __DIR__ . '/public/index.php';
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -39,7 +42,6 @@ if ($hasConfig) {
 </head>
 <body class="landing-page">
     <div class="landing-screen">
-        <?php if ($needsSetup): ?>
         <div class="landing-wrap">
             <div class="landing-card">
                 <div class="landing-icon">
@@ -50,15 +52,6 @@ if ($hasConfig) {
                 <a href="admin/setup/step1.php" class="btn-primary">Install Modular <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg></a>
             </div>
         </div>
-        <?php else: ?>
-        <div class="landing-wrap">
-            <div class="landing-card text-center">
-                <h1 class="landing-title">Welcome to Modular CMS</h1>
-                <p class="landing-text">This is a simple content management system built with PHP.</p>
-                <a href="admin/" class="btn-primary">Go to Admin Panel <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg></a>
-            </div>
-        </div>
-        <?php endif; ?>
     </div>
 </body>
-</html> 
+</html>

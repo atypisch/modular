@@ -1,94 +1,89 @@
-<?php include 'header.php'; ?>
-<main class="container">
-  <h2>Desktop Layout (Original 12-column system)</h2>
-  <div class="row">
-    <div class="col col-12">col-12</div>
+<?php
+if (!defined('MODULAR_PATH')) return;
+include __DIR__ . '/header.php';
+$base = defined('BASE_PATH') ? rtrim(BASE_PATH, '/') : '';
+?>
+<section class="hero">
+  <div class="container">
+    <h1><?php echo isset($page_title) ? e($page_title) : 'Welcome'; ?></h1>
+    <p>Modular CMS – hybrid SSR with PHP templates and optional Vue for interactivity.</p>
+    <a href="<?php echo e($base); ?>/admin" class="btn">Go to Admin</a>
   </div>
-  <div class="row">
-    <div class="col col-6">col-6</div>
-    <div class="col col-6">col-6</div>
+</section>
+<?php if (!empty($content)): ?>
+<section class="section">
+  <div class="container">
+    <div class="content-area"><?php echo $content; ?></div>
   </div>
-  <div class="row">
-    <div class="col col-4">col-4</div>
-    <div class="col col-4">col-4</div>
-    <div class="col col-4">col-4</div>
-  </div>
-
-  <h2>Tablet Responsive (769px-1024px)</h2>
-  <div class="row">
-    <div class="col col-12 col-tablet-2">Desktop: Full | Tablet: 50%</div>
-    <div class="col col-12 col-tablet-2">Desktop: Full | Tablet: 50%</div>
-  </div>
-  <div class="row">
-    <div class="col col-6 col-tablet-3">Desktop: 50% | Tablet: 33%</div>
-    <div class="col col-6 col-tablet-3">Desktop: 50% | Tablet: 33%</div>
-    <div class="col col-12 col-tablet-3">Desktop: Full | Tablet: 33%</div>
-  </div>
-  <div class="row">
-    <div class="col col-3 col-tablet-4">Desktop: 25% | Tablet: 25%</div>
-    <div class="col col-3 col-tablet-4">Desktop: 25% | Tablet: 25%</div>
-    <div class="col col-3 col-tablet-4">Desktop: 25% | Tablet: 25%</div>
-    <div class="col col-3 col-tablet-4">Desktop: 25% | Tablet: 25%</div>
-  </div>
-
-  <h2>Mobile Responsive (768px and below)</h2>
-  <div class="row">
-    <div class="col col-6 col-mobile-2">Desktop: 50% | Mobile: 50%</div>
-    <div class="col col-6 col-mobile-2">Desktop: 50% | Mobile: 50%</div>
-  </div>
-  <div class="row">
-    <div class="col col-4 col-mobile-3">Desktop: 33% | Mobile: 33%</div>
-    <div class="col col-4 col-mobile-3">Desktop: 33% | Mobile: 33%</div>
-    <div class="col col-4 col-mobile-3">Desktop: 33% | Mobile: 33%</div>
-  </div>
-  <div class="row">
-    <div class="col col-3">Desktop: 25% | Mobile: Full (no mobile class)</div>
-    <div class="col col-3 col-mobile-2">Desktop: 25% | Mobile: 50%</div>
-    <div class="col col-3 col-mobile-2">Desktop: 25% | Mobile: 50%</div>
-    <div class="col col-3">Desktop: 25% | Mobile: Full (no mobile class)</div>
-  </div>
-
-  <h2>Combined Responsive (Tablet + Mobile)</h2>
-  <div class="row">
-    <div class="col col-12 col-tablet-2 col-mobile-2">Desktop: Full | Tablet: 50% | Mobile: 50%</div>
-    <div class="col col-12 col-tablet-2 col-mobile-2">Desktop: Full | Tablet: 50% | Mobile: 50%</div>
-  </div>
-  <div class="row">
-    <div class="col col-6 col-tablet-3 col-mobile-3">Desktop: 50% | Tablet: 33% | Mobile: 33%</div>
-    <div class="col col-6 col-tablet-3 col-mobile-3">Desktop: 50% | Tablet: 33% | Mobile: 33%</div>
-    <div class="col col-12 col-tablet-3">Desktop: Full | Tablet: 33% | Mobile: Full</div>
-  </div>
-</main>
-
-<section class="fullwidth">
-  <h2>Full-Width Section Examples</h2>
-  <div class="row">
-    <div class="col col-4 col-tablet-2 col-mobile-2">Desktop: 33% | Tablet: 50% | Mobile: 50%</div>
-    <div class="col col-4 col-tablet-2 col-mobile-2">Desktop: 33% | Tablet: 50% | Mobile: 50%</div>
-    <div class="col col-4">Desktop: 33% | Mobile: Full</div>
-  </div>
-  
-  <div class="row">
-    <div class="col col-3">
-      <div class="sticky-scroll">
-        <h3>Sticky Element</h3>
-        <p>This stays sticky on desktop/tablet, static on mobile.</p>
+</section>
+<?php else: ?>
+<!-- Block: 1 column -->
+<section class="section section--alt">
+  <div class="container">
+    <div class="block block--1col">
+      <div class="row">
+        <div class="col col-12 card">
+          <h2>Welcome to Modular CMS</h2>
+          <p class="text-muted">This is a simple content management system built with PHP. Theme-based design, modular architecture, and a clean interface.</p>
+        </div>
       </div>
     </div>
-    <div class="col col-9">Main content area</div>
   </div>
 </section>
-
-<section class="sticky-container">
-  <div class="sticky-wrapper">
-    <div class="sticky-scroll">
-      <h3>Sticky Scroll Element</h3>
-      <p>This element scrolls with the page until the parent ends.</p>
-    </div>
-    <div class="scroll-content">
-      <p>This is scrollable content that creates height.</p>
-      <div style="height: 2000px;"></div>
+<!-- Block: 2 columns -->
+<section class="section">
+  <div class="container">
+    <div class="block block--2col">
+      <div class="row">
+        <div class="col col-12 col-tablet-2 col-mobile-2 card">
+          <h2>Theme-based design</h2>
+          <p class="text-muted">Templates live in <code>public/themes/default</code>. Sticky header, dynamic menu, responsive layout.</p>
+        </div>
+        <div class="col col-12 col-tablet-2 col-mobile-2 card">
+          <h2>Modular architecture</h2>
+          <p class="text-muted">Core, admin, and public are separated. Use <code>get_posts()</code>, <code>get_menu()</code>, <code>get_site_name()</code> in templates.</p>
+        </div>
+      </div>
     </div>
   </div>
 </section>
-<?php include 'footer.php'; ?>
+<!-- Block: 3 columns -->
+<section class="section section--alt">
+  <div class="container">
+    <div class="block block--3col">
+      <div class="row">
+        <div class="col col-12 col-tablet-3 col-mobile-3 card">
+          <h3>Simple</h3>
+          <p class="text-muted">Clean and minimal. Focus on your content.</p>
+        </div>
+        <div class="col col-12 col-tablet-3 col-mobile-3 card">
+          <h3>Flexible</h3>
+          <p class="text-muted">Build with PHP templates and optional Vue for interactivity.</p>
+        </div>
+        <div class="col col-12 col-tablet-3 col-mobile-3 card">
+          <h3>Extensible</h3>
+          <p class="text-muted">Modules and themes extend the core without touching it.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- Block: 2 columns (extra) -->
+<section class="section">
+  <div class="container">
+    <div class="block block--2col">
+      <div class="row">
+        <div class="col col-12 col-tablet-2 col-mobile-2 card">
+          <h3>Documentation</h3>
+          <p class="text-muted">Internal docs for API, hooks, and theme development.</p>
+        </div>
+        <div class="col col-12 col-tablet-2 col-mobile-2 card">
+          <h3>Admin</h3>
+          <p class="text-muted">Manage content, navigation, and settings from one place.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<?php endif; ?>
+<?php include __DIR__ . '/footer.php'; ?>
