@@ -1,0 +1,354 @@
+/**
+ * Download Modal Styles - SIMPLIFIED VERSION
+ */
+
+/* Modal Container */
+.simuze-download-modal {
+    max-width: 520px;
+    width: 100%;
+}
+
+/* Content Area */
+#simuze-download-modal .simuze-modal-content {
+    padding: 20px 22px;
+    display: block !important;
+}
+
+/* Product Info */
+.download-product-info {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.download-artwork {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.download-details {
+    flex: 1;
+}
+
+.download-product-type {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #51ac32;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.download-title {
+    display: block;
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.download-artist {
+    display: block;
+    margin: 0;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* Price Section */
+.download-price-section {
+    margin-bottom: 20px;
+}
+
+.download-price-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 8px;
+}
+
+.download-price-input-wrapper {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 4px;
+}
+
+.download-price-input-wrapper:focus-within {
+    border-color: #51ac32;
+}
+
+.download-price-currency {
+    padding: 10px 6px 10px 12px;
+    font-size: 18px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.download-price-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 10px 12px 10px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    outline: none;
+    width: 100%;
+}
+
+.download-price-input::-webkit-outer-spin-button,
+.download-price-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.download-price-hint {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+.price-minimum {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.price-support {
+    color: #51ac32;
+    font-style: italic;
+}
+
+/* Guest Email */
+.download-guest-email {
+    margin-bottom: 20px;
+}
+
+.download-guest-email label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 8px;
+}
+
+.download-guest-email input {
+    width: 100%;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+}
+
+.download-guest-email input:focus {
+    outline: none;
+    border-color: #51ac32;
+}
+
+/* Payment Methods */
+.download-payment-methods {
+    margin-bottom: 20px;
+}
+
+.payment-methods-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0 0 10px;
+}
+
+.payment-method-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.payment-method-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.payment-method-option.active {
+    background: rgba(81, 172, 50, 0.1);
+    border-color: #51ac32;
+}
+
+.payment-method-option input {
+    display: none;
+}
+
+.payment-method-icon {
+    font-size: 22px;
+}
+
+.payment-method-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+}
+
+/* Actions */
+.download-actions {
+    margin-top: 20px;
+}
+
+.download-submit-btn {
+    width: 100%;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #51ac32 0%, #3d8526 100%);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.download-submit-btn:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.download-submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Loading/Processing States */
+.download-modal-loading,
+.download-modal-processing {
+    padding: 60px 32px;
+    text-align: center;
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #51ac32;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.download-modal-loading p,
+.download-modal-processing p {
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+}
+
+/* Success State */
+.download-modal-success {
+    padding: 48px 32px;
+    text-align: center;
+}
+
+.success-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(81, 172, 50, 0.15);
+    border-radius: 50%;
+}
+
+.success-icon i {
+    font-size: 36px;
+    color: #51ac32;
+}
+
+.download-modal-success h3 {
+    margin: 0 0 24px;
+    font-size: 22px;
+    color: #fff;
+}
+
+.download-access-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 28px;
+    background: #51ac32;
+    color: #fff;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.download-access-btn:hover {
+    background: #45a028;
+    color: #fff;
+}
+
+/* Error State */
+.download-modal-error {
+    padding: 48px 32px;
+    text-align: center;
+}
+
+.error-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(220, 53, 69, 0.15);
+    border-radius: 50%;
+}
+
+.error-icon i {
+    font-size: 36px;
+    color: #dc3545;
+}
+
+.download-modal-error h3 {
+    margin: 0 0 8px;
+    font-size: 22px;
+    color: #fff;
+}
+
+.error-message {
+    margin: 0 0 24px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.download-retry-btn {
+    padding: 12px 24px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.download-retry-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}

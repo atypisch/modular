@@ -57,6 +57,21 @@ if (!defined('ACTIVE_THEME')) {
     define('ACTIVE_THEME', $activeTheme);
 }
 
+// HARD ROUTING INTERCEPT: let SimuzeKernel own routing when simuze theme is active
+if (ACTIVE_THEME === 'simuze' && defined('MODULES_PATH')) {
+    $kernelPath = MODULES_PATH . '/simuze-community/SimuzeKernel.php';
+    if (is_file($kernelPath)) {
+        require_once $kernelPath;
+        if (class_exists('SimuzeKernel')) {
+            $kernelResponse = SimuzeKernel::handle($_SERVER);
+            if ($kernelResponse !== null && $kernelResponse !== '') {
+                echo $kernelResponse;
+                exit;
+            }
+        }
+    }
+}
+
 $pathInfo = isset($_SERVER['PATH_INFO']) ? trim($_SERVER['PATH_INFO'], '/') : '';
 if ($pathInfo === '' && isset($_SERVER['REQUEST_URI'])) {
     $req = explode('?', $_SERVER['REQUEST_URI'], 2)[0];
@@ -68,15 +83,115 @@ if ($pathInfo === '' && isset($_SERVER['REQUEST_URI'])) {
     }
 }
 
+// SIMEZU auth proxy – frontend points to this; proxy adds App API Token and forwards to Simezu
+if (strpos($pathInfo, 'api/auth') === 0) {
+    $rest = substr($pathInfo, strlen('api/auth'));
+    $GLOBALS['simezu_auth_path'] = trim($rest, '/');
+    require __DIR__ . '/api/simezu-auth-proxy.php';
+    exit;
+}
+
+// Simuze REST API (Modular): POST/GET to api/simuze/v1/* (e.g. groups, users/search)
+if (strpos($pathInfo, 'api/simuze/v1/') === 0 || $pathInfo === 'api/simuze/v1') {
+    $restPath = $pathInfo === 'api/simuze/v1' ? '' : trim(substr($pathInfo, strlen('api/simuze/v1/')), '/');
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if (class_exists('Simuze_REST_API')) {
+        $request = class_exists('Simuze_REST_Request_Adapter') ? new Simuze_REST_Request_Adapter($restPath, $method) : null;
+        if ($request && $restPath === 'groups' && $method === 'POST') {
+            header('Content-Type: application/json; charset=utf-8');
+            $api = Simuze_REST_API::get_instance();
+            $result = $api->create_group($request);
+            if (is_wp_error($result)) {
+                $err_data = $result->get_error_data();
+                $status = (is_array($err_data) && isset($err_data['status'])) ? (int) $err_data['status'] : 500;
+                http_response_code($status);
+                echo wp_json_encode(['code' => $result->get_error_code(), 'message' => $result->get_error_message()]);
+            } else {
+                echo wp_json_encode($result->get_data());
+            }
+            exit;
+        }
+    }
+}
+
+// Simuze Community AJAX endpoint (replaces admin-ajax.php for module)
+// Accept both spellings: simuze-ajax (legacy) and simezu-ajax (matches actual file name).
+if (in_array($pathInfo, ['api/simuze-ajax', 'api/simuze-ajax.php', 'api/simezu-ajax', 'api/simezu-ajax.php'], true)) {
+    require __DIR__ . '/api/simezu-ajax.php';
+    exit;
+}
+
+// Simezu payment webhook
+if (in_array($pathInfo, ['api/simezu-webhook', 'api/simezu-webhook.php'], true)) {
+    require __DIR__ . '/api/simezu-webhook.php';
+    exit;
+}
+
+// High-priority music album route: /music/album/{slug}
+// This bypasses generic post routing and ensures Modular uses md_music_albums
+// + MusicRepository for single album pages (no WordPress dependency).
+if (strpos($pathInfo, 'music/album/') === 0 && defined('MODULES_PATH')) {
+    // Lazily ensure DB + MusicRepository are available
+    if (!isset($GLOBALS['db'])) {
+        require_once MODULAR_PATH . '/admin/config/config.php';
+        require_once MODULAR_PATH . '/core/functions/database.php';
+        if (function_exists('run_pending_migrations') && isset($GLOBALS['db'])) {
+            run_pending_migrations();
+        }
+    }
+    $segments = array_values(array_filter(explode('/', $pathInfo)));
+    $album_slug = $segments[2] ?? '';
+    $album      = class_exists('MusicRepository') ? MusicRepository::findAlbumBySlug($album_slug) : null;
+    if ($album) {
+        $group = null;
+        if (!empty($album['group_id']) && class_exists('Simuze_Group')) {
+            try {
+                $group = Simuze_Group::get((int) $album['group_id']);
+            } catch (\Throwable $e) {
+                $group = null;
+            }
+        }
+        $tracks = class_exists('MusicRepository') ? MusicRepository::findTracksByAlbum((int) $album['id']) : [];
+        // Use the theme's clean template-part (no WP deps, proper CSS classes)
+        $theme_path = THEMES_PATH . '/' . ACTIVE_THEME;
+        $album_single_tpl = $theme_path . '/template-parts/view-album.php';
+        // Fallback to module template if theme template-part missing
+        if (!is_file($album_single_tpl)) {
+            $album_single_tpl = MODULES_PATH . '/simuze-community/templates/album-single.php';
+        }
+        if (is_file($album_single_tpl)) {
+            // Variables expected by template-parts/view-album.php
+            $item_id   = (int) $album['id'];
+            $item_type = !empty($album['is_album']) ? 'album' : 'single';
+            $group_id  = (int) ($album['group_id'] ?? 0);
+            $page_title = $album['album_name'] ?? 'Album';
+            ob_start();
+            if (is_file($theme_path . '/header.php')) {
+                include $theme_path . '/header.php';
+            }
+            include $album_single_tpl;
+            if (is_file($theme_path . '/footer.php')) {
+                include $theme_path . '/footer.php';
+            }
+            echo ob_get_clean();
+            exit;
+        }
+    }
+    // If album niet gevonden of template ontbreekt, verder laten gaan naar normale router (404).
+}
+
 // Fixed routes (Simuze page templates): path segment → theme template name (without .php)
 $fixedRoutes = [
     'music' => 'template_music',
+    'search' => 'template_music',
     'network' => 'template_network',
     'live' => 'template_live',
     'weblog' => 'template_weblog',
     'dashboard' => 'template_dashboard',
+    'account' => 'template_profile',
     'login' => 'template_login',
     'signup' => 'template_signup',
+    'forgot-password' => 'template_forgot_password',
     'profile' => 'template_profile',
     'about' => 'template_about',
     'howto' => 'template_howto',
@@ -88,6 +203,19 @@ if (function_exists('apply_filters')) {
     $fixedRoutes = apply_filters('public_fixed_routes', $fixedRoutes);
 }
 
+// Module public routes (profile, group, messages, etc.) – before post resolution
+$communityPrefixes = ['profile', 'user', 'group', 'groups', 'messages', 'discography', 'activity', 'friends'];
+$firstSegment = $pathInfo !== '' ? trim(explode('/', $pathInfo)[0], '/') : '';
+if ($firstSegment !== '' && (in_array($firstSegment, $communityPrefixes, true) || $pathInfo === 'profile')) {
+    if (function_exists('apply_filters')) {
+        $routeResponse = apply_filters('public_route', null, $pathInfo);
+        if ($routeResponse !== null && $routeResponse !== '') {
+            echo $routeResponse;
+            exit;
+        }
+    }
+}
+
 // Detect post type slug + post slug from query or path
 $postTypeSlug = $_GET['type'] ?? $_GET['post_type'] ?? null;
 $postSlug = $_GET['slug'] ?? null;
@@ -97,6 +225,23 @@ if ($postTypeSlug === null || $postSlug === null) {
     if ($pathInfo !== '') {
         $segments = array_values(array_filter(explode('/', $pathInfo)));
         if (count($segments) >= 2) {
+            // Clean group handles with subpages, e.g. /{handle}/dashboard or /{handle}/members
+            // Must be resolved BEFORE generic "post type + slug" handling to avoid 404s.
+            if (class_exists('Simuze_Group')) {
+                try {
+                    $maybeGroup = \Simuze_Group::get_by_unique_handle($segments[0]);
+                } catch (\Throwable $e) {
+                    $maybeGroup = null;
+                }
+                if ($maybeGroup && function_exists('apply_filters')) {
+                    $routeResponse = apply_filters('public_route', null, $pathInfo);
+                    if ($routeResponse !== null && $routeResponse !== '') {
+                        echo $routeResponse;
+                        exit;
+                    }
+                }
+            }
+
             $locationTaxonomies = ['country', 'province', 'city'];
             if (in_array($segments[0], $locationTaxonomies, true)) {
                 if (!isset($GLOBALS['db'])) {
@@ -169,10 +314,11 @@ if ($postTypeSlug === null || $postSlug === null) {
             $postSlug = $segments[1];
         } elseif (count($segments) === 1) {
             $slugOnly = $segments[0];
-            // Fixed route: one segment → load theme template (e.g. /music → template_music.php)
+            // Fixed route: one segment → load theme template (e.g. /music → template_music.php, /dashboard → template_dashboard)
             if (isset($fixedRoutes[$slugOnly])) {
                 $templateName = $fixedRoutes[$slugOnly];
-                $themes = ['MDLR-2025', 'simuze', $activeTheme];
+                // Prefer simuze for network so groups/group types and map load correctly
+                $themes = ($slugOnly === 'network') ? ['simuze', 'MDLR-2025', $activeTheme] : ['MDLR-2025', 'simuze', $activeTheme];
                 foreach ($themes as $theme) {
                     $theme_path = THEMES_PATH . '/' . $theme;
                     $templateFile = $theme_path . '/' . $templateName . '.php';
@@ -183,6 +329,31 @@ if ($postTypeSlug === null || $postSlug === null) {
                             $GLOBALS['route_segment'] = $route_segment;
                             if (!function_exists('get_header')) {
                                 require_once $theme_path . '/inc/modular-bridge.php';
+                            }
+                            // Page-like routes: set simuze_posts from page by slug so template can show content
+                            $pageSlugRoutes = ['about' => 'template_about', 'weblog' => 'template_weblog', 'howto' => 'template_howto'];
+                            if (isset($pageSlugRoutes[$slugOnly]) && isset($GLOBALS['db']) && function_exists('get_post')) {
+                                $pagePost = get_post(null, $slugOnly);
+                                if ($pagePost && isset($pagePost['type_slug']) && $pagePost['type_slug'] === 'page') {
+                                    $GLOBALS['simuze_posts'] = [$pagePost];
+                                }
+                            }
+                        }
+                        // Ensure simuze-community module is loaded for network page (groups + group types filter)
+                        if ($slugOnly === 'network' && defined('MODULES_PATH')) {
+                            // Run pending migrations so simuze_group_types / simuze_groups exist (e.g. 004_simuze_community_tables)
+                            if (isset($GLOBALS['db']) && function_exists('run_pending_migrations')) {
+                                run_pending_migrations();
+                            }
+                            if (!class_exists('Simuze_Group')) {
+                                $mod = MODULES_PATH . '/simuze-community/module.php';
+                                if (is_file($mod)) {
+                                    require_once $mod;
+                                }
+                            }
+                            // Run module migrations so default group types are present
+                            if (class_exists('Simuze_Database') && isset($GLOBALS['db'])) {
+                                Simuze_Database::get_instance()->maybe_run_migrations();
                             }
                         }
                         include $templateFile;
@@ -252,6 +423,9 @@ if ($postTypeSlug !== null && $postSlug !== null) {
         foreach ([$activeTheme, 'MDLR-2025'] as $theme) {
             $theme_path = THEMES_PATH . '/' . $theme;
             if (is_file($theme_path . '/404.php')) {
+                if ($theme === 'simuze' && is_dir($theme_path . '/inc')) {
+                    require_once $theme_path . '/inc/modular-bridge.php';
+                }
                 http_response_code(404);
                 include $theme_path . '/404.php';
                 exit;
@@ -286,6 +460,9 @@ if ($postTypeSlug !== null && $postSlug !== null) {
             foreach ([$activeTheme, 'MDLR-2025', 'default'] as $theme) {
                 $tp = THEMES_PATH . '/' . $theme . '/404.php';
                 if (is_file($tp)) {
+                    if ($theme === 'simuze' && is_dir(THEMES_PATH . '/simuze/inc')) {
+                        require_once THEMES_PATH . '/simuze/inc/modular-bridge.php';
+                    }
                     include $tp;
                     exit;
                 }
@@ -407,10 +584,16 @@ if ($archiveSegment !== null && isset($GLOBALS['db'])) {
             $theme_path = THEMES_PATH . '/' . $theme;
             $archive_type = $theme_path . '/archive-' . $post_type_slug . '.php';
             if (is_file($archive_type)) {
+                if ($theme === 'simuze' && is_dir($theme_path . '/inc')) {
+                    require_once $theme_path . '/inc/modular-bridge.php';
+                }
                 include $archive_type;
                 exit;
             }
             if (is_file($theme_path . '/archive.php')) {
+                if ($theme === 'simuze' && is_dir($theme_path . '/inc')) {
+                    require_once $theme_path . '/inc/modular-bridge.php';
+                }
                 include $theme_path . '/archive.php';
                 exit;
             }
@@ -446,7 +629,8 @@ if (function_exists('apply_filters')) {
     }
 }
 
-// Home
+// Home: respect front page setting (page or blog index)
+$front_page_id = function_exists('get_front_page_id') ? get_front_page_id() : 0;
 $page_title = 'Home';
 $content = '
     <div class="welcome-section">
@@ -461,6 +645,38 @@ $content = '
     </div>
 ';
 $theme_path = THEMES_PATH . '/' . $activeTheme;
+if ($activeTheme === 'simuze' && is_dir($theme_path . '/inc')) {
+    $GLOBALS['simuze_theme_path'] = $theme_path;
+    require_once $theme_path . '/inc/modular-bridge.php';
+    if (isset($GLOBALS['db'])) {
+        if ($front_page_id > 0 && function_exists('get_post')) {
+            $front_post = get_post($front_page_id);
+            if ($front_post) {
+                $page_title = $front_post['title'] ?? $page_title;
+                $GLOBALS['simuze_posts'] = [$front_post];
+            } else {
+                $GLOBALS['simuze_posts'] = get_posts(['post_type' => 'post', 'posts_per_page' => 10]);
+            }
+        } else {
+            $home_post = function_exists('get_post') ? get_post(null, 'home') : null;
+            if ($home_post && isset($home_post['type_slug']) && $home_post['type_slug'] === 'page') {
+                $page_title = $home_post['title'] ?? $page_title;
+                $GLOBALS['simuze_posts'] = [$home_post];
+            } else {
+                $GLOBALS['simuze_posts'] = get_posts(['post_type' => 'post', 'posts_per_page' => 10]);
+            }
+        }
+    } else {
+        $GLOBALS['simuze_posts'] = [];
+    }
+}
+
+// If the active theme provides a dedicated homepage template, prefer it
+if (is_file($theme_path . '/template_homepage.php')) {
+    require $theme_path . '/template_homepage.php';
+    exit;
+}
+
 if (is_file($theme_path . '/index.php')) {
     require $theme_path . '/index.php';
 } else {

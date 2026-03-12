@@ -1,11 +1,16 @@
 <?php
 /**
- * Simuze auth & payments – config placeholders.
- * Set via environment (.env) or config.local.php; no logic until configured.
- * @see docs/SIMUZE_DATA_MIGRATION.md or SIMUZE_FLOWS.md
+ * SIMEZU auth & payments – config.
+ * App API Token (sk_live_...) must be stored server-side only. Override via config.local.php or env.
+ * @see SIMEZU embed rules: server-side proxy required; frontend points to proxy only.
  */
 if (!defined('SIMEZU_AUTH_ENABLED')) {
-    define('SIMEZU_AUTH_ENABLED', getenv('SIMEZU_AUTH_ENABLED') ?: false);
+    $v = getenv('SIMEZU_AUTH_ENABLED');
+    define('SIMEZU_AUTH_ENABLED', $v !== false && $v !== '' ? (bool) $v : true);
+}
+// Simezu API base URL (no trailing slash). Proxy forwards to this. e.g. https://app.simezu.com/api or http://localhost/simezu/api
+if (!defined('SIMEZU_API_BASE')) {
+    define('SIMEZU_API_BASE', getenv('SIMEZU_API_BASE') ?: 'http://localhost/simezu/api');
 }
 if (!defined('SIMEZU_AUTH_API_URL')) {
     define('SIMEZU_AUTH_API_URL', getenv('SIMEZU_AUTH_API_URL') ?: '');
@@ -15,4 +20,37 @@ if (!defined('SIMEZU_PAYMENTS_ENABLED')) {
 }
 if (!defined('SIMEZU_PAYMENTS_API_URL')) {
     define('SIMEZU_PAYMENTS_API_URL', getenv('SIMEZU_PAYMENTS_API_URL') ?: '');
+}
+// Embed: base URL where SIMEZU assets are served (no trailing slash). For loading simezu-forms.js, simezu-embed.js, avatar.css
+if (!defined('SIMEZU_EMBED_URL')) {
+    define('SIMEZU_EMBED_URL', getenv('SIMEZU_EMBED_URL') ?: 'http://localhost/simezu');
+}
+// App API Token (sk_live_...) from Tokens tab – server-side only, never expose to frontend. Set in config.local.php for production.
+if (!defined('SIMEZU_APP_API_TOKEN')) {
+    define('SIMEZU_APP_API_TOKEN', getenv('SIMEZU_APP_API_TOKEN') ?: 'sk_live_56d2e65297f1638620e315c7b6d2e76a268c4bdcd97b4c314818a492ead3a408');
+}
+// App ID (UUID) and API Key from App settings – for API auth headers
+if (!defined('SIMEZU_APP_ID')) {
+    define('SIMEZU_APP_ID', getenv('SIMEZU_APP_ID') ?: '40c92edc-15ba-11f1-a294-77c575fa87b4');
+}
+if (!defined('SIMEZU_API_KEY')) {
+    define('SIMEZU_API_KEY', getenv('SIMEZU_API_KEY') ?: '43235892f8e2145a694df1aef077bbf55f72f9a7be76dbcbaf3ac6be4302f88e');
+}
+if (!defined('SIMEZU_APP')) {
+    // Local app slug in Simezu is now "simuze-mdlr"
+    define('SIMEZU_APP', getenv('SIMEZU_APP') ?: 'simuze-mdlr');
+}
+// JWT secret shared with the Simezu auth server. Override in config.local.php for production.
+if (!defined('SIMEZU_JWT_SECRET')) {
+    define('SIMEZU_JWT_SECRET', getenv('SIMEZU_JWT_SECRET') ?: '0TZnhRBoj2NH82BXm29S8Am0ixOYSL2Or4jLaeBPcKuchTf/4KFgBTXSZ85LbJRT');
+}
+// Login page URL for redirect when unauthenticated. Defaults to the Modular-hosted login route.
+if (!defined('SIMEZU_LOGIN_URL')) {
+    define('SIMEZU_LOGIN_URL', getenv('SIMEZU_LOGIN_URL') ?: (defined('SITE_URL') ? rtrim(SITE_URL, '/') . '/login' : 'http://localhost/simuze-mdlr/login'));
+}
+if (!defined('SIMEZU_DASHBOARD_URL')) {
+    define('SIMEZU_DASHBOARD_URL', getenv('SIMEZU_DASHBOARD_URL') ?: 'http://localhost/simuze-mdlr/dashboard');
+}
+if (!defined('SIMEZU_ACCOUNT_URL')) {
+    define('SIMEZU_ACCOUNT_URL', getenv('SIMEZU_ACCOUNT_URL') ?: 'http://localhost/simuze-mdlr/account');
 }

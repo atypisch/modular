@@ -1,0 +1,9 @@
+[2026-01-13 20:01:12] === PAYMENT FLOW TEST - €0.01 TRANSACTION ===
+[2026-01-13 20:01:12] Test started at: 2026-01-13 20:01:12
+[2026-01-13 20:01:12] 
+--- STEP 1: User Setup ---
+[2026-01-13 20:01:12] User authenticated: ID=2, Email=marten@atypisch.nl
+[2026-01-13 20:01:12] 
+--- STEP 2: Product Setup ---
+[2026-01-13 20:01:12] Creating test product...
+[2026-01-13 20:01:12] ERROR: Failed to create test product: Unknown column 'title' in 'field list'

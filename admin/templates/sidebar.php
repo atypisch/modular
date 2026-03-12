@@ -1,7 +1,7 @@
 <?php
 // Sidebar navigation
 // Ensure active states are set (from header.php)
-$adminBase = defined('ADMIN_BASE_PATH') ? ADMIN_BASE_PATH : '/modular/admin';
+$adminBase = defined('ADMIN_BASE_PATH') ? ADMIN_BASE_PATH : (defined('BASE_PATH') ? rtrim(BASE_PATH, '/') . '/admin' : '/admin');
 $dashboard_active = $dashboard_active ?? false;
 $post_types_active = $post_types_active ?? false;
 $posts_active = $posts_active ?? false;

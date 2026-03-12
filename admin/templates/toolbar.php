@@ -3,7 +3,24 @@
  * Toolbar - Japanese Style
  */
 if (!isset($current_user)) {
-    $current_user = get_current_user();
+    // Prefer globally populated Simuze_User/stdClass from Simezu auth, fall back to legacy helper
+    $current_user = $GLOBALS['current_user'] ?? get_current_user();
+}
+
+$toolbar_user_label = 'User';
+if ($current_user) {
+    if (is_array($current_user)) {
+        $toolbar_user_label = $current_user['name']
+            ?? $current_user['username']
+            ?? $current_user['email']
+            ?? 'User';
+    } elseif (is_object($current_user)) {
+        $toolbar_user_label = $current_user->display_name
+            ?? $current_user->name
+            ?? $current_user->username
+            ?? $current_user->email
+            ?? 'User';
+    }
 }
 ?>
 <div class="toolbar">
@@ -32,7 +49,7 @@ if (!isset($current_user)) {
             <?php if ($current_user): ?>
                 <a href="<?php echo ADMIN_URL; ?>/profile" class="toolbar-link">
                     <i class="fas fa-user"></i>
-                    <span><?php echo htmlspecialchars($current_user['name'] ?? $current_user['username'] ?? $current_user['email'] ?? 'User'); ?></span>
+                    <span><?php echo htmlspecialchars($toolbar_user_label, ENT_QUOTES, 'UTF-8'); ?></span>
                 </a>
                 <a href="<?php echo ADMIN_URL; ?>/auth/logout.php" class="toolbar-link">
                     <i class="fas fa-sign-out-alt"></i>

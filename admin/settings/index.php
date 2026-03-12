@@ -44,6 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $siteTitle = filter_input(INPUT_POST, 'site_title', FILTER_SANITIZE_STRING) ?? '';
     $siteTagline = filter_input(INPUT_POST, 'site_tagline', FILTER_SANITIZE_STRING) ?? '';
+    $frontPageType = isset($_POST['front_page_type']) && $_POST['front_page_type'] === 'page' ? 'page' : 'index';
+    $frontPageId = isset($_POST['front_page_id']) ? (int) $_POST['front_page_id'] : 0;
     $siteUrl = filter_input(INPUT_POST, 'site_url', FILTER_SANITIZE_URL) ?? '';
     $timezone = filter_input(INPUT_POST, 'timezone', FILTER_SANITIZE_STRING) ?? 'UTC';
     $language = filter_input(INPUT_POST, 'language', FILTER_SANITIZE_STRING) ?? 'en_US';
@@ -68,7 +70,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ");
         
         $updateStmt->execute(['site_title', $siteTitle, $siteTitle]);
+        $updateStmt->execute(['site_name', $siteTitle, $siteTitle]);
         $updateStmt->execute(['site_tagline', $siteTagline, $siteTagline]);
+        $updateStmt->execute(['front_page_type', $frontPageType, $frontPageType]);
+        $updateStmt->execute(['front_page_id', (string) $frontPageId, (string) $frontPageId]);
         $updateStmt->execute(['site_url', $siteUrl, $siteUrl]);
         $updateStmt->execute(['timezone', $timezone, $timezone]);
         $updateStmt->execute(['language', $language, $language]);
@@ -120,7 +125,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <label for="site_title">Site Title</label>
                 <input type="text" name="site_title" id="site_title" class="form-control" 
                        value="<?php echo htmlspecialchars($settings['site_title'] ?? 'Modular CMS'); ?>">
-                <div class="help-text">The name of your site.</div>
+                <div class="help-text">The name of your site (used in theme as site name).</div>
             </div>
 
             <div class="form-group">
@@ -135,6 +140,37 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <input type="url" name="site_url" id="site_url" class="form-control" 
                        value="<?php echo htmlspecialchars($settings['site_url'] ?? SITE_URL ?? ''); ?>">
                 <div class="help-text">The URL of your site.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="front_page_type">Homepage</label>
+                <select name="front_page_type" id="front_page_type" class="form-control">
+                    <option value="index" <?php echo ($settings['front_page_type'] ?? 'index') === 'index' ? 'selected' : ''; ?>>Latest posts</option>
+                    <option value="page" <?php echo ($settings['front_page_type'] ?? '') === 'page' ? 'selected' : ''; ?>>A static page</option>
+                </select>
+                <?php
+                $pages = [];
+                try {
+                    $stmt = $db->query("SELECT p.id, p.title, p.slug FROM posts p INNER JOIN post_types pt ON p.post_type_id = pt.id WHERE pt.slug = 'page' AND p.deleted_at IS NULL AND p.status = 'published' ORDER BY p.title ASC");
+                    $pages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+                } catch (Exception $e) {}
+                $frontPageId = (int) ($settings['front_page_id'] ?? 0);
+                ?>
+                <div id="front_page_id_wrap" class="form-group" style="margin-top: 8px; <?php echo ($settings['front_page_type'] ?? 'index') !== 'page' ? 'display:none' : ''; ?>">
+                    <label for="front_page_id">Homepage page</label>
+                    <select name="front_page_id" id="front_page_id" class="form-control">
+                        <option value="0">— Select —</option>
+                        <?php foreach ($pages as $p): ?>
+                            <option value="<?php echo (int) $p['id']; ?>" <?php echo $frontPageId === (int) $p['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($p['title']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="help-text">Choose what appears on your site’s homepage.</div>
+                <script>
+                document.getElementById('front_page_type').addEventListener('change', function() {
+                    document.getElementById('front_page_id_wrap').style.display = this.value === 'page' ? 'block' : 'none';
+                });
+                </script>
             </div>
 
             <div class="form-group">
