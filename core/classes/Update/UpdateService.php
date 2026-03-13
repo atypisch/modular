@@ -118,6 +118,9 @@ class UpdateService {
             $migrated = $this->migrationRunner->runPending();
             UpdateLog::log('Migrations run', ['ran' => $migrated]);
 
+            // Update build.json to the new version
+            $this->versionService->updateBuildInfo(['version' => $versionTo, 'core' => $versionTo]);
+
             $this->clearCache();
             $this->maintenance->disable();
             $this->db->prepare("UPDATE system_updates SET status = 'completed', completed_at = NOW(), notes = ? WHERE id = ?")->execute(['OK', $updateId]);

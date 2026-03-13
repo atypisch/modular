@@ -1,7 +1,7 @@
 <?php
 // Sidebar navigation
 // Ensure active states are set (from header.php)
-$adminBase = defined('ADMIN_BASE_PATH') ? ADMIN_BASE_PATH : (defined('BASE_PATH') ? rtrim(BASE_PATH, '/') . '/admin' : '/admin');
+$adminBase = defined('ADMIN_BASE_PATH') ? ADMIN_BASE_PATH : '/modular/admin';
 $dashboard_active = $dashboard_active ?? false;
 $post_types_active = $post_types_active ?? false;
 $posts_active = $posts_active ?? false;
@@ -225,11 +225,12 @@ $profile_active = $profile_active ?? false;
                 $settings_sub_active = $settings_active;
                 ?>
                 <ul class="sub-nav <?php echo $settings_sub_active ? 'active' : ''; ?>">
-                    <li><a href="<?php echo ADMIN_URL; ?>/settings" class="<?php echo $settings_active && !check_active_path($adminBase . '/settings/appearance') && !check_active_path($adminBase . '/settings/security') && !check_active_path($adminBase . '/settings/navigation') ? 'active' : ''; ?>">General</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/settings" class="<?php echo $settings_active && !check_active_path($adminBase . '/settings/appearance') && !check_active_path($adminBase . '/settings/security') && !check_active_path($adminBase . '/settings/navigation') && !check_active_path($adminBase . '/settings/permalinks') ? 'active' : ''; ?>">General</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/appearance" class="<?php echo check_active_path($adminBase . '/settings/appearance') ? 'active' : ''; ?>">Appearance</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/security" class="<?php echo check_active_path($adminBase . '/settings/security') ? 'active' : ''; ?>">Security</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/media-images.php" class="<?php echo check_active_path($adminBase . '/settings/media-images.php') ? 'active' : ''; ?>">Media Images</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/navigation.php" class="<?php echo check_active_path($adminBase . '/settings/navigation') ? 'active' : ''; ?>">Navigation</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/settings/permalinks" class="<?php echo check_active_path($adminBase . '/settings/permalinks') ? 'active' : ''; ?>">Permalinks</a></li>
                 </ul>
             </li>
         </ul>

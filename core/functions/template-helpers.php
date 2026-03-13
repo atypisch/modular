@@ -8,7 +8,6 @@ if (!function_exists('get_theme_templates')) {
     /**
      * Discover page templates from the active theme (WordPress-style).
      * Scans theme PHP files for block comments containing "Template Name: Display Name".
-     * Use in theme files: /* Template Name: My Template * /
      *
      * @return array [ '' => 'Default', 'template_filename' => 'Display Name', ... ]
      */
@@ -48,9 +47,11 @@ if (!function_exists('theme_uri')) {
     function theme_uri(string $path = ''): string {
         $base = defined('BASE_PATH') ? rtrim(BASE_PATH, '/') : '';
         $theme = defined('ACTIVE_THEME') ? ACTIVE_THEME : (defined('DEFAULT_THEME') ? DEFAULT_THEME : 'default');
-        // Theme assets live under public/themes so URLs must include /public/ for static file serving
-        $themeBase = $base . '/public/themes/' . $theme;
-        return $themeBase . ($path !== '' ? '/' . ltrim($path, '/') : '');
+        $script = $_SERVER['SCRIPT_NAME'] ?? '';
+        if ($script !== '' && strpos($script, '/public/') === false) {
+            $base .= '/public';
+        }
+        return $base . '/themes/' . $theme . ($path !== '' ? '/' . ltrim($path, '/') : '');
     }
 }
 
@@ -71,52 +72,15 @@ if (!function_exists('get_setting')) {
 
 if (!function_exists('get_site_name')) {
     function get_site_name(): string {
-        $v = get_setting('site_name', 'Modular');
+        $v = function_exists('get_setting') ? get_setting('site_name', 'Modular') : 'Modular';
         return (string) $v;
-    }
-}
-
-if (!function_exists('simuze_get_location_group_icon_url')) {
-    /**
-     * Return a small OpenStreetMap-based thumbnail for a location group (e.g. country).
-     * Falls back to the group's avatar URL when no map-based avatar is available.
-     *
-     * @param object $group  Instance of Simuze_Group or compatible object
-     * @param string $level  'country', 'province', 'city', etc.
-     * @return string|null
-     */
-    function simuze_get_location_group_icon_url($group, string $level = 'country'): ?string {
-        if (!is_object($group) || !method_exists($group, 'get_avatar_url')) {
-            return null;
-        }
-        // Location groups already use OSM tiles in get_avatar_url() when lat/lng is present.
-        $url = $group->get_avatar_url('thumb');
-        return is_string($url) && $url !== '' ? $url : null;
-    }
-}
-
-if (!function_exists('simuze_get_location_map_icon_url')) {
-    /**
-     * Return a map thumbnail URL for city/province groups, suitable for use as an icon.
-     * Uses the group's avatar (which is backed by OpenStreetMap tiles for location types).
-     *
-     * @param object $group  Instance of Simuze_Group or compatible object
-     * @param string $level  'city' or 'province'
-     * @return string|null
-     */
-    function simuze_get_location_map_icon_url($group, string $level = 'city'): ?string {
-        if (!is_object($group) || !method_exists($group, 'get_avatar_url')) {
-            return null;
-        }
-        $url = $group->get_avatar_url('thumb');
-        return is_string($url) && $url !== '' ? $url : null;
     }
 }
 
 if (!function_exists('is_front_page')) {
     /** True when the current request is the site front page (path empty or single slash). */
     function is_front_page(): bool {
-        $path = current_path();
+        $path = function_exists('current_path') ? current_path() : '';
         return $path === '' || $path === '/';
     }
 }
@@ -124,6 +88,7 @@ if (!function_exists('is_front_page')) {
 if (!function_exists('get_front_page_id')) {
     /** Post ID of the page set as homepage, or 0 if not set / blog index. */
     function get_front_page_id(): int {
+        if (!function_exists('get_setting')) return 0;
         if (get_setting('front_page_type', 'index') !== 'page') return 0;
         $id = get_setting('front_page_id', 0);
         return $id ? (int) $id : 0;
@@ -193,6 +158,159 @@ if (!function_exists('current_path')) {
     }
 }
 
+// -------------------------------------------------------------------------
+// WP-style helper aliases – generic, theme-agnostic
+// -------------------------------------------------------------------------
+
+if (!function_exists('home_url')) {
+    /** Alias for base_url(), kept for theme compatibility. */
+    function home_url(string $path = ''): string {
+        return base_url($path);
+    }
+}
+
+if (!function_exists('get_template_directory_uri')) {
+    /** URL to the active theme directory (similar to WP's get_template_directory_uri). */
+    function get_template_directory_uri(): string {
+        return theme_uri('');
+    }
+}
+
+if (!function_exists('get_template_directory')) {
+    /** Filesystem path to the active theme directory. */
+    function get_template_directory(): string {
+        $theme = defined('ACTIVE_THEME') ? ACTIVE_THEME : (defined('DEFAULT_THEME') ? DEFAULT_THEME : 'default');
+        return (defined('THEMES_PATH') ? rtrim(THEMES_PATH, '/') : '') . '/' . $theme;
+    }
+}
+
+if (!function_exists('get_template_part')) {
+    /**
+     * Load a template part from the active theme (template-parts/{slug}-{name}.php).
+     * Usage: get_template_part('content', 'page'); // loads template-parts/content-page.php
+     */
+    function get_template_part(string $slug, string $name = ''): void {
+        $baseDir = get_template_directory();
+        if ($baseDir === '') return;
+        $file = $baseDir . '/template-parts/' . $slug . ($name !== '' ? '-' . $name : '') . '.php';
+        if (is_file($file)) {
+            include $file;
+        }
+    }
+}
+
+if (!function_exists('esc_url')) {
+    function esc_url(string $url): string {
+        return htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('esc_attr')) {
+    function esc_attr($s): string {
+        return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('esc_html')) {
+    function esc_html($s): string {
+        return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('esc_html_e')) {
+    function esc_html_e(string $text, string $domain = ''): void {
+        echo esc_html($text);
+    }
+}
+
+if (!function_exists('esc_attr_e')) {
+    function esc_attr_e(string $text, string $domain = ''): void {
+        echo esc_attr($text);
+    }
+}
+
+if (!function_exists('checked')) {
+    function checked($checked, $current = true, bool $echo = true) {
+        $out = ((string) $checked === (string) $current) ? ' checked="checked"' : '';
+        if ($echo) {
+            echo $out;
+        }
+        return $out;
+    }
+}
+
+if (!function_exists('selected')) {
+    function selected($selected, $current = true, bool $echo = true) {
+        $out = ((string) $selected === (string) $current) ? ' selected="selected"' : '';
+        if ($echo) {
+            echo $out;
+        }
+        return $out;
+    }
+}
+
+if (!function_exists('sanitize_text_field')) {
+    function sanitize_text_field(string $str): string {
+        return trim(strip_tags($str));
+    }
+}
+
+if (!function_exists('trailingslashit')) {
+    /** Alias for trailing_slash() – kept for theme compatibility. */
+    function trailingslashit(string $url): string {
+        return trailing_slash($url);
+    }
+}
+
+if (!function_exists('taxonomy_exists')) {
+    function taxonomy_exists(string $taxonomy): bool {
+        if (!isset($GLOBALS['db'])) return false;
+        try {
+            $stmt = $GLOBALS['db']->prepare("SELECT id FROM taxonomies WHERE slug = ? LIMIT 1");
+            $stmt->execute([$taxonomy]);
+            return $stmt->fetchColumn() !== false;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+}
+
+if (!function_exists('get_current_user_id')) {
+    function get_current_user_id(): int {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        return (int) ($_SESSION['user_id'] ?? 0);
+    }
+}
+
+if (!function_exists('current_user_can')) {
+    /**
+     * Minimal capability check: supports 'manage_options' (admin) based on roles.
+     */
+    function current_user_can(string $capability): bool {
+        $uid = get_current_user_id();
+        if ($uid <= 0) return false;
+        if ($capability === 'manage_options') {
+            if (!isset($GLOBALS['db'])) return false;
+            try {
+                $stmt = $GLOBALS['db']->prepare("
+                    SELECT r.id
+                    FROM user_roles ur
+                    INNER JOIN roles r ON ur.role_id = r.id
+                    WHERE ur.user_id = ? AND r.name = 'admin'
+                    LIMIT 1
+                ");
+                $stmt->execute([$uid]);
+                return $stmt->fetchColumn() !== false;
+            } catch (\Throwable $e) {
+                return false;
+            }
+        }
+        return false;
+    }
+}
+
 if (!function_exists('include_header')) {
     /** Include the active theme's header.php. */
     function include_header(): void {
@@ -208,81 +326,6 @@ if (!function_exists('include_footer')) {
         $theme = defined('ACTIVE_THEME') ? ACTIVE_THEME : (defined('DEFAULT_THEME') ? DEFAULT_THEME : 'default');
         $path = (defined('THEMES_PATH') ? rtrim(THEMES_PATH, '/') : '') . '/' . $theme . '/footer.php';
         if (is_file($path)) include $path;
-    }
-}
-
-if (!function_exists('include_template_part')) {
-    /** Include the active theme's template-parts/{$slug}-{$name}.php. */
-    function include_template_part(string $slug, string $name = ''): void {
-        $theme = defined('ACTIVE_THEME') ? ACTIVE_THEME : (defined('DEFAULT_THEME') ? DEFAULT_THEME : 'default');
-        $base = (defined('THEMES_PATH') ? rtrim(THEMES_PATH, '/') : '') . '/' . $theme . '/template-parts';
-        $file = $base . '/' . $slug . ($name !== '' ? '-' . $name : '') . '.php';
-        if (is_file($file)) include $file;
-    }
-}
-
-if (!function_exists('get_the_ID')) {
-    /** Current post ID from $GLOBALS['post']. */
-    function get_the_ID(): int {
-        $post = $GLOBALS['post'] ?? null;
-        if (is_object($post) && isset($post->ID)) return (int) $post->ID;
-        if (is_object($post) && isset($post->id)) return (int) $post->id;
-        if (is_array($post) && isset($post['id'])) return (int) $post['id'];
-        return 0;
-    }
-}
-
-if (!function_exists('the_title')) {
-    /** Output current post title (escaped). */
-    function the_title(string $before = '', string $after = ''): void {
-        $post = $GLOBALS['post'] ?? null;
-        $title = '';
-        if (is_object($post) && isset($post->post_title)) $title = (string) $post->post_title;
-        elseif (is_object($post) && isset($post->title)) $title = (string) $post->title;
-        elseif (is_array($post) && isset($post['title'])) $title = (string) $post['title'];
-        echo $before . e($title) . $after;
-    }
-}
-
-if (!function_exists('get_the_date')) {
-    /** Formatted publish date for current post. */
-    function get_the_date(string $format = 'Y-m-d'): string {
-        $post = $GLOBALS['post'] ?? null;
-        $date = null;
-        if (is_object($post) && isset($post->published_at)) $date = $post->published_at;
-        elseif (is_object($post) && isset($post->post_date)) $date = $post->post_date;
-        elseif (is_array($post) && isset($post['published_at'])) $date = $post['published_at'];
-        if (!$date) return '';
-        return date($format, is_numeric($date) ? (int) $date : strtotime($date));
-    }
-}
-
-if (!function_exists('get_the_author')) {
-    /** Author display name for current post. */
-    function get_the_author(): string {
-        $post = $GLOBALS['post'] ?? null;
-        $author_id = null;
-        if (is_object($post) && isset($post->author_id)) $author_id = (int) $post->author_id;
-        elseif (is_array($post) && isset($post['author_id'])) $author_id = (int) $post['author_id'];
-        if (!$author_id || !isset($GLOBALS['db'])) return '';
-        try {
-            $stmt = $GLOBALS['db']->prepare('SELECT display_name, name FROM users WHERE id = ? LIMIT 1');
-            $stmt->execute([$author_id]);
-            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-            return $row ? (trim($row['display_name'] ?? '') !== '' ? $row['display_name'] : $row['name']) : '';
-        } catch (\Throwable $e) {
-            return '';
-        }
-    }
-}
-
-if (!function_exists('edit_post_link')) {
-    /** Output a link to edit the post in admin. */
-    function edit_post_link(int $post_id = 0, string $text = 'Edit', string $before = '', string $after = ''): void {
-        if ($post_id <= 0 && function_exists('get_the_ID')) $post_id = get_the_ID();
-        if ($post_id <= 0) return;
-        $url = admin_base_url('posts/edit.php?id=' . $post_id);
-        echo $before . '<a href="' . e($url) . '">' . e($text) . '</a>' . $after;
     }
 }
 
@@ -309,7 +352,7 @@ if (!function_exists('render_menu')) {
 if (!function_exists('get_menu')) {
     /**
      * Get navigation menu. Returns array of items: [ ['label' => '', 'url' => '', 'children' => [] ], ... ]
-     * Reads from settings 'site_menu_{location}'. Items with type 'post' and post_id are resolved to current title/slug.
+     * Reads from settings 'site_menu_{location}'.
      */
     function get_menu(string $location = 'primary'): array {
         if (!isset($GLOBALS['db'])) return [];
@@ -335,7 +378,7 @@ if (!function_exists('get_menu')) {
                 SELECT p.id, p.title, p.slug FROM posts p
                 INNER JOIN post_types pt ON p.post_type_id = pt.id
                 WHERE pt.slug = 'page' AND p.deleted_at IS NULL AND p.status = 'published'
-                ORDER BY p.\`order\` ASC, p.title ASC LIMIT 20
+                ORDER BY p.`order` ASC, p.title ASC LIMIT 20
             ");
             $pages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             $out = [];
@@ -392,8 +435,8 @@ if (!function_exists('get_posts')) {
         if (!in_array($order, ['ASC', 'DESC'], true)) $order = 'DESC';
         try {
             $stmt = $GLOBALS['db']->prepare("
-SELECT p.id, p.title, p.slug, p.excerpt, p.published_at, p.created_at, p.author_id
-                        FROM posts p INNER JOIN post_types pt ON p.post_type_id = pt.id
+                SELECT p.id, p.title, p.slug, p.excerpt, p.published_at, p.created_at
+                FROM posts p INNER JOIN post_types pt ON p.post_type_id = pt.id
                 WHERE pt.slug = ? AND p.deleted_at IS NULL AND p.status = 'published'
                 ORDER BY p.{$orderby} {$order} LIMIT " . $per_page . " OFFSET " . $offset
             );
@@ -402,14 +445,6 @@ SELECT p.id, p.title, p.slug, p.excerpt, p.published_at, p.created_at, p.author_
         } catch (\Throwable $e) {
             return [];
         }
-    }
-}
-
-if (!function_exists('get_post_parent_id')) {
-    /** Parent post ID for a post (from posts.parent_id). */
-    function get_post_parent_id(int $post_id): int {
-        $post = get_post($post_id);
-        return ($post && isset($post['parent_id']) && $post['parent_id'] !== null) ? (int) $post['parent_id'] : 0;
     }
 }
 
@@ -464,13 +499,10 @@ if (!function_exists('taxonomy_exists')) {
 }
 
 if (!function_exists('get_terms')) {
-    /**
-     * Get terms for a taxonomy (WP-style). Returns array of stdClass with id, name, slug, taxonomy, etc.
-     */
+    /** Get terms for a taxonomy. Returns array of stdClass with id, name, slug, taxonomy, etc. */
     function get_terms(array $args = []): array {
         if (!isset($GLOBALS['db'])) return [];
         $taxonomy = $args['taxonomy'] ?? '';
-        $hide_empty = !empty($args['hide_empty']);
         $orderby = $args['orderby'] ?? 'name';
         $order = strtoupper($args['order'] ?? 'ASC');
         $number = isset($args['number']) ? (int) $args['number'] : 0;
@@ -518,43 +550,6 @@ if (!function_exists('get_terms')) {
     }
 }
 
-if (!function_exists('get_post_terms')) {
-    /** Terms linked to a post for a taxonomy (e.g. category, post_tag). Returns array of stdClass. */
-    function get_post_terms(int $post_id, string $taxonomy): array {
-        if (!isset($GLOBALS['db']) || $post_id <= 0) return [];
-        try {
-            $stmt = $GLOBALS['db']->prepare("
-                SELECT t.id, t.name, t.slug FROM terms t
-                INNER JOIN taxonomies tax ON t.taxonomy_id = tax.id
-                INNER JOIN post_terms pt ON pt.term_id = t.id
-                WHERE pt.post_id = ? AND tax.slug = ? AND t.deleted_at IS NULL
-            ");
-            $stmt->execute([$post_id, $taxonomy]);
-            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-            $out = [];
-            foreach ($rows as $r) {
-                $o = new \stdClass();
-                $o->term_id = (int) $r['id'];
-                $o->name = $r['name'];
-                $o->slug = $r['slug'];
-                $out[] = $o;
-            }
-            return $out;
-        } catch (\Throwable $e) {
-            return [];
-        }
-    }
-}
-
-if (!function_exists('get_term_link')) {
-    /** URL for a term archive (category or tag). */
-    function get_term_link(object $term, string $taxonomy = 'category'): string {
-        $slug = $term->slug ?? '';
-        if ($slug === '') return base_url('/');
-        return base_url('/' . $taxonomy . '/' . $slug);
-    }
-}
-
 if (!function_exists('get_post_thumbnail_id')) {
     function get_post_thumbnail_id(int $post_id): int {
         if (!isset($GLOBALS['db'])) return 0;
@@ -593,7 +588,6 @@ if (!function_exists('e')) {
 }
 
 if (!function_exists('checked')) {
-    /** Output checked="checked" when $checked equals $current. */
     function checked($checked, $current = true, bool $echo = true): string {
         $out = ((string) $checked === (string) $current) ? ' checked="checked"' : '';
         if ($echo) echo $out;
@@ -602,7 +596,6 @@ if (!function_exists('checked')) {
 }
 
 if (!function_exists('selected')) {
-    /** Output selected="selected" when $selected equals $current. */
     function selected($selected, $current = true, bool $echo = true): string {
         $out = ((string) $selected === (string) $current) ? ' selected="selected"' : '';
         if ($echo) echo $out;
@@ -611,7 +604,6 @@ if (!function_exists('selected')) {
 }
 
 if (!function_exists('admin_base_url')) {
-    /** Admin base URL (no trailing slash). */
     function admin_base_url(string $path = ''): string {
         $base = defined('ADMIN_URL') ? rtrim(ADMIN_URL, '/') : base_url('/admin');
         return $path !== '' ? $base . '/' . ltrim($path, '/') : $base;
@@ -619,49 +611,13 @@ if (!function_exists('admin_base_url')) {
 }
 
 if (!function_exists('nonce')) {
-    /** Generate a simple nonce for forms/AJAX. */
     function nonce(string $action): string {
         return md5($action . (session_id() ?: '') . (defined('BASE_PATH') ? BASE_PATH : ''));
     }
 }
 
 if (!function_exists('clean_input')) {
-    /** Trim and strip tags from input. For GET/POST string values. */
     function clean_input($value): string {
         return trim(strip_tags(stripslashes(is_array($value) ? '' : (string) $value)));
-    }
-}
-
-if (!function_exists('add_query_arg')) {
-    /** Append a query parameter to a URL. */
-    function add_query_arg(string $key, string $value, string $url): string {
-        $sep = strpos($url, '?') !== false ? '&' : '?';
-        return $url . $sep . rawurlencode($key) . '=' . rawurlencode($value);
-    }
-}
-
-if (!function_exists('esc_js')) {
-    /** Escape string for use in JavaScript (e.g. inside HTML attribute). */
-    function esc_js(string $s): string {
-        return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-    }
-}
-
-if (!function_exists('trim_words')) {
-    /** Limit string to a number of words. */
-    function trim_words(string $text, int $num_words = 55, string $more = '&hellip;'): string {
-        $words = preg_split('/\s+/u', trim($text), $num_words + 1, PREG_SPLIT_NO_EMPTY);
-        if (count($words) <= $num_words) return $text;
-        return implode(' ', array_slice($words, 0, $num_words)) . $more;
-    }
-}
-
-if (!function_exists('get_the_excerpt')) {
-    /** Excerpt for current post from $GLOBALS['post']. */
-    function get_the_excerpt(): string {
-        $post = $GLOBALS['post'] ?? null;
-        if (is_object($post) && isset($post->excerpt)) return (string) $post->excerpt;
-        if (is_array($post) && isset($post['excerpt'])) return (string) $post['excerpt'];
-        return '';
     }
 }

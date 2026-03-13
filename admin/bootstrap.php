@@ -16,15 +16,10 @@ if (is_file(CORE_PATH . '/config/update.php')) {
 // Include core files
 require_once CORE_PATH . '/config-check.php';
 require_once CORE_PATH . '/functions/auth.php';
-if (is_file(CORE_PATH . '/functions/simezu_auth.php')) {
-    require_once CORE_PATH . '/functions/simezu_auth.php';
-}
 require_once CORE_PATH . '/functions/csrf.php';
 require_once CORE_PATH . '/functions/cache.php';
 require_once CORE_PATH . '/functions/admin.php';
 require_once CORE_PATH . '/functions/hooks.php';
-require_once CORE_PATH . '/functions/http.php';
-require_once CORE_PATH . '/functions/database.php';
 
 // Load core classes
 require_once CORE_PATH . '/classes/Hooks.php';
@@ -43,10 +38,6 @@ if (isset($GLOBALS['db'])) {
             if (function_exists('do_action')) {
                 do_action('init');
             }
-            // Refresh $GLOBALS auth state with full Simuze_User DB record now that modules are loaded
-            if (function_exists('_simezu_populate_globals_from_auth')) {
-                _simezu_populate_globals_from_auth();
-            }
         }
     } catch (\PDOException $e) {
         // Modules table doesn't exist yet - that's okay
@@ -60,15 +51,8 @@ if (!headers_sent()) {
     header('X-Frame-Options: SAMEORIGIN');
     header('X-XSS-Protection: 1; mode=block');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    // CSP: allow same origin, Leaflet/MarkerCluster assets and OpenStreetMap/Carto tiles for network map
-    $csp = implode(' ', [
-        "default-src 'self';",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com;",
-        "style-src 'self' 'unsafe-inline' https://unpkg.com;",
-        "img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com;",
-        "font-src 'self';",
-        "frame-ancestors 'self';",
-    ]);
+    // CSP: allow same origin and inline styles common in admin; tighten as needed
+    $csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; frame-ancestors 'self';";
     header("Content-Security-Policy: " . $csp);
 }
 

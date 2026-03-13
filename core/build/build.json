@@ -1,0 +1,14 @@
+{
+    "version": "1.01",
+    "build_date": "2026-03-12",
+    "core": "1.01",
+    "system_modules": {
+        "users": "1.0.0",
+        "media": "1.0.0",
+        "seo": "1.0.0",
+        "search": "1.0.0",
+        "activity": "1.0.0",
+        "notifications": "1.0.0"
+    },
+    "modules": {}
+}

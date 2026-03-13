@@ -7,21 +7,44 @@ namespace Modular\Update;
 
 class VersionService {
     private string $versionFile;
+    private string $buildFile;
     private string $githubRepo;
     private string $apiBase;
     private ?string $lastError = null;
 
     public function __construct(?string $versionFile = null, ?string $githubRepo = null, ?string $apiBase = null) {
         $this->versionFile = $versionFile ?? (defined('CORE_PATH') ? CORE_PATH . '/version.json' : __DIR__ . '/../../version.json');
+        // build.json lives in /core/build/
+        $this->buildFile = defined('CORE_PATH')
+            ? CORE_PATH . '/build/build.json'
+            : __DIR__ . '/../../build/build.json';
         $this->githubRepo = $githubRepo ?? (defined('UPDATE_CORE_GITHUB_REPO') ? UPDATE_CORE_GITHUB_REPO : '');
         $this->apiBase = $apiBase ?? (defined('UPDATE_GITHUB_API_BASE') ? UPDATE_GITHUB_API_BASE : 'https://api.github.com');
     }
 
     /**
-     * Get current installed CMS version from core/version.json
+     * Get current installed CMS version.
+     * Prefers build/build.json (single source of truth); falls back to core/version.json.
      */
     public function getCurrentVersion(): array {
         $default = ['version' => '0.0.0', 'name' => 'Modular CMS', 'description' => ''];
+
+        // Prefer build.json
+        if (is_readable($this->buildFile)) {
+            $json = @file_get_contents($this->buildFile);
+            $data = $json !== false ? @json_decode($json, true) : null;
+            if (is_array($data) && !empty($data['version'])) {
+                return [
+                    'version'     => $data['version'],
+                    'name'        => 'Modular CMS',
+                    'description' => '',
+                    'build_date'  => $data['build_date'] ?? '',
+                    'core'        => $data['core'] ?? $data['version'],
+                ];
+            }
+        }
+
+        // Fall back to core/version.json
         if (!is_readable($this->versionFile)) {
             return $default;
         }
@@ -34,10 +57,38 @@ class VersionService {
             return $default;
         }
         return [
-            'version' => $data['version'],
-            'name' => $data['name'] ?? $default['name'],
+            'version'     => $data['version'],
+            'name'        => $data['name'] ?? $default['name'],
             'description' => $data['description'] ?? $default['description'],
         ];
+    }
+
+    /**
+     * Read build/build.json directly. Returns null if not present or invalid.
+     */
+    public function getBuildInfo(): ?array {
+        if (!is_readable($this->buildFile)) {
+            return null;
+        }
+        $json = @file_get_contents($this->buildFile);
+        if ($json === false) {
+            return null;
+        }
+        $data = @json_decode($json, true);
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * Update build/build.json with new version information after a successful update.
+     */
+    public function updateBuildInfo(array $updates): bool {
+        $current = $this->getBuildInfo() ?? [];
+        $merged  = array_merge($current, $updates);
+        $merged['build_date'] = date('Y-m-d');
+        return (bool) @file_put_contents(
+            $this->buildFile,
+            json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
+        );
     }
 
     /**

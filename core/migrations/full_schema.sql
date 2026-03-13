@@ -384,12 +384,18 @@ CREATE TABLE IF NOT EXISTS modules (
     requires_php VARCHAR(20),
     requires_modular VARCHAR(20),
     active TINYINT(1) NOT NULL DEFAULT 0,
+    module_type ENUM('system','module') NOT NULL DEFAULT 'module',
     settings JSON,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     INDEX idx_active (active),
-    INDEX idx_slug (slug)
+    INDEX idx_slug (slug),
+    INDEX idx_module_type (module_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Idempotent: add module_type to existing installations
+ALTER TABLE modules ADD COLUMN IF NOT EXISTS module_type ENUM('system','module') NOT NULL DEFAULT 'module';
+ALTER TABLE modules ADD INDEX IF NOT EXISTS idx_module_type (module_type);
 
 CREATE TABLE IF NOT EXISTS system_updates (
     id INT AUTO_INCREMENT PRIMARY KEY,

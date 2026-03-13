@@ -21,7 +21,13 @@ if (!is_logged_in()) {
 $page_title = 'Dashboard';
 $dashboard_active = true;
 
-$db = $GLOBALS['db'];
+$db = $GLOBALS['db'] ?? null;
+if ($db === null) {
+    require_once ADMIN_PATH . '/templates/header.php';
+    echo '<div class="container"><div class="alert alert-danger">Database connection is not available. Please <a href="' . ADMIN_URL . '/setup/">run setup</a> or check your configuration in <code>admin/config/config.local.php</code>.</div></div>';
+    require_once ADMIN_PATH . '/templates/footer.php';
+    exit;
+}
 
 // Get statistics
 $stats = [

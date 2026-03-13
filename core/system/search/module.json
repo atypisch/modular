@@ -1,0 +1,10 @@
+{
+    "name": "Search",
+    "slug": "search",
+    "type": "system",
+    "version": "1.0.0",
+    "description": "Core full-text search across post types and content.",
+    "autoload": true,
+    "author": "Modular CMS",
+    "github_repo": ""
+}

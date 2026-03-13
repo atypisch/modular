@@ -114,7 +114,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 </a>
             </div>
         <?php else: ?>
-            <form id="users-bulk-form" action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : ''; ?>/users/bulk.php" method="POST">
+            <form id="users-bulk-form" action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users/bulk.php" method="POST">
                 <div class="users-toolbar">
                     <div class="users-search">
                         <input

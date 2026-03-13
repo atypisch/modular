@@ -96,7 +96,7 @@ class MusicRepository {
      */
     public static function findTracksByAlbum(int $album_id): array {
         return md_db_query(
-            'SELECT * FROM md_music_uploads WHERE album_id = ? ORDER BY track_number ASC, id ASC',
+            'SELECT * FROM md_music_uploads WHERE album_id = ? ORDER BY id ASC',
             [$album_id]
         );
     }

@@ -36,7 +36,7 @@ try {
 }
 
 if (!$modulesTableExists) {
-    $message = "The modules table does not exist. Please <a href='/modular/admin/install-modules-table.php'>install it first</a>.";
+    $message = "The modules table does not exist. Please <a href='" . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . "/install-modules-table.php'>install it first</a>.";
     $messageType = 'error';
 }
 
@@ -87,7 +87,15 @@ if ($modulesTableExists && $moduleManager && $_SERVER['REQUEST_METHOD'] === 'POS
 
         if (isset($_POST['action']) && isset($_POST['module_slug'])) {
             $slug = $_POST['module_slug'];
-            try {
+
+            // System modules cannot be managed from the admin UI
+            if ($moduleManager->getSystemModule($slug)) {
+                $message = "System modules cannot be managed from the admin UI.";
+                $messageType = 'error';
+                $slug = null;
+            }
+
+            if ($slug !== null) try {
                 if ($_POST['action'] === 'activate') {
                     $moduleManager->activateModule($slug);
                     $message = "Module '{$slug}' activated.";
@@ -167,6 +175,8 @@ if ($modulesTableExists && $moduleManager && $_SERVER['REQUEST_METHOD'] === 'POS
                 $messageType = 'error';
             }
         } elseif ($bulk === 'deactivate' && !empty($selected)) {
+            // Filter out any system module slugs from bulk operations
+            $selected = array_filter($selected, fn($s) => !$moduleManager->getSystemModule($s));
             foreach ($selected as $slug) {
                 if ($moduleManager && $moduleManager->isModuleActive($slug)) {
                     try {

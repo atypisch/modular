@@ -1,0 +1,10 @@
+{
+    "name": "Activity",
+    "slug": "activity",
+    "type": "system",
+    "version": "1.0.0",
+    "description": "Core activity log: tracks admin actions, post changes, and user events.",
+    "autoload": true,
+    "author": "Modular CMS",
+    "github_repo": ""
+}

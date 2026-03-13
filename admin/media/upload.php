@@ -39,8 +39,8 @@ require_once ADMIN_PATH . '/templates/header.php';
             <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label for="file">Select File <span style="color: var(--error-text);">*</span></label>
-                <input type="file" id="file" name="file" class="form-control" required accept="image/*,application/pdf,audio/*">
-                <div class="help-text">Select an image, PDF, or audio file to upload.</div>
+                <input type="file" id="file" name="file" class="form-control" required accept="image/*,application/pdf">
+                <div class="help-text">Select an image or PDF file to upload.</div>
             </div>
             
             <div class="form-group">

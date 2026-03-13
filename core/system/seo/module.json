@@ -1,0 +1,10 @@
+{
+    "name": "SEO",
+    "slug": "seo",
+    "type": "system",
+    "version": "1.0.0",
+    "description": "Core SEO: meta tags, sitemaps, and Open Graph support.",
+    "autoload": true,
+    "author": "Modular CMS",
+    "github_repo": ""
+}

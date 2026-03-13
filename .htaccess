@@ -1,40 +1,13 @@
+# BEGIN Modular
+<IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteBase /simuze-mdlr/
-
-# Allow direct access to existing files
+RewriteRule ^index\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
-
-# Admin section URLs -> actual PHP paths
-RewriteRule ^admin/settings/?$ admin/settings/index.php [L]
-RewriteRule ^admin/settings/([^/]+)/?$ admin/settings/$1.php [L]
-RewriteRule ^admin/users/?$ admin/users/index.php [L]
-RewriteRule ^admin/users/([^/]+)/?$ admin/users/$1.php [L]
-RewriteRule ^admin/media/?$ admin/media/index.php [L]
-RewriteRule ^admin/media/([^/]+)/?$ admin/media/$1.php [L]
-RewriteRule ^admin/profile/?$ admin/profile/index.php [L]
-RewriteRule ^admin/profile/([^/]+)/?$ admin/profile/$1.php [L]
-RewriteRule ^admin/forms/?$ admin/forms/index.php [L]
-RewriteRule ^admin/forms/([^/]+)/?$ admin/forms/$1.php [L]
-RewriteRule ^admin/dashboard/?$ admin/dashboard/index.php [L]
-RewriteRule ^admin/dashboard/([^/]+)/?$ admin/dashboard/$1.php [L]
-RewriteRule ^admin/post-types/?$ admin/post-types/index.php [L]
-RewriteRule ^admin/post-types/([^/]+)/?$ admin/post-types/$1.php [L]
-RewriteRule ^admin/posts/?$ admin/posts/index.php [L]
-RewriteRule ^admin/posts/([^/]+)/?$ admin/posts/$1.php [L]
-RewriteRule ^admin/taxonomies/?$ admin/taxonomies/index.php [L]
-RewriteRule ^admin/actions/?$ admin/actions/index.php [L]
-RewriteRule ^admin/modules/?$ admin/modules/index.php [L]
-
-# Handle auth pages
-RewriteRule ^admin/auth/([^/]+)/?$ admin/auth/$1.php [L]
-
-# Handle main admin page
-RewriteRule ^admin/?$ admin/index.php [L]
-
-# Frontend: pretty URLs (e.g. /modular/home, /modular/blog/post-slug)
-# Existing files and directories are already allowed above (-f / -d).
-# Everything else goes through the root index.php, which includes public/index.php.
-RewriteRule ^$ index.php [L]
-RewriteRule ^(.+)$ index.php [L,QSA]
+RewriteCond %{REQUEST_FILENAME}\.php -f
+RewriteRule ^(.+)$ $1.php [L]
+RewriteRule ^ index.php [L,QSA]
+</IfModule>
+# END Modular

@@ -17,11 +17,3 @@ define('DB_NAME', 'modular'); // e.g. mdlr-simuze for a second install
 // Required when copied to another folder (e.g. localhost/simuze-mdlr).
 // Omit or leave empty only when the app is at document root.
 define('BASE_PATH', '/simuze-mdlr');  // or '/modular' for default, or '' for root
-
-// Optional: SIMEZU (proxy required; store App API Token server-side only)
-// define('SIMEZU_EMBED_URL', 'https://app.simezu.com');  // or http://localhost/simezu for local
-// define('SIMEZU_API_BASE', 'https://app.simezu.com/api');
-// define('SIMEZU_APP_API_TOKEN', 'sk_live_...');  // From Tokens tab – never commit in production
-// define('SIMEZU_APP_ID', '40c92edc-15ba-11f1-a294-77c575fa87b4');
-// define('SIMEZU_API_KEY', '43235892...');
-// define('SIMEZU_JWT_SECRET', 'your-jwt-secret');  // From Simezu .env JWT_SECRET – required for local JWT verification

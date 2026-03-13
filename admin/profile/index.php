@@ -100,10 +100,10 @@ require_once ADMIN_PATH . '/templates/header.php';
         <hr class="section-divider">
         
         <div class="flex gap-2">
-            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : ''; ?>/users/edit.php?id=<?php echo $user['id']; ?>" class="btn btn-primary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users/edit.php?id=<?php echo $user['id']; ?>" class="btn btn-primary">
                 <i class="fas fa-edit"></i> Edit Profile
             </a>
-            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : ''; ?>/auth/logout.php" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/auth/logout.php" class="btn btn-secondary">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </a>
         </div>

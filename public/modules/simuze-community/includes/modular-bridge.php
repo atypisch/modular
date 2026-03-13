@@ -1025,12 +1025,13 @@ if (!function_exists('simuze_get_albums_by_status')) {
             $artwork_url = '';
             $raw_art = !empty($row['artwork_path']) ? $row['artwork_path'] : ($row['artwork_thumbnail_path'] ?? '');
             if (!empty($raw_art)) {
-                // If it looks like a web-relative URL, serve from site root
-                if (str_starts_with($raw_art, '/') && !str_starts_with($raw_art, $upload['basedir'])) {
-                    $artwork_url = md_home_url($raw_art);
-                } else {
+                if (str_starts_with($raw_art, $upload['basedir'])) {
+                    // Absolute filesystem path — strip basedir
                     $rel = ltrim(str_replace($upload['basedir'], '', $raw_art), '/');
                     $artwork_url = $upload['baseurl'] . '/' . $rel;
+                } else {
+                    // Relative path within uploads dir (e.g. /music/b/artist/...)
+                    $artwork_url = $upload['baseurl'] . '/' . ltrim($raw_art, '/');
                 }
             }
             $nicename  = !empty($row['album_nicename']) ? $row['album_nicename'] : $row['id'];
@@ -1082,11 +1083,11 @@ if (!function_exists('simuze_get_album_for_editing')) {
         $raw_art = !empty($row['artwork_path']) ? $row['artwork_path'] : ($row['artwork_thumbnail_path'] ?? '');
         $artwork_url = '';
         if (!empty($raw_art)) {
-            if (str_starts_with($raw_art, '/') && !str_starts_with($raw_art, $upload['basedir'])) {
-                $artwork_url = md_home_url($raw_art);
-            } else {
+            if (str_starts_with($raw_art, $upload['basedir'])) {
                 $rel = ltrim(str_replace($upload['basedir'], '', $raw_art), '/');
                 $artwork_url = $upload['baseurl'] . '/' . $rel;
+            } else {
+                $artwork_url = $upload['baseurl'] . '/' . ltrim($raw_art, '/');
             }
         }
         return array_merge($row, [

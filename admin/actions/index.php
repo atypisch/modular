@@ -242,6 +242,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 </style>
 
 <script>
+    const ADMIN_BASE = '<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>';
 document.getElementById('create-action-btn').addEventListener('click', function() {
     document.getElementById('action-modal').style.display = 'flex';
     document.getElementById('action-form').reset();
@@ -392,7 +393,7 @@ document.getElementById('action-form').addEventListener('submit', function(e) {
     formData.trigger_config = {};
     
     const actionId = document.getElementById('action-id').value;
-    const url = '/modular/admin/api/index.php/api/v1/actions' + (actionId ? '/' + actionId : '');
+    const url = ADMIN_BASE + '/api/index.php/api/v1/actions' + (actionId ? '/' + actionId : '');
     const method = actionId ? 'PUT' : 'POST';
     
     fetch(url, {
@@ -419,7 +420,7 @@ document.getElementById('action-form').addEventListener('submit', function(e) {
 
 function editAction(id) {
     // Load action and populate form
-    fetch('/modular/admin/api/index.php/api/v1/actions/' + id, {
+    fetch(ADMIN_BASE + '/api/index.php/api/v1/actions/' + id, {
         headers: {
             'Authorization': 'Bearer ' + getCookie('auth_token')
         }
@@ -445,7 +446,7 @@ function editAction(id) {
 }
 
 function toggleAction(id, enabled) {
-    fetch('/modular/admin/api/index.php/api/v1/actions/' + id, {
+    fetch(ADMIN_BASE + '/api/index.php/api/v1/actions/' + id, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -459,7 +460,7 @@ function toggleAction(id, enabled) {
 function deleteAction(id) {
     (window.ModularModal && window.ModularModal.confirm('Weet u zeker dat u deze actie wilt verwijderen?') || Promise.resolve(false)).then(function(ok) {
         if (!ok) return;
-    fetch('/modular/admin/api/index.php/api/v1/actions/' + id, {
+    fetch(ADMIN_BASE + '/api/index.php/api/v1/actions/' + id, {
         method: 'DELETE',
         headers: {
             'Authorization': 'Bearer ' + getCookie('auth_token')

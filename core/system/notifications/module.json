@@ -1,0 +1,10 @@
+{
+    "name": "Notifications",
+    "slug": "notifications",
+    "type": "system",
+    "version": "1.0.0",
+    "description": "Core notifications: in-app alerts and admin notification queue.",
+    "autoload": true,
+    "author": "Modular CMS",
+    "github_repo": ""
+}
