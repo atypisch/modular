@@ -564,5 +564,86 @@ CREATE TABLE IF NOT EXISTS simuze_activity (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
+-- Events / Shows system (Phase A)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS simuze_cities (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) NOT NULL,
+    country VARCHAR(100) NOT NULL DEFAULT '',
+    region VARCHAR(100) NOT NULL DEFAULT '',
+    lat DECIMAL(10,7) DEFAULT NULL,
+    lng DECIMAL(10,7) DEFAULT NULL,
+    UNIQUE KEY uq_slug (slug),
+    KEY idx_country (country)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS simuze_venues (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    type ENUM('diy_space','rehearsal_space','studio','house','bar','gallery','collective','basement','outdoor','other') NOT NULL DEFAULT 'diy_space',
+    city_id INT DEFAULT NULL,
+    address TEXT DEFAULT NULL,
+    capacity INT UNSIGNED DEFAULT NULL,
+    contact TEXT DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
+    is_public TINYINT(1) NOT NULL DEFAULT 1,
+    group_id INT DEFAULT NULL,
+    created_by INT NOT NULL,
+    created_at DATETIME NOT NULL,
+    deleted_at DATETIME DEFAULT NULL,
+    KEY idx_city (city_id),
+    KEY idx_group (group_id),
+    KEY idx_public (is_public)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS simuze_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NOT NULL,
+    type ENUM('show','diy','house','jam','rehearsal','listening','tour_date','other') NOT NULL DEFAULT 'show',
+    organiser_id INT NOT NULL,
+    organiser_type ENUM('user','group') NOT NULL DEFAULT 'group',
+    city_id INT DEFAULT NULL,
+    venue_id INT DEFAULT NULL,
+    venue_label VARCHAR(255) DEFAULT NULL,
+    address_hidden TINYINT(1) NOT NULL DEFAULT 0,
+    event_date DATETIME NOT NULL,
+    doors_time TIME DEFAULT NULL,
+    capacity INT UNSIGNED DEFAULT NULL,
+    genres JSON DEFAULT NULL,
+    open_slots TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    description TEXT DEFAULT NULL,
+    diy_notes TEXT DEFAULT NULL,
+    status ENUM('draft','open','lineup_set','confirmed','past','cancelled') NOT NULL DEFAULT 'open',
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    deleted_at DATETIME DEFAULT NULL,
+    UNIQUE KEY uq_slug (slug),
+    KEY idx_city (city_id),
+    KEY idx_organiser (organiser_type, organiser_id),
+    KEY idx_status (status),
+    KEY idx_date (event_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS simuze_event_slots (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_id INT NOT NULL,
+    group_id INT DEFAULT NULL,
+    user_id INT DEFAULT NULL,
+    slot_type ENUM('headliner','support','opener','host','dj','tbc') NOT NULL DEFAULT 'tbc',
+    confirmed TINYINT(1) NOT NULL DEFAULT 0,
+    set_time SMALLINT UNSIGNED DEFAULT NULL,
+    slot_order TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    notes TEXT DEFAULT NULL,
+    created_at DATETIME NOT NULL,
+    KEY idx_event (event_id),
+    KEY idx_group (group_id),
+    KEY idx_user (user_id),
+    FOREIGN KEY (event_id) REFERENCES simuze_events(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
 -- End of full_schema_simuze.sql
 -- =============================================================================

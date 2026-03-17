@@ -4,7 +4,17 @@
 
 (function($) {
     'use strict';
-    
+
+    if (typeof window === 'undefined' || typeof window.simuzeCommunity === 'undefined') {
+        return;
+    }
+
+    const simuzeConfig = window.simuzeCommunity;
+
+    if (!simuzeConfig || !simuzeConfig.apiUrl) {
+        return;
+    }
+
     const SimuzeCommunity = {
         init: function() {
             this.setupAPI();
@@ -16,16 +26,16 @@
         setupAPI: function() {
             // Make API available globally
             window.simuzeAPI = {
-                url: simuzeCommunity.apiUrl,
-                nonce: simuzeCommunity.nonce,
-                
+                url: simuzeConfig.apiUrl,
+                nonce: simuzeConfig.nonce,
+
                 request: function(endpoint, method, data) {
                     return $.ajax({
                         url: this.url + endpoint,
                         method: method || 'GET',
                         data: data,
                         beforeSend: function(xhr) {
-                            xhr.setRequestHeader('X-WP-Nonce', simuzeCommunity.nonce);
+                            xhr.setRequestHeader('X-WP-Nonce', simuzeConfig.nonce);
                         }
                     });
                 }
@@ -122,7 +132,13 @@
     };
     
     $(document).ready(function() {
-        SimuzeCommunity.init();
+        try {
+            SimuzeCommunity.init();
+        } catch (e) {
+            if (window.console && typeof window.console.warn === 'function') {
+                window.console.warn('[SimuzeCommunity] Init failed', e);
+            }
+        }
     });
     
 })(jQuery);

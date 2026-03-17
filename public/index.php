@@ -24,6 +24,23 @@ if (!defined('DEFAULT_THEME')) {
 if (is_file(MODULAR_PATH . '/admin/bootstrap.php')) {
     require_once MODULAR_PATH . '/admin/bootstrap.php';
 }
+if (is_file(MODULAR_PATH . '/core/functions/http.php')) {
+    require_once MODULAR_PATH . '/core/functions/http.php';
+}
+if (is_file(MODULAR_PATH . '/core/functions/database.php')) {
+    require_once MODULAR_PATH . '/core/functions/database.php';
+}
+// Load Simuze Community repositories used by theme templates and template-parts
+if (!defined('SIMUZE_MODULAR_RUN')) {
+    define('SIMUZE_MODULAR_RUN', true);
+}
+$_sc_inc = MODULAR_PATH . '/public/modules/simuze-community/includes';
+foreach (['class-music-repository', 'class-user-repository', 'class-group-repository', 'class-group', 'class-event-repository', 'class-venue-repository'] as $_repo) {
+    if (is_file($_sc_inc . '/' . $_repo . '.php')) {
+        require_once $_sc_inc . '/' . $_repo . '.php';
+    }
+}
+unset($_sc_inc, $_repo);
 if (is_file(MODULAR_PATH . '/core/functions/template-helpers.php')) {
     require_once MODULAR_PATH . '/core/functions/template-helpers.php';
 }
@@ -99,6 +116,105 @@ if ($postTypeSlug === null && $postSlug === null && $pathInfo !== '' && isset($G
     if ($resolved !== null) {
         $postTypeSlug = $resolved['post_type'];
         $postSlug     = $resolved['slug'];
+    }
+}
+
+// Simuze-specific routes: music/album/{slug}, music/track/{slug}, group/{slug}[/*]
+if ($pathInfo !== '') {
+    $segsCheck = array_values(array_filter(explode('/', $pathInfo)));
+    // music/albums/ — albums discovery page
+    if (count($segsCheck) >= 1 && $segsCheck[0] === 'music' && ($segsCheck[1] ?? '') === 'albums') {
+        $tplFile = THEMES_PATH . '/' . $activeTheme . '/template_albums.php';
+        if (is_file($tplFile)) { include $tplFile; exit; }
+    }
+    // music/tracks/ — tracks discovery page
+    if (count($segsCheck) >= 1 && $segsCheck[0] === 'music' && ($segsCheck[1] ?? '') === 'tracks') {
+        $tplFile = THEMES_PATH . '/' . $activeTheme . '/template_tracks.php';
+        if (is_file($tplFile)) { include $tplFile; exit; }
+    }
+    // music/album/{slug}
+    if (count($segsCheck) >= 3 && $segsCheck[0] === 'music' && $segsCheck[1] === 'album') {
+        $albumSlug = $segsCheck[2];
+        $albumTpl  = THEMES_PATH . '/' . $activeTheme . '/template-parts/view-album.php';
+        if (is_file($albumTpl) && isset($GLOBALS['db'])) {
+            $item_type = 'album';
+            $albumRow  = $GLOBALS['db']->prepare("SELECT id FROM md_music_albums WHERE album_nicename = ? AND deleted_at IS NULL LIMIT 1");
+            $albumRow->execute([$albumSlug]);
+            $albumRow  = $albumRow->fetch(\PDO::FETCH_ASSOC);
+            if ($albumRow) {
+                $item_id = (int) $albumRow['id'];
+                include $albumTpl;
+                exit;
+            }
+        }
+    }
+    // music/track/{slug}
+    if (count($segsCheck) >= 3 && $segsCheck[0] === 'music' && $segsCheck[1] === 'track') {
+        $trackSlug = $segsCheck[2];
+        $trackTpl  = THEMES_PATH . '/' . $activeTheme . '/template-parts/view-track.php';
+        if (is_file($trackTpl) && isset($GLOBALS['db'])) {
+            $trackRow = $GLOBALS['db']->prepare("SELECT id FROM md_music_uploads WHERE LOWER(REPLACE(REPLACE(song_name,' ','-'),\"'\",'')) = ? AND deleted_at IS NULL LIMIT 1");
+            $trackRow->execute([$trackSlug]);
+            $trackRow = $trackRow->fetch(\PDO::FETCH_ASSOC);
+            if ($trackRow) {
+                $item_id   = (int) $trackRow['id'];
+                $item_type = 'track';
+                include $trackTpl;
+                exit;
+            }
+        }
+    }
+    // group/{slug}[/*] — route to module's public group template
+    if (count($segsCheck) >= 2 && $segsCheck[0] === 'group') {
+        if (function_exists('apply_filters')) {
+            $grpResponse = apply_filters('public_route', null, $pathInfo);
+            if ($grpResponse !== null && $grpResponse !== '') {
+                echo $grpResponse;
+                exit;
+            }
+        }
+    }
+    // show/{slug} — event detail page
+    if (count($segsCheck) >= 2 && $segsCheck[0] === 'show') {
+        $showSlug = $segsCheck[1];
+        $showTpl  = THEMES_PATH . '/' . $activeTheme . '/template-parts/view-show.php';
+        if (is_file($showTpl) && class_exists('EventRepository')) {
+            $show = EventRepository::findBySlug($showSlug);
+            if ($show) {
+                include $showTpl;
+                exit;
+            }
+        }
+    }
+    // start-a-show — event creation form
+    if (count($segsCheck) >= 1 && $segsCheck[0] === 'start-a-show') {
+        $showFormTpl = THEMES_PATH . '/' . $activeTheme . '/template-parts/start-a-show.php';
+        if (is_file($showFormTpl)) {
+            include $showFormTpl;
+            exit;
+        }
+    }
+    // city/{slug} — city scene hub page
+    if (count($segsCheck) >= 2 && $segsCheck[0] === 'city') {
+        $citySlug = $segsCheck[1];
+        $cityTpl  = THEMES_PATH . '/' . $activeTheme . '/template-parts/view-city.php';
+        if (is_file($cityTpl) && class_exists('VenueRepository')) {
+            $city = VenueRepository::findCityBySlug($citySlug);
+            if ($city) {
+                include $cityTpl;
+                exit;
+            }
+        }
+    }
+    // user/{username}[/tab] — route to module's user/profile template
+    if (count($segsCheck) >= 2 && $segsCheck[0] === 'user') {
+        if (function_exists('apply_filters')) {
+            $userResponse = apply_filters('public_route', null, $pathInfo);
+            if ($userResponse !== null && $userResponse !== '') {
+                echo $userResponse;
+                exit;
+            }
+        }
     }
 }
 
@@ -397,19 +513,88 @@ if (function_exists('apply_filters')) {
 }
 
 // Home
-$page_title = 'Home';
-$content = '
-    <div class="welcome-section">
-        <h1>Welcome to Modular CMS</h1>
-        <p>This is a simple content management system built with PHP.</p>
-        <p>Features:</p>
-        <ul>
-            <li>Theme-based design</li>
-            <li>Modular architecture</li>
-            <li>Simple and clean interface</li>
-        </ul>
-    </div>
-';
+// If a static homepage is configured, use the same template structure as the default
+// home, but inject the selected post's content so CSS/layout/navigation stay identical.
+if ($pathInfo === '' || $pathInfo === '/') {
+    if (!isset($GLOBALS['db'])) {
+        require_once MODULAR_PATH . '/admin/config/config.php';
+        require_once MODULAR_PATH . '/core/functions/database.php';
+        if (function_exists('run_pending_migrations') && isset($GLOBALS['db'])) {
+            run_pending_migrations();
+        }
+    }
+    if (isset($GLOBALS['db'])) {
+        // Load settings helper
+        if (!function_exists('get_setting') && is_file(MODULAR_PATH . '/core/functions/template-helpers.php')) {
+            require_once MODULAR_PATH . '/core/functions/template-helpers.php';
+        }
+        $frontType = function_exists('get_setting') ? get_setting('front_page_type', 'index') : 'index';
+        $frontId = (int) (function_exists('get_setting') ? get_setting('front_page_id', 0) : 0);
+        if ($frontType === 'page' && $frontId > 0) {
+            require_once MODULAR_PATH . '/core/fields/FieldRegistry.php';
+            \Modular\Fields\FieldRegistry::bootDefaultFields();
+            require_once MODULAR_PATH . '/core/PostTypeResolver.php';
+            $resolver = new \Modular\PostTypeResolver($GLOBALS['db']);
+            $resolved = $resolver->resolvePost($frontId, ['resolve_relations' => true, 'include_author' => true]);
+            if (!isset($resolved['error'])) {
+                $post = $resolved;
+                $page_title = isset($post['title']) ? $post['title'] : 'Home';
+
+                // Build simple HTML content from component_data or excerpt/body,
+                // similar to the single.php template but rendered into $content.
+                $content_html = '';
+                if (!empty($post['component_data']) && is_string($post['component_data'])) {
+                    $post['component_data'] = json_decode($post['component_data'], true);
+                }
+                if (!empty($post['component_data']) && is_array($post['component_data'])) {
+                    ob_start();
+                    echo '<div class="content-area">';
+                    foreach ($post['component_data'] as $block) {
+                        if (empty($block['type'])) {
+                            continue;
+                        }
+                        echo '<div class="block block-' . htmlspecialchars($block['type'], ENT_QUOTES, 'UTF-8') . '">';
+                        if (!empty($block['data']['content'])) {
+                            echo $block['data']['content'];
+                        } elseif (!empty($block['data']['html'])) {
+                            echo $block['data']['html'];
+                        }
+                        echo '</div>';
+                    }
+                    echo '</div>';
+                    $content_html = ob_get_clean();
+                } elseif (!empty($post['excerpt'])) {
+                    $content_html = '<p class="lead">' . htmlspecialchars($post['excerpt'], ENT_QUOTES, 'UTF-8') . '</p>';
+                } elseif (!empty($post['title'])) {
+                    $content_html = '<p>' . htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') . '</p>';
+                }
+
+                if ($content_html !== '') {
+                    $content = $content_html;
+                }
+            }
+        }
+    }
+}
+
+// Default Modular home (fallback when no static page is configured or resolution fails)
+if (!isset($page_title)) {
+    $page_title = 'Home';
+}
+if (!isset($content)) {
+    $content = '
+        <div class="welcome-section">
+            <h1>Welcome to Modular CMS</h1>
+            <p>This is a simple content management system built with PHP.</p>
+            <p>Features:</p>
+            <ul>
+                <li>Theme-based design</li>
+                <li>Modular architecture</li>
+                <li>Simple and clean interface</li>
+            </ul>
+        </div>
+    ';
+}
 $theme_path = THEMES_PATH . '/' . $activeTheme;
 if (is_file($theme_path . '/index.php')) {
     require $theme_path . '/index.php';

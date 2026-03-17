@@ -170,7 +170,81 @@ if ($group_type_slug === 'artist' && function_exists('simuze_get_artist_genres_f
         </div>
     </div>
     <?php endif; ?>
-    
+
+    <!-- Upcoming Shows organised or participated in by this group -->
+    <?php
+    $group_shows_organised = class_exists('EventRepository') ? EventRepository::findByOrganiser((int) $group->id, 'group', 6) : [];
+    $group_shows_slot      = class_exists('EventRepository') ? EventRepository::findByGroupSlot((int) $group->id, 6) : [];
+    // Merge and deduplicate by event id
+    $group_shows_all = [];
+    foreach (array_merge($group_shows_organised, $group_shows_slot) as $_gs) {
+        $group_shows_all[$_gs['id']] = $_gs;
+    }
+    uasort($group_shows_all, function($a, $b) { return strtotime($b['event_date']) - strtotime($a['event_date']); });
+    $group_shows_upcoming = array_filter($group_shows_all, function($ev) {
+        return strtotime($ev['event_date']) >= time() && !in_array($ev['status'], ['cancelled','past']);
+    });
+    $group_shows_past     = array_filter($group_shows_all, function($ev) {
+        return strtotime($ev['event_date']) < time() || $ev['status'] === 'past';
+    });
+    $group_start_show_url = md_home_url('/start-a-show');
+    ?>
+    <?php if (!empty($group_shows_upcoming) || !empty($group_shows_past)): ?>
+    <div class="profile-section group-shows-section">
+        <div class="section-header-row">
+            <h2>Shows</h2>
+            <?php if ($is_admin): ?>
+                <a href="<?php echo esc_url($group_start_show_url); ?>" class="btn btn-sm btn-primary">
+                    <i class="fas fa-bolt"></i> Start a Show
+                </a>
+            <?php endif; ?>
+        </div>
+        <?php if (!empty($group_shows_upcoming)): ?>
+            <h4 class="shows-subheading">Upcoming</h4>
+            <ul class="event-list">
+                <?php foreach (array_slice($group_shows_upcoming, 0, 4) as $gs): ?>
+                    <?php
+                    $gs_date = !empty($gs['event_date']) ? date('D j M Y', strtotime($gs['event_date'])) : '';
+                    $gs_url  = md_home_url('/show/' . $gs['slug']);
+                    $gs_city = $gs['city_name'] ?? '';
+                    ?>
+                    <li class="event-list-item">
+                        <span class="event-list-date"><?php echo esc_html($gs_date); ?></span>
+                        <div class="event-list-info">
+                            <a href="<?php echo esc_url($gs_url); ?>" class="event-list-title"><?php echo esc_html($gs['title']); ?></a>
+                            <?php if ($gs_city !== ''): ?><span class="event-list-city"><?php echo esc_html($gs_city); ?></span><?php endif; ?>
+                        </div>
+                        <a href="<?php echo esc_url($gs_url); ?>" class="event-list-link"><i class="fas fa-arrow-right"></i></a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+        <?php if (!empty($group_shows_past)): ?>
+            <h4 class="shows-subheading">Recent Shows</h4>
+            <ul class="event-list event-list-past">
+                <?php foreach (array_slice($group_shows_past, 0, 4) as $gs): ?>
+                    <?php
+                    $gs_date = !empty($gs['event_date']) ? date('j M Y', strtotime($gs['event_date'])) : '';
+                    $gs_url  = md_home_url('/show/' . $gs['slug']);
+                    ?>
+                    <li class="event-list-item event-list-item-past">
+                        <span class="event-list-date"><?php echo esc_html($gs_date); ?></span>
+                        <a href="<?php echo esc_url($gs_url); ?>" class="event-list-title"><?php echo esc_html($gs['title']); ?></a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </div>
+    <?php elseif ($is_admin): ?>
+    <div class="profile-section group-shows-empty">
+        <h2>Shows</h2>
+        <p>No shows yet.</p>
+        <a href="<?php echo esc_url($group_start_show_url); ?>" class="btn btn-primary">
+            <i class="fas fa-bolt"></i> Start your first show
+        </a>
+    </div>
+    <?php endif; ?>
+
 </div>
 
 <style>

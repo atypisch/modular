@@ -247,17 +247,16 @@ function build_htaccess(string $base_path): string {
     $trimmed = trim($base_path, '/');
     $base    = ($trimmed === '') ? '/' : '/' . $trimmed . '/';
 
-    $dollar = '$';
     return "# BEGIN Modular\n"
          . "<IfModule mod_rewrite.c>\n"
          . "RewriteEngine On\n"
          . "RewriteBase {$base}\n"
-         . "RewriteRule ^index\\.php{$dollar} - [L]\n"
+         . "RewriteRule ^index\\.php$ - [L]\n"
          . "RewriteCond %{REQUEST_FILENAME} -f [OR]\n"
          . "RewriteCond %{REQUEST_FILENAME} -d\n"
          . "RewriteRule ^ - [L]\n"
          . "RewriteCond %{REQUEST_FILENAME}\\.php -f\n"
-         . "RewriteRule ^(.+){$dollar} {$dollar}1.php [L]\n"
+         . "RewriteRule ^(.+)$ $1.php [L]\n"
          . "RewriteRule ^ index.php [L,QSA]\n"
          . "</IfModule>\n"
          . "# END Modular";

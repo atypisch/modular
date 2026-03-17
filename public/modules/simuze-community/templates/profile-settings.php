@@ -1197,7 +1197,10 @@ jQuery(document).ready(function($) {
         // Top-right dropdown (Simezu quick code)
         if (typeof Simezu !== 'undefined' && typeof Simezu.renderAvatar === 'function') {
             try {
-                Simezu.renderAvatar('#user-menu');
+                var opts = {
+                    app: (typeof SIMEZU_APP !== 'undefined' ? SIMEZU_APP : 'simuze-mdlr')
+                };
+                Simezu.renderAvatar('#user-menu', opts);
             } catch (e) {
                 console.warn('refreshAllAvatarImgs: Simezu.renderAvatar refresh failed', e);
             }
