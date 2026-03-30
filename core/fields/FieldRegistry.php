@@ -133,7 +133,8 @@ class FieldRegistry
     /** Utility field types: never stored in post data. */
     public static function getUtilityTypes(): array
     {
-        return ['message', 'accordion', 'tab', 'divider'];
+        // Accordion is stored/rendered on the frontend, so it is NOT a utility type.
+        return ['message', 'tab', 'divider'];
     }
 
     public static function isUtilityType(string $type): bool
@@ -224,9 +225,11 @@ class FieldRegistry
 
         // Utility (admin-only, not stored)
         self::register('message', new MessageField());
-        self::register('accordion', new AccordionField());
         self::register('tab', new TabField());
         self::register('divider', new DividerField());
+
+        // Accordion (stored + rendered on frontend)
+        self::register('accordion', new AccordionField());
 
         // Event
         self::register('latest_posts', new LatestPostsField());

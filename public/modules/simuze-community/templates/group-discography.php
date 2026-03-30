@@ -4,7 +4,7 @@
  * Uses existing Simuze discography functionality
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN') && !defined('MODULAR_PATH')) {
     exit;
 }
 

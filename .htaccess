@@ -6,6 +6,13 @@ RewriteRule ^index\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
+# Route auth proxy endpoints (supports /api/auth and /api/auth/*)
+RewriteRule ^api/auth/?$ public/api/simezu-auth-proxy.php [L,QSA]
+RewriteRule ^api/auth/(.*)$ public/api/simezu-auth-proxy.php?path=$1 [L,QSA]
+# Pass api/ and uploads/ requests through to public/ subdirectory
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(api|uploads)/(.*)$ public/$1/$2 [L]
 RewriteCond %{REQUEST_FILENAME}\.php -f
 RewriteRule ^(.+)$ $1.php [L]
 RewriteRule ^ index.php [L,QSA]

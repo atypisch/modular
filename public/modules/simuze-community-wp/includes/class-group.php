@@ -1359,65 +1359,7 @@ class Simuze_Group {
      * Falls back to local default avatar if no avatar exists
      */
     public function get_avatar_url($size = 'medium') {
-        // Special handling for location-based groups (country, province, city):
-        // these should not have custom uploaded avatars; instead we render a
-        // square static map thumbnail based on their lat/lng.
-        $type_slug = $this->get_type_slug();
-        $location_types = array('country', 'province', 'city');
-        if (in_array($type_slug, $location_types, true) && !empty($this->lat) && !empty($this->lng)) {
-            $zoom = 8;
-            // Try to get a custom zoom level from settings (map_zoom)
-            if (isset($this->settings)) {
-                $settings = is_array($this->settings)
-                    ? $this->settings
-                    : (is_string($this->settings) ? json_decode($this->settings, true) : array());
-                if (is_array($settings) && isset($settings['map_zoom'])) {
-                    $zoom = (int) $settings['map_zoom'];
-                } else {
-                    // Sensible defaults
-                    if ($type_slug === 'city') {
-                        $zoom = 12;
-                    } elseif ($type_slug === 'country') {
-                        $zoom = 7;
-                    } else { // province
-                        $zoom = 8;
-                    }
-                }
-            } else {
-                if ($type_slug === 'city') {
-                    $zoom = 12;
-                } elseif ($type_slug === 'country') {
-                    $zoom = 7;
-                } else {
-                    $zoom = 8;
-                }
-            }
-            
-            // Map size based on requested size
-            $px = 160;
-            if ($size === 'thumb' || (is_numeric($size) && (int)$size <= 80)) {
-                $px = 120;
-            } elseif ($size === 'full' || (is_numeric($size) && (int)$size >= 400)) {
-                $px = 400;
-            }
-            
-            $lat  = (float) $this->lat;
-            $lng  = (float) $this->lng;
-            $zoom = max(0, min(18, (int) $zoom));
-            if (function_exists('simuze_lat_lng_zoom_to_tile')) {
-                $tile = simuze_lat_lng_zoom_to_tile($lat, $lng, $zoom);
-                if (!empty($tile)) {
-                    return 'https://tile.openstreetmap.org/' . $zoom . '/' . $tile[0] . '/' . $tile[1] . '.png';
-                }
-            }
-            $n   = pow(2, $zoom);
-            $x   = (int) floor((($lng + 180) / 360) * $n);
-            $lat_rad = $lat * M_PI / 180;
-            $y   = (int) floor((1 - log(tan($lat_rad) + 1 / cos($lat_rad)) / M_PI) / 2 * $n);
-            return 'https://tile.openstreetmap.org/' . $zoom . '/' . $x . '/' . $y . '.png';
-        }
-        
-        // Prefer cached local group avatar variants (from avatar_cache_group table)
+        // 1) Custom uploads / cache via Simuze_Avatar (non-default) take precedence.
         if (class_exists('Simuze_Avatar')) {
             $avatar = Simuze_Avatar::get_instance();
             $default_url = $avatar->get_default_group_avatar_url();
@@ -1428,6 +1370,7 @@ class Simuze_Group {
             }
         }
 
+        // 2) Persisted URL (e.g. LocationAvatar JPEG). Do not use live OSM tile URLs here.
         // Legacy support if a direct avatar_url is stored on the group record
         // This handles cases where avatar was uploaded before cache system
         if (!empty($this->avatar_url)) {

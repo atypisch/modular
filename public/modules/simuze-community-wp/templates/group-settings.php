@@ -48,7 +48,7 @@ wp_enqueue_script(
             </label>
             <input type="text" id="group_unique_handle" name="unique_handle" value="<?php echo esc_attr($group->unique_handle ?: ''); ?>" 
                    placeholder="<?php echo esc_attr(Simuze_Group::slugify_handle($group->name)); ?>"
-                   pattern="[a-z0-9-]{3,64}" 
+                   pattern="[a-z0-9\-]{3,64}" 
                    minlength="3"
                    maxlength="64"
                    style="width: 100%; padding: 10px 12px; background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 6px; font-size: 14px; color: #fff;">
@@ -847,6 +847,7 @@ jQuery(document).ready(function($) {
     
     // Unique name validation and preview
     // Unique Handle validation and preview
+    const currentGroupHandle = '<?php echo esc_js((string) ($group->unique_handle ?: Simuze_Group::slugify_handle($group->name))); ?>';
     $('#group_unique_handle').on('input', function() {
         let handle = $(this).val().toLowerCase().replace(/[^a-z0-9-]/g, '');
         $(this).val(handle);
@@ -877,8 +878,10 @@ jQuery(document).ready(function($) {
                 xhr.setRequestHeader('X-WP-Nonce', simuzeCommunity.nonce);
             },
             success: function(response) {
-                if (response.is_unique) {
-                    statusDiv.html('<span style="color: #a8d5ba;"><i class="fas fa-check-circle"></i> Available!</span>').show();
+                if (response.accepted_current_group || handle === currentGroupHandle) {
+                    statusDiv.html('<span style="color: #a8d5ba;"><i class="fas fa-check-circle"></i> Unique handle accepted (current group)</span>').show();
+                } else if (response.is_unique) {
+                    statusDiv.html('<span style="color: #a8d5ba;"><i class="fas fa-check-circle"></i> Unique handle available</span>').show();
                 } else {
                     statusDiv.html('<span style="color: #ff6b6b;"><i class="fas fa-times-circle"></i> Already taken</span>').show();
                 }

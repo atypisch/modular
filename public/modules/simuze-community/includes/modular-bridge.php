@@ -48,28 +48,9 @@ if (!function_exists('home_url')) {
         return $base . ($path !== '' ? '/' . ltrim($path, '/') : '');
     }
 }
-if (!function_exists('wp_safe_redirect')) {
-    function wp_safe_redirect($location, $status = 302) {
-        header('Location: ' . $location, true, $status);
-        exit;
-    }
-}
-if (!function_exists('wp_json_encode')) {
-    function wp_json_encode($data, $options = 0) {
-        return json_encode($data, $options ?: (JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-    }
-}
 if (!function_exists('is_wp_error')) {
     function is_wp_error($thing) {
         return ($thing instanceof WP_Error);
-    }
-}
-if (!function_exists('is_ssl')) {
-    function is_ssl() {
-        if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') return true;
-        if (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443) return true;
-        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') return true;
-        return false;
     }
 }
 if (!class_exists('WP_Error')) {
@@ -98,35 +79,9 @@ if (!function_exists('sanitize_text_field')) {
         return is_string($str) ? trim(strip_tags($str)) : '';
     }
 }
-if (!function_exists('esc_url_raw')) {
-    function esc_url_raw($url) {
-        return preg_replace('/[^a-zA-Z0-9\-._~:\/?#\[\]@!$&\'()*+,;=%]/', '', $url) ?: $url;
-    }
-}
-// Query vars for route context (profile tab, group handle, etc.)
-if (!function_exists('get_query_var')) {
-    function get_query_var($var, $default = '') {
-        $vars = $GLOBALS['simuze_query_vars'] ?? [];
-        return isset($vars[$var]) ? $vars[$var] : (isset($_GET[$var]) ? $_GET[$var] : $default);
-    }
-}
-if (!function_exists('set_query_var')) {
-    function set_query_var($var, $value) {
-        if (!isset($GLOBALS['simuze_query_vars'])) {
-            $GLOBALS['simuze_query_vars'] = [];
-        }
-        $GLOBALS['simuze_query_vars'][$var] = $value;
-    }
-}
 if (!function_exists('add_shortcode')) {
     function add_shortcode($tag, $callback) {
         return null;
-    }
-}
-if (!function_exists('shortcode_atts')) {
-    function shortcode_atts($defaults, $atts = []) {
-        $atts = is_array($atts) ? $atts : [];
-        return array_merge($defaults, array_intersect_key($atts, $defaults));
     }
 }
 if (!function_exists('esc_url')) {
@@ -147,53 +102,15 @@ if (!function_exists('set_transient')) {
         return update_option('_transient_' . $key, is_string($value) ? $value : json_encode($value));
     }
 }
-if (!function_exists('current_time')) {
-    function current_time($type = 'mysql', $gmt = 0) {
-        return $type === 'mysql' ? date('Y-m-d H:i:s') : time();
-    }
-}
 if (!function_exists('check_admin_referer')) {
     function check_admin_referer($action = -1, $query_arg = '_wpnonce') {
         $nonce = isset($_REQUEST[$query_arg]) ? $_REQUEST[$query_arg] : '';
         return $nonce !== '';
     }
 }
-if (!function_exists('wp_die')) {
-    function wp_die($message = '', $title = '', $args = []) {
-        if ($title !== '') {
-            echo '<h1>' . htmlspecialchars($title) . '</h1>';
-        }
-        echo '<p>' . htmlspecialchars($message) . '</p>';
-        exit;
-    }
-}
 if (!function_exists('wp_kses_post')) {
     function wp_kses_post($data) {
         return is_string($data) ? strip_tags($data) : $data;
-    }
-}
-// oEmbed stub: return embed HTML for video URLs (YouTube, Vimeo) or a safe link fallback.
-if (!function_exists('wp_oembed_get')) {
-    function wp_oembed_get($url, $args = []) {
-        if (!is_string($url) || trim($url) === '') {
-            return '';
-        }
-        $url = trim($url);
-        $width  = isset($args['width'])  ? (int) $args['width']  : 640;
-        $height = isset($args['height']) ? (int) $args['height'] : 360;
-        $esc_url = function_exists('esc_url') ? esc_url($url) : htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-        // YouTube: watch and youtu.be
-        if (preg_match('#(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)#', $url, $m)) {
-            $vid = $m[1];
-            return '<iframe width="' . (int) $width . '" height="' . (int) $height . '" src="https://www.youtube.com/embed/' . htmlspecialchars($vid, ENT_QUOTES, 'UTF-8') . '?rel=0" frameborder="0" allowfullscreen></iframe>';
-        }
-        // Vimeo
-        if (preg_match('#vimeo\.com/(?:video/)?(\d+)#', $url, $m)) {
-            $vid = $m[1];
-            return '<iframe width="' . (int) $width . '" height="' . (int) $height . '" src="https://player.vimeo.com/video/' . (int) $vid . '" frameborder="0" allowfullscreen></iframe>';
-        }
-        // Fallback: safe link
-        return '<a href="' . $esc_url . '" rel="noopener" target="_blank">' . $esc_url . '</a>';
     }
 }
 // REST API base URL for Modular (frontend posts to api/simuze/v1/groups etc.)
@@ -203,20 +120,6 @@ if (!function_exists('rest_url')) {
         $base = rtrim($base, '/');
         $path = ltrim(preg_replace('#^simuze/v1/?#', '', $path), '/');
         return $base . '/api/simuze/v1/' . ($path !== '' ? $path . (substr($path, -1) === '/' ? '' : '') : '');
-    }
-}
-// Used by save_cropped_image and other REST/upload code
-if (!function_exists('wp_generate_password')) {
-    function wp_generate_password($length = 12, $special_chars = true, $extra_special_chars = false) {
-        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        if ($special_chars) $chars .= '!@#$%^&*()';
-        if ($extra_special_chars) $chars .= '-_ []{}<>~`+=,.;:/?|';
-        $password = '';
-        $max = strlen($chars) - 1;
-        for ($i = 0; $i < $length; $i++) {
-            $password .= $chars[random_int(0, $max)];
-        }
-        return $password;
     }
 }
 // Request adapter for Modular REST dispatch (api/simuze/v1/*)
@@ -560,33 +463,7 @@ if (!function_exists('delete_option')) {
     }
 }
 
-// Output escaping / i18n stubs
-if (!function_exists('esc_html')) {
-    function esc_html($text) { return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8'); }
-}
-if (!function_exists('esc_attr')) {
-    function esc_attr($text) { return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8'); }
-}
-if (!function_exists('esc_js')) {
-    function esc_js($text) { return addslashes(htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8')); }
-}
-if (!function_exists('esc_textarea')) {
-    /**
-     * Minimal esc_textarea implementation for Modular.
-     * Mirrors WordPress behavior closely enough for our templates:
-     * - treats input as string
-     * - converts special chars to HTML entities
-     */
-    function esc_textarea($text) {
-        return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
-    }
-}
-if (!function_exists('esc_html__')) {
-    function esc_html__($text, $domain = '') { return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8'); }
-}
-if (!function_exists('esc_attr__')) {
-    function esc_attr__($text, $domain = '') { return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8'); }
-}
+// i18n pass-through stubs (Modular has no translation layer)
 if (!function_exists('__')) {
     function __($text, $domain = '') { return $text; }
 }
@@ -598,15 +475,6 @@ if (!function_exists('_n')) {
 }
 if (!function_exists('_x')) {
     function _x($text, $context, $domain = '') { return $text; }
-}
-if (!function_exists('esc_html_e')) {
-    function esc_html_e($text, $domain = '') { echo htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8'); }
-}
-if (!function_exists('esc_attr_e')) {
-    function esc_attr_e($text, $domain = '') { echo htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8'); }
-}
-if (!function_exists('number_format_i18n')) {
-    function number_format_i18n($number, $decimals = 0) { return number_format((float)$number, $decimals); }
 }
 if (!function_exists('wp_create_nonce')) {
     function wp_create_nonce($action = -1) {
@@ -631,58 +499,8 @@ if (!function_exists('wp_nonce_field')) {
 if (!function_exists('wp_verify_nonce')) {
     function wp_verify_nonce($nonce, $action = -1) { return !empty($nonce); }
 }
-if (!function_exists('apply_filters')) {
-    function apply_filters($tag, $value) {
-        $args = array_slice(func_get_args(), 1);
-        return $value;
-    }
-}
 if (!function_exists('do_shortcode')) {
     function do_shortcode($content) { return $content; }
-}
-if (!function_exists('absint')) {
-    function absint($v) { return abs((int)$v); }
-}
-if (!function_exists('intval')) {
-    // intval is a PHP built-in, but just in case
-}
-if (!function_exists('checked')) {
-    function checked($checked, $current = true, $echo = true) {
-        $result = ($checked == $current) ? ' checked="checked"' : '';
-        if ($echo) { echo $result; }
-        return $result;
-    }
-}
-if (!function_exists('selected')) {
-    function selected($selected, $current = true, $echo = true) {
-        $result = ($selected == $current) ? ' selected="selected"' : '';
-        if ($echo) { echo $result; }
-        return $result;
-    }
-}
-if (!function_exists('disabled')) {
-    function disabled($disabled, $current = true, $echo = true) {
-        $result = ($disabled == $current) ? ' disabled="disabled"' : '';
-        if ($echo) { echo $result; }
-        return $result;
-    }
-}
-if (!function_exists('wp_parse_args')) {
-    function wp_parse_args($args, $defaults = []) {
-        if (is_object($args)) $args = get_object_vars($args);
-        if (is_string($args)) {
-            parse_str($args, $parsed);
-            $args = $parsed;
-        }
-        if (!is_array($args)) $args = [];
-        return array_merge((array) $defaults, $args);
-    }
-}
-if (!function_exists('wp_redirect')) {
-    function wp_redirect($location, $status = 302, $x_redirect_by = 'WordPress') {
-        header('Location: ' . $location, true, $status);
-        return true;
-    }
 }
 if (!function_exists('get_template_directory_uri')) {
     function get_template_directory_uri() {
@@ -701,34 +519,6 @@ if (!function_exists('get_template_directory')) {
 }
 if (!function_exists('trailingslashit')) {
     function trailingslashit($str) { return rtrim($str, '/\\') . '/'; }
-}
-if (!function_exists('untrailingslashit')) {
-    function untrailingslashit($str) { return rtrim($str, '/\\'); }
-}
-if (!function_exists('add_query_arg')) {
-    function add_query_arg($args, $url = null) {
-        if ($url === null) {
-            $url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($_SERVER['REQUEST_URI'] ?? '/');
-        }
-        $parts = parse_url($url);
-        $query = [];
-        if (!empty($parts['query'])) parse_str($parts['query'], $query);
-        foreach ((array) $args as $k => $v) {
-            if ($v === false) unset($query[$k]);
-            else $query[$k] = $v;
-        }
-        $base = ($parts['scheme'] ?? 'http') . '://' . ($parts['host'] ?? 'localhost');
-        if (!empty($parts['port'])) $base .= ':' . $parts['port'];
-        $base .= ($parts['path'] ?? '/');
-        if (!empty($query)) $base .= '?' . http_build_query($query);
-        if (!empty($parts['fragment'])) $base .= '#' . $parts['fragment'];
-        return $base;
-    }
-}
-if (!function_exists('remove_query_arg')) {
-    function remove_query_arg($key, $url = null) {
-        return add_query_arg(is_array($key) ? array_fill_keys($key, false) : [$key => false], $url);
-    }
 }
 if (!function_exists('get_bloginfo')) {
     function get_bloginfo($show = '') {
@@ -787,15 +577,6 @@ if (!function_exists('wp_upload_dir')) {
         return ['path' => $uploadsPath, 'url' => $uploadsUrl, 'basedir' => $uploadsPath, 'baseurl' => $uploadsUrl, 'error' => false];
     }
 }
-if (!function_exists('wp_mkdir_p')) {
-    function wp_mkdir_p($target) {
-        $target = rtrim($target, '/');
-        if (empty($target) || is_dir($target)) return true;
-        if (file_exists($target)) return false;
-        return @mkdir($target, 0755, true);
-    }
-}
-
 /**
  * Single general crop-and-save for all images (album covers, avatars, headers).
  * Decodes base64 data URL, saves to directory, returns public URL.
@@ -857,8 +638,8 @@ if (!function_exists('simuze_output_cropper_assets')) {
         $done = true;
 
         $version = '1.6.1';
-        $css_url = 'https://cdn.jsdelivr.net/npm/cropperjs@' . $version . '/dist/cropper.min.css';
-        $js_url  = 'https://cdn.jsdelivr.net/npm/cropperjs@' . $version . '/dist/cropper.min.js';
+        $css_url = 'https://unpkg.com/cropperjs@' . $version . '/dist/cropper.min.css';
+        $js_url  = 'https://unpkg.com/cropperjs@' . $version . '/dist/cropper.min.js';
 
         echo '<link rel="stylesheet" href="' . htmlspecialchars($css_url, ENT_QUOTES, 'UTF-8') . '" />' . "\n";
         echo '<script src="' . htmlspecialchars($js_url, ENT_QUOTES, 'UTF-8') . '"></script>' . "\n";
@@ -876,78 +657,6 @@ if (!function_exists('simuze_get_album_url')) {
         return md_home_url('/music/album/' . $slug);
     }
 }
-if (!function_exists('size_format')) {
-    function size_format($bytes, $decimals = 0) {
-        $quant = ['TB' => 1099511627776, 'GB' => 1073741824, 'MB' => 1048576, 'KB' => 1024, 'B' => 1];
-        foreach ($quant as $unit => $mag) {
-            if (doubleval($bytes) >= $mag) return number_format($bytes / $mag, $decimals) . ' ' . $unit;
-        }
-        return false;
-    }
-}
-if (!function_exists('human_time_diff')) {
-    function human_time_diff($from, $to = 0) {
-        if (!$to) $to = time();
-        $diff = abs($to - $from);
-        if ($diff < 60) return $diff . ' seconds';
-        if ($diff < 3600) return round($diff/60) . ' minutes';
-        if ($diff < 86400) return round($diff/3600) . ' hours';
-        return round($diff/86400) . ' days';
-    }
-}
-if (!function_exists('mysql2date')) {
-    function mysql2date($format, $date, $translate = true) {
-        if (empty($date)) return false;
-        return date($format, strtotime($date));
-    }
-}
-if (!function_exists('date_i18n')) {
-    function date_i18n($format, $timestamp = false, $gmt = false) {
-        if ($timestamp === false) $timestamp = time();
-        return date($format, $timestamp);
-    }
-}
-if (!function_exists('wp_strip_all_tags')) {
-    function wp_strip_all_tags($text, $remove_breaks = false) {
-        $text = strip_tags($text);
-        if ($remove_breaks) $text = preg_replace('/[\r\n\t ]+/', ' ', $text);
-        return trim($text);
-    }
-}
-if (!function_exists('wp_trim_words')) {
-    function wp_trim_words($text, $num_words = 55, $more = null) {
-        if (null === $more) $more = '&hellip;';
-        $text = wp_strip_all_tags($text);
-        $words = preg_split('/\s+/', $text, $num_words + 1);
-        if (count($words) > $num_words) {
-            array_pop($words);
-            return implode(' ', $words) . $more;
-        }
-        return implode(' ', $words);
-    }
-}
-if (!function_exists('maybe_serialize')) {
-    function maybe_serialize($data) {
-        return is_array($data) || is_object($data) ? serialize($data) : $data;
-    }
-}
-if (!function_exists('maybe_unserialize')) {
-    function maybe_unserialize($data) {
-        if (is_serialized($data)) return @unserialize($data);
-        return $data;
-    }
-}
-if (!function_exists('is_serialized')) {
-    function is_serialized($data) {
-        if (!is_string($data)) return false;
-        $data = trim($data);
-        if ($data === 'N;') return true;
-        if (strlen($data) < 4) return false;
-        if ($data[1] !== ':') return false;
-        return (bool)preg_match('/^[aOCbids]:[0-9]/', $data);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // WP enqueue / nonce / admin stubs
 // ---------------------------------------------------------------------------
@@ -1120,13 +829,6 @@ if (!function_exists('get_userdata')) {
     }
 }
 
-// HTTP status helper
-if (!function_exists('status_header')) {
-    function status_header($code, $description = '') {
-        http_response_code((int) $code);
-    }
-}
-
 // BuddyPress group stubs — delegate to Simuze_Group when available
 if (!function_exists('groups_get_group')) {
     function groups_get_group($args) {
@@ -1140,6 +842,798 @@ if (!function_exists('bp_get_group_url')) {
         if ($group && method_exists($group, 'get_url')) return trailingslashit($group->get_url());
         if ($group && !empty($group->slug)) return home_url('/group/' . $group->slug . '/');
         return home_url('/groups/');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Playlist / Favorites — Modular implementations
+// Queries md_music_playlists + md_music_playlist_tracks (native Modular tables).
+// ---------------------------------------------------------------------------
+if (!function_exists('simuze_get_user_playlists')) {
+    function simuze_get_user_playlists($user_id = null, $include_public = true) {
+        if (!$user_id) return [];
+        $rows = md_db_query(
+            "SELECT id, name, description, slug, visibility, created_by, created_at
+             FROM md_music_playlists
+             WHERE created_by = ? AND deleted_at IS NULL
+             ORDER BY created_at DESC",
+            [(int) $user_id]
+        ) ?: [];
+        return array_map(function ($r) {
+            return [
+                'id'           => (int) $r['id'],
+                'name'         => $r['name'],
+                'description'  => $r['description'] ?? '',
+                'slug'         => $r['slug'] ?? '',
+                'user_id'      => (int) $r['created_by'],
+                'is_public'    => ($r['visibility'] ?? 'public') === 'public',
+                'created_date' => $r['created_at'],
+            ];
+        }, $rows);
+    }
+}
+if (!function_exists('simuze_get_playlist')) {
+    function simuze_get_playlist($playlist_id) {
+        $r = md_db_row(
+            "SELECT id, name, description, slug, visibility, created_by, created_at
+             FROM md_music_playlists
+             WHERE id = ? AND deleted_at IS NULL",
+            [(int) $playlist_id]
+        );
+        if (!$r) return null;
+        return [
+            'id'           => (int) $r['id'],
+            'name'         => $r['name'],
+            'description'  => $r['description'] ?? '',
+            'slug'         => $r['slug'] ?? '',
+            'user_id'      => (int) $r['created_by'],
+            'is_public'    => ($r['visibility'] ?? 'public') === 'public',
+            'created_date' => $r['created_at'],
+        ];
+    }
+}
+if (!function_exists('simuze_get_playlist_valid_track_count')) {
+    function simuze_get_playlist_valid_track_count($playlist_id) {
+        return count(simuze_resolve_playlist_tracks((int) $playlist_id));
+    }
+}
+if (!function_exists('simuze_playlist_debug_log')) {
+    function simuze_playlist_debug_log($message, array $context = []) {
+        $debug_enabled = (defined('APP_DEBUG') && APP_DEBUG) || (defined('WP_DEBUG') && WP_DEBUG);
+        if (!$debug_enabled) {
+            return;
+        }
+
+        $suffix = '';
+        if (!empty($context)) {
+            $json = json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $suffix = $json !== false ? ' ' . $json : '';
+        }
+        error_log('[Simuze Playlist] ' . $message . $suffix);
+    }
+}
+if (!function_exists('simuze_resolve_wp_table_name')) {
+    function simuze_resolve_wp_table_name($base_name) {
+        $base_name = trim((string) $base_name);
+        if ($base_name === '') {
+            return null;
+        }
+
+        static $cache = [];
+        if (isset($cache[$base_name])) {
+            return $cache[$base_name];
+        }
+
+        $candidates = [
+            'wp_' . $base_name,
+            $base_name,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $exists = md_db_var("SHOW TABLES LIKE ?", [$candidate]);
+            if (!empty($exists)) {
+                $cache[$base_name] = $candidate;
+                return $candidate;
+            }
+        }
+
+        $suffix = '\_' . str_replace('_', '\_', $base_name);
+        $like_pattern = '%' . $suffix;
+        $match = md_db_var("SHOW TABLES LIKE ?", [$like_pattern]);
+        if (!empty($match) && preg_match('/^[a-zA-Z0-9_]+$/', $match)) {
+            $cache[$base_name] = $match;
+            return $match;
+        }
+
+        $cache[$base_name] = null;
+        return null;
+    }
+}
+if (!function_exists('simuze_resolve_playlist_tracks')) {
+    function simuze_resolve_playlist_tracks($playlist_id) {
+        $playlist_id = (int) $playlist_id;
+        if ($playlist_id <= 0) {
+            return [];
+        }
+
+        $stage_counts = [
+            'md_join_rows' => 0,
+            'wp_upload_rows' => 0,
+            'legacy_meta_rows' => 0,
+            'legacy_post_id' => 0,
+        ];
+        $postmeta_table = simuze_resolve_wp_table_name('postmeta');
+        $posts_table = simuze_resolve_wp_table_name('posts');
+        $music_uploads_table = simuze_resolve_wp_table_name('music_uploads');
+        $seen_upload_ids = [];
+        $normalized = [];
+
+        $append_track = function (array $row, $default_position = null) use (&$normalized, &$seen_upload_ids) {
+            $upload_id = isset($row['id']) ? (int) $row['id'] : 0;
+            if ($upload_id <= 0 || isset($seen_upload_ids[$upload_id])) {
+                return;
+            }
+
+            $status = strtolower(trim((string) ($row['status'] ?? '')));
+            if ($status === 'deleted') {
+                return;
+            }
+
+            $name = trim((string) ($row['song_name'] ?? $row['name'] ?? ''));
+            $raw_file_path = trim((string) ($row['file_path'] ?? $row['file_url'] ?? ''));
+            if ($name === '') {
+                $name = 'Track ' . $upload_id;
+            }
+            if ($raw_file_path === '') {
+                return;
+            }
+
+            $file_url = class_exists('MusicRepository')
+                ? MusicRepository::getAudioUrl(['file_path' => $raw_file_path])
+                : '';
+            if ($file_url === '') {
+                $uploads = function_exists('md_upload_dir') ? md_upload_dir() : ['baseurl' => ''];
+                $file_url = rtrim($uploads['baseurl'], '/') . '/' . ltrim($raw_file_path, '/');
+            }
+
+            $artist = trim((string) ($row['artist_name'] ?? $row['artist'] ?? ''));
+            if ($artist !== '' && filter_var($artist, FILTER_VALIDATE_EMAIL)) {
+                $artist = '';
+            }
+
+            $position = isset($row['position']) ? (int) $row['position'] : (int) $default_position;
+            if ($position <= 0) {
+                $position = count($normalized) + 1;
+            }
+
+            $normalized[] = [
+                'id' => $upload_id,
+                'pt_id' => isset($row['pt_id']) ? (int) $row['pt_id'] : 0,
+                'name' => $name,
+                'file_url' => $file_url,
+                'artwork_url' => (string) ($row['artwork_url'] ?? ''),
+                'artist' => $artist,
+                'duration' => $row['duration'] ?? 0,
+                'position' => $position,
+                'album_id' => isset($row['album_id']) ? (int) $row['album_id'] : 0,
+                'license' => trim((string) ($row['license'] ?? '')),
+            ];
+            $seen_upload_ids[$upload_id] = true;
+        };
+
+        // Stage 1: native modular relation + mapped upload IDs.
+        // md_music_uploads columns: file_path (no file_url/artwork_url/artist_name/duration)
+        // artist_name resolved via LEFT JOIN simuze_users on uploaded_by.
+        if ($postmeta_table) {
+            $rows = md_db_query(
+                "SELECT
+                    COALESCE(mu_direct.id, mu_mapped.id) AS id,
+                    COALESCE(mu_direct.song_name, mu_mapped.song_name) AS song_name,
+                    COALESCE(mu_direct.file_path, mu_mapped.file_path) AS file_url,
+                    COALESCE(mu_direct.file_path, mu_mapped.file_path) AS file_path,
+                    NULL AS artwork_url,
+                    COALESCE(su_d.display_name, su_m.display_name) AS artist_name,
+                    NULL AS duration,
+                    COALESCE(mu_direct.status, mu_mapped.status) AS status,
+                    COALESCE(mu_direct.album_id, mu_mapped.album_id) AS album_id,
+                    COALESCE(mu_direct.license, mu_mapped.license) AS license,
+                    pt.position,
+                    pt.id AS pt_id
+                 FROM md_music_playlist_tracks pt
+                 LEFT JOIN md_music_uploads mu_direct
+                    ON mu_direct.id = pt.upload_id
+                 LEFT JOIN simuze_users su_d
+                    ON su_d.id = mu_direct.uploaded_by
+                 LEFT JOIN {$postmeta_table} pm_upload
+                    ON pm_upload.post_id = pt.upload_id
+                   AND pm_upload.meta_key = '_simuze_upload_id'
+                 LEFT JOIN md_music_uploads mu_mapped
+                    ON mu_mapped.id = pm_upload.meta_value
+                 LEFT JOIN simuze_users su_m
+                    ON su_m.id = mu_mapped.uploaded_by
+                 WHERE pt.playlist_id = ?
+                   AND COALESCE(mu_direct.id, mu_mapped.id) IS NOT NULL
+                 ORDER BY pt.position ASC",
+                [$playlist_id]
+            );
+        } else {
+            $rows = md_db_query(
+                "SELECT
+                    mu_direct.id AS id,
+                    mu_direct.song_name AS song_name,
+                    mu_direct.file_path AS file_url,
+                    mu_direct.file_path AS file_path,
+                    NULL AS artwork_url,
+                    su.display_name AS artist_name,
+                    NULL AS duration,
+                    mu_direct.status AS status,
+                    mu_direct.album_id AS album_id,
+                    mu_direct.license AS license,
+                    pt.position,
+                    pt.id AS pt_id
+                 FROM md_music_playlist_tracks pt
+                 JOIN md_music_uploads mu_direct
+                    ON mu_direct.id = pt.upload_id
+                 LEFT JOIN simuze_users su
+                    ON su.id = mu_direct.uploaded_by
+                 WHERE pt.playlist_id = ?
+                 ORDER BY pt.position ASC",
+                [$playlist_id]
+            );
+        }
+        $rows = $rows ?: [];
+        $stage_counts['md_join_rows'] = count($rows);
+        foreach ($rows as $row) {
+            $append_track($row);
+        }
+
+        // Stage 2: migrated rows where mapping ends in wp_music_uploads.
+        if (empty($normalized) && $postmeta_table && $music_uploads_table) {
+            $rows = md_db_query(
+                "SELECT
+                    wu.id AS id,
+                    wu.song_name AS song_name,
+                    COALESCE(wu.file_url, wu.file_path) AS file_url,
+                    wu.file_path AS file_path,
+                    wu.artwork_url AS artwork_url,
+                    wu.artist_name AS artist_name,
+                    wu.duration AS duration,
+                    wu.status AS status,
+                    pt.position,
+                    pt.id AS pt_id
+                 FROM md_music_playlist_tracks pt
+                 LEFT JOIN {$postmeta_table} pm_upload
+                    ON pm_upload.post_id = pt.upload_id
+                   AND pm_upload.meta_key = '_simuze_upload_id'
+                 JOIN {$music_uploads_table} wu
+                    ON wu.id = pm_upload.meta_value
+                 WHERE pt.playlist_id = ?
+                 ORDER BY pt.position ASC",
+                [$playlist_id]
+            ) ?: [];
+            $stage_counts['wp_upload_rows'] = count($rows);
+            foreach ($rows as $row) {
+                $append_track($row);
+            }
+        }
+
+        $hydrate_from_wp_playlist_post = function ($playlist_post_id) use (&$stage_counts, &$append_track, $postmeta_table, $music_uploads_table) {
+            $playlist_post_id = (int) $playlist_post_id;
+            if ($playlist_post_id <= 0 || !$postmeta_table) {
+                return 0;
+            }
+
+            $meta_rows = $postmeta_table ? md_db_query(
+                "SELECT meta_value
+                 FROM {$postmeta_table}
+                 WHERE post_id = ? AND meta_key = 'playlist_tracks'",
+                [$playlist_post_id]
+            ) : [];
+            $meta_rows = $meta_rows ?: [];
+
+            $track_post_ids = [];
+            foreach ($meta_rows as $mr) {
+                $raw = $mr['meta_value'] ?? null;
+                if ($raw === null || $raw === '') {
+                    continue;
+                }
+                if (is_numeric($raw)) {
+                    $track_post_ids[] = (int) $raw;
+                    continue;
+                }
+                if (is_string($raw)) {
+                    $unserialized = @unserialize($raw);
+                    if (is_array($unserialized)) {
+                        foreach ($unserialized as $candidate_id) {
+                            if (is_numeric($candidate_id)) {
+                                $track_post_ids[] = (int) $candidate_id;
+                            }
+                        }
+                    }
+                }
+            }
+
+            $track_post_ids = array_values(array_unique(array_filter($track_post_ids)));
+            $stage_counts['legacy_meta_rows'] = max($stage_counts['legacy_meta_rows'], count($track_post_ids));
+
+            foreach ($track_post_ids as $idx => $track_post_id) {
+                $upload_id = (int) md_db_var(
+                    "SELECT meta_value
+                     FROM {$postmeta_table}
+                     WHERE post_id = ? AND meta_key = '_simuze_upload_id'
+                     ORDER BY meta_id DESC
+                     LIMIT 1",
+                    [$track_post_id]
+                );
+                if ($upload_id <= 0) {
+                    continue;
+                }
+
+                $upload = md_db_row(
+                    "SELECT id, song_name, file_url, file_path, artwork_url, artist_name, duration, status
+                     FROM md_music_uploads
+                     WHERE id = ? LIMIT 1",
+                    [$upload_id]
+                );
+                if (!$upload && $music_uploads_table) {
+                    $upload = md_db_row(
+                        "SELECT id, song_name, file_url, file_path, artwork_url, artist_name, duration, status
+                         FROM {$music_uploads_table}
+                         WHERE id = ? LIMIT 1",
+                        [$upload_id]
+                    );
+                }
+                if (!$upload) {
+                    continue;
+                }
+
+                $upload['position'] = $idx + 1;
+                $upload['pt_id'] = 0;
+                $append_track($upload, $idx + 1);
+            }
+
+            return count($track_post_ids);
+        };
+
+        // Stage 3: legacy ACF/meta-only playlist_tracks on linked WP playlist post.
+        if (empty($normalized)) {
+            $playlist_row = md_db_row(
+                "SELECT post_id, slug FROM md_music_playlists WHERE id = ? AND deleted_at IS NULL",
+                [$playlist_id]
+            );
+            $playlist_post_id = (int) ($playlist_row['post_id'] ?? 0);
+            $playlist_slug = trim((string) ($playlist_row['slug'] ?? ''));
+
+            if ($playlist_post_id <= 0 && $playlist_slug !== '') {
+                $playlist_post_id = (int) md_db_var(
+                    "SELECT ID
+                     FROM {$posts_table}
+                     WHERE post_type = 'playlist' AND post_name = ?
+                     ORDER BY ID DESC
+                     LIMIT 1",
+                    [$playlist_slug]
+                );
+            }
+
+            if ($playlist_post_id > 0) {
+                $stage_counts['legacy_post_id'] = $playlist_post_id;
+                $hydrate_from_wp_playlist_post($playlist_post_id);
+            }
+        }
+
+        // Stage 4: emergency slug fallback from current route if still empty.
+        if (empty($normalized) && function_exists('get_query_var') && $posts_table) {
+            $route_slug = trim((string) get_query_var('simuze_playlist_slug'));
+            if ($route_slug !== '') {
+                $route_post_id = (int) md_db_var(
+                    "SELECT ID
+                     FROM {$posts_table}
+                     WHERE post_type = 'playlist' AND post_name = ?
+                     ORDER BY ID DESC
+                     LIMIT 1",
+                    [$route_slug]
+                );
+                if ($route_post_id > 0) {
+                    $stage_counts['legacy_post_id'] = $route_post_id;
+                    $hydrate_from_wp_playlist_post($route_post_id);
+                }
+            }
+        }
+
+        usort($normalized, static function ($a, $b) {
+            return ((int) $a['position']) <=> ((int) $b['position']);
+        });
+
+        $album_ids = array_unique(array_filter(array_column($normalized, 'album_id')));
+        $album_map = [];
+        if (!empty($album_ids) && class_exists('MusicRepository')) {
+            $placeholders = implode(',', array_fill(0, count($album_ids), '?'));
+            $album_rows = md_db_query(
+                "SELECT * FROM md_music_albums WHERE id IN ({$placeholders}) AND deleted_at IS NULL",
+                array_values($album_ids)
+            ) ?: [];
+            foreach ($album_rows as $ar) {
+                $ar['_url'] = MusicRepository::getAlbumUrl($ar);
+                $ar['_name'] = $ar['album_name'] ?? $ar['name'] ?? '';
+                $album_map[(int) $ar['id']] = $ar;
+            }
+        }
+        foreach ($normalized as &$track) {
+            $aid = (int) ($track['album_id'] ?? 0);
+            if ($aid > 0 && isset($album_map[$aid])) {
+                $track['album_name'] = $album_map[$aid]['_name'];
+                $track['album_url'] = $album_map[$aid]['_url'];
+            } else {
+                $track['album_name'] = '';
+                $track['album_url'] = '';
+            }
+        }
+        unset($track);
+
+        simuze_playlist_debug_log('resolved playlist tracks', [
+            'playlist_id' => $playlist_id,
+            'stage_counts' => $stage_counts,
+            'normalized_count' => count($normalized),
+        ]);
+
+        return $normalized;
+    }
+}
+if (!function_exists('simuze_cleanup_all_playlists')) {
+    function simuze_cleanup_all_playlists() {
+        // No-op in Modular — tracks stored relationally in md_music_playlist_tracks
+    }
+}
+if (!function_exists('simuze_get_user_favorites')) {
+    function simuze_get_user_favorites($content_type = null, $user_id = null, $limit = 50) {
+        if (!$user_id) return [];
+        if ($content_type) {
+            return md_db_query(
+                "SELECT * FROM simuze_favorites WHERE user_id = ? AND content_type = ? ORDER BY created_date DESC LIMIT " . (int) $limit,
+                [(int) $user_id, $content_type]
+            ) ?: [];
+        }
+        return md_db_query(
+            "SELECT * FROM simuze_favorites WHERE user_id = ? ORDER BY created_date DESC LIMIT " . (int) $limit,
+            [(int) $user_id]
+        ) ?: [];
+    }
+}
+
+if (!function_exists('theme_uri')) {
+    function theme_uri() {
+        return defined('ACTIVE_THEME')
+            ? rtrim(md_home_url(), '/') . '/public/themes/' . ACTIVE_THEME
+            : rtrim(md_home_url(), '/') . '/public/themes/simuze';
+    }
+}
+
+if (!function_exists('get_terms')) {
+    function get_terms($args = []) {
+        // No WP taxonomy in Modular — return empty array
+        return [];
+    }
+}
+
+if (!function_exists('simuze_create_playlist')) {
+    function simuze_create_playlist($name, $description = '', $is_public = true, $user_id = null) {
+        $auth         = class_exists('Simuze_Auth') ? Simuze_Auth::get_instance() : null;
+        $current_user = $auth ? $auth->get_current_user() : null;
+        if (!$current_user) return false;
+
+        $slug = preg_replace('/-+/', '-', preg_replace('/[^a-z0-9-]/', '-', strtolower(trim($name))));
+        $slug = $slug . '-' . time();
+
+        $id = md_db_insert('md_music_playlists', [
+            'created_by'  => (int) $current_user->id,
+            'name'        => trim($name),
+            'description' => trim($description),
+            'slug'        => $slug,
+            'visibility'  => $is_public ? 'public' : 'private',
+            'created_at'  => date('Y-m-d H:i:s'),
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ]);
+
+        return $id ? (int) $id : false;
+    }
+}
+
+if (!function_exists('simuze_add_to_playlist')) {
+    function simuze_add_to_playlist($playlist_id, $upload_id, $user_id = null) {
+        if (!$playlist_id || !$upload_id) return false;
+        $max = md_db_var(
+            "SELECT COALESCE(MAX(position), 0) FROM md_music_playlist_tracks WHERE playlist_id = ?",
+            [(int) $playlist_id]
+        );
+        return md_db_insert('md_music_playlist_tracks', [
+            'playlist_id' => (int) $playlist_id,
+            'upload_id'   => (int) $upload_id,
+            'position'    => (int) $max + 1,
+            'added_at'    => date('Y-m-d H:i:s'),
+        ]);
+    }
+}
+
+if (!function_exists('simuze_add_album_to_playlist')) {
+    function simuze_add_album_to_playlist($playlist_id, $album_id, $user_id = null) {
+        $uploads = md_db_query(
+            "SELECT id FROM md_music_uploads WHERE album_id = ? AND (status IS NULL OR status != 'deleted') ORDER BY id ASC",
+            [(int) $album_id]
+        );
+        if (!$uploads) return false;
+        $added = 0;
+        foreach ($uploads as $u) {
+            if (simuze_add_to_playlist($playlist_id, $u['id'], $user_id)) {
+                $added++;
+            }
+        }
+        return $added > 0;
+    }
+}
+
+if (!function_exists('simuze_ajax_add_to_playlist')) {
+    function simuze_ajax_add_to_playlist() {
+        $auth         = class_exists('Simuze_Auth') ? Simuze_Auth::get_instance() : null;
+        $current_user = $auth ? $auth->get_current_user() : null;
+        if (!$current_user) {
+            echo json_encode(['success' => false, 'data' => 'Login required']); exit;
+        }
+
+        $playlist_id = (int) ($_POST['playlist_id'] ?? 0);
+        $upload_id   = (int) ($_POST['upload_id']   ?? 0);
+        $album_id    = (int) ($_POST['album_id']     ?? 0);
+
+        if (!$playlist_id) {
+            echo json_encode(['success' => false, 'data' => 'Invalid playlist']); exit;
+        }
+
+        $playlist = md_db_row(
+            "SELECT id, created_by FROM md_music_playlists WHERE id = ? AND deleted_at IS NULL",
+            [$playlist_id]
+        );
+        if (!$playlist || (int) $playlist['created_by'] !== (int) $current_user->id) {
+            echo json_encode(['success' => false, 'data' => 'Playlist not found']); exit;
+        }
+
+        if ($album_id) {
+            $result = simuze_add_album_to_playlist($playlist_id, $album_id, $current_user->id);
+        } elseif ($upload_id) {
+            $result = simuze_add_to_playlist($playlist_id, $upload_id, $current_user->id);
+        } else {
+            echo json_encode(['success' => false, 'data' => 'No track or album specified']); exit;
+        }
+
+        echo json_encode($result
+            ? ['success' => true,  'data' => 'Added to playlist']
+            : ['success' => false, 'data' => 'Failed to add to playlist (may already be in playlist)']);
+        exit;
+    }
+}
+
+if (!function_exists('simuze_get_user_playlists_ajax')) {
+    function simuze_get_user_playlists_ajax() {
+        $auth         = class_exists('Simuze_Auth') ? Simuze_Auth::get_instance() : null;
+        $current_user = $auth ? $auth->get_current_user() : null;
+        if (!$current_user) {
+            echo json_encode(['success' => false, 'data' => 'Login required']); exit;
+        }
+        $playlists = function_exists('simuze_get_user_playlists')
+            ? simuze_get_user_playlists($current_user->id, true)
+            : [];
+        echo json_encode(['success' => true, 'data' => ['playlists' => $playlists]]);
+        exit;
+    }
+}
+
+if (!function_exists('simuze_get_playlist_track_details')) {
+    function simuze_get_playlist_track_details($playlist_id) {
+        return simuze_resolve_playlist_tracks((int) $playlist_id);
+    }
+}
+
+if (!function_exists('simuze_edit_playlist')) {
+    function simuze_edit_playlist($playlist_id, $name, $description = '', $is_public = true) {
+        $auth         = class_exists('Simuze_Auth') ? Simuze_Auth::get_instance() : null;
+        $current_user = $auth ? $auth->get_current_user() : null;
+        if (!$current_user) return false;
+
+        $playlist = md_db_row(
+            "SELECT id, created_by FROM md_music_playlists WHERE id = ? AND deleted_at IS NULL",
+            [(int) $playlist_id]
+        );
+        if (!$playlist || (int) $playlist['created_by'] !== (int) $current_user->id) return false;
+
+        $slug = preg_replace('/-+/', '-', preg_replace('/[^a-z0-9-]/', '-', strtolower(trim($name))));
+        return md_db_update('md_music_playlists', [
+            'name'        => trim($name),
+            'description' => trim($description),
+            'slug'        => $slug,
+            'visibility'  => $is_public ? 'public' : 'private',
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ], ['id' => (int) $playlist_id]);
+    }
+}
+
+if (!function_exists('simuze_delete_playlist')) {
+    function simuze_delete_playlist($playlist_id) {
+        $auth         = class_exists('Simuze_Auth') ? Simuze_Auth::get_instance() : null;
+        $current_user = $auth ? $auth->get_current_user() : null;
+        if (!$current_user) return false;
+
+        $playlist = md_db_row(
+            "SELECT id, created_by FROM md_music_playlists WHERE id = ? AND deleted_at IS NULL",
+            [(int) $playlist_id]
+        );
+        if (!$playlist || (int) $playlist['created_by'] !== (int) $current_user->id) return false;
+
+        return md_db_update('md_music_playlists',
+            ['deleted_at' => date('Y-m-d H:i:s')],
+            ['id' => (int) $playlist_id]
+        );
+    }
+}
+
+if (!function_exists('simuze_remove_from_playlist')) {
+    function simuze_remove_from_playlist($playlist_id, $track_id) {
+        $auth         = class_exists('Simuze_Auth') ? Simuze_Auth::get_instance() : null;
+        $current_user = $auth ? $auth->get_current_user() : null;
+        if (!$current_user) return false;
+
+        $playlist = md_db_row(
+            "SELECT id, created_by FROM md_music_playlists WHERE id = ? AND deleted_at IS NULL",
+            [(int) $playlist_id]
+        );
+        if (!$playlist || (int) $playlist['created_by'] !== (int) $current_user->id) return false;
+
+        $db = $GLOBALS['db'] ?? null;
+        if (!$db) return false;
+        $stmt = $db->prepare("DELETE FROM md_music_playlist_tracks WHERE playlist_id = ? AND upload_id = ?");
+        $stmt->execute([(int) $playlist_id, (int) $track_id]);
+        return $stmt->rowCount() > 0;
+    }
+}
+
+if (!function_exists('simuze_reorder_playlist_tracks')) {
+    function simuze_reorder_playlist_tracks($playlist_id, $track_order) {
+        $auth         = class_exists('Simuze_Auth') ? Simuze_Auth::get_instance() : null;
+        $current_user = $auth ? $auth->get_current_user() : null;
+        if (!$current_user) return false;
+
+        $playlist = md_db_row(
+            "SELECT id, created_by FROM md_music_playlists WHERE id = ? AND deleted_at IS NULL",
+            [(int) $playlist_id]
+        );
+        if (!$playlist || (int) $playlist['created_by'] !== (int) $current_user->id) return false;
+
+        $db = $GLOBALS['db'] ?? null;
+        if (!$db) return false;
+        $stmt = $db->prepare("UPDATE md_music_playlist_tracks SET position = ? WHERE playlist_id = ? AND upload_id = ?");
+        foreach ($track_order as $pos => $upload_id) {
+            $stmt->execute([$pos + 1, (int) $playlist_id, (int) $upload_id]);
+        }
+        return true;
+    }
+}
+
+if (!function_exists('simuze_ajax_edit_playlist')) {
+    function simuze_ajax_edit_playlist() {
+        $playlist_id = (int) ($_POST['playlist_id'] ?? 0);
+        $name        = trim($_POST['name'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $is_public   = isset($_POST['is_public']) && ($_POST['is_public'] === '1' || $_POST['is_public'] === true);
+        if (!$name) { echo json_encode(['success' => false, 'data' => 'Playlist name is required']); exit; }
+        $result = simuze_edit_playlist($playlist_id, $name, $description, $is_public);
+        echo json_encode($result
+            ? ['success' => true,  'data' => ['message' => 'Playlist updated successfully']]
+            : ['success' => false, 'data' => 'Failed to update playlist']);
+        exit;
+    }
+}
+
+if (!function_exists('simuze_ajax_delete_playlist')) {
+    function simuze_ajax_delete_playlist() {
+        $playlist_id = (int) ($_POST['playlist_id'] ?? 0);
+        $result = simuze_delete_playlist($playlist_id);
+        echo json_encode($result
+            ? ['success' => true,  'data' => ['message' => 'Playlist deleted successfully']]
+            : ['success' => false, 'data' => 'Failed to delete playlist']);
+        exit;
+    }
+}
+
+if (!function_exists('simuze_get_playlist_tracks_ajax')) {
+    function simuze_get_playlist_tracks_ajax() {
+        $playlist_id = (int) ($_POST['playlist_id'] ?? 0);
+        $playlist    = simuze_get_playlist($playlist_id);
+        if (!$playlist) { echo json_encode(['success' => false, 'data' => 'Playlist not found']); exit; }
+        $tracks = simuze_get_playlist_track_details($playlist_id);
+        echo json_encode(['success' => true, 'data' => ['playlist' => $playlist, 'tracks' => $tracks]]);
+        exit;
+    }
+}
+
+if (!function_exists('simuze_ajax_reorder_playlist_tracks')) {
+    function simuze_ajax_reorder_playlist_tracks() {
+        $playlist_id = (int) ($_POST['playlist_id'] ?? 0);
+        $track_order = json_decode(stripslashes($_POST['track_order'] ?? '[]'), true);
+        if (!is_array($track_order)) { echo json_encode(['success' => false, 'data' => 'Invalid track order']); exit; }
+        $result = simuze_reorder_playlist_tracks($playlist_id, $track_order);
+        echo json_encode($result
+            ? ['success' => true,  'data' => ['message' => 'Track order updated successfully']]
+            : ['success' => false, 'data' => 'Failed to reorder tracks']);
+        exit;
+    }
+}
+
+if (!function_exists('simuze_ajax_remove_from_playlist')) {
+    function simuze_ajax_remove_from_playlist() {
+        $playlist_id = (int) ($_POST['playlist_id'] ?? 0);
+        $track_id    = (int) ($_POST['track_id']    ?? 0);
+        $result = simuze_remove_from_playlist($playlist_id, $track_id);
+        echo json_encode($result
+            ? ['success' => true,  'data' => ['message' => 'Track removed successfully']]
+            : ['success' => false, 'data' => 'Failed to remove track']);
+        exit;
+    }
+}
+
+if (!function_exists('simuze_ajax_create_playlist')) {
+    function simuze_ajax_create_playlist() {
+        $name        = trim($_POST['name'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $is_public   = isset($_POST['is_public']) && ($_POST['is_public'] === '1' || $_POST['is_public'] === true);
+        if (!$name) { echo json_encode(['success' => false, 'data' => 'Playlist name is required']); exit; }
+        $playlist_id = simuze_create_playlist($name, $description, $is_public);
+        echo json_encode($playlist_id
+            ? ['success' => true,  'data' => ['playlist_id' => $playlist_id, 'message' => 'Playlist created successfully']]
+            : ['success' => false, 'data' => 'Failed to create playlist']);
+        exit;
+    }
+}
+
+// Show AJAX handler
+if (!function_exists('simuze_ajax_delete_show')) {
+    function simuze_ajax_delete_show() {
+        $event_id = (int) ($_POST['event_id'] ?? 0);
+        if (!$event_id) {
+            echo json_encode(['success' => false, 'data' => 'Invalid event ID']);
+            exit;
+        }
+
+        // Load current user
+        $current_user = $GLOBALS['current_user'] ?? null;
+        $current_uid  = $current_user ? (int) $current_user->id : 0;
+        if (!$current_uid) {
+            echo json_encode(['success' => false, 'data' => 'Not logged in']);
+            exit;
+        }
+
+        // Load the event
+        $ev = class_exists('EventRepository') ? EventRepository::findById($event_id) : null;
+        if (!$ev) {
+            echo json_encode(['success' => false, 'data' => 'Show not found']);
+            exit;
+        }
+
+        // Access check
+        $can_delete = false;
+        if ((string) $ev['organiser_type'] === 'user' && (int) $ev['organiser_id'] === $current_uid) {
+            $can_delete = true;
+        } elseif ((string) $ev['organiser_type'] === 'group') {
+            $grp = class_exists('Simuze_Group') ? Simuze_Group::get((int) $ev['organiser_id']) : null;
+            if ($grp && method_exists($grp, 'can_manage') && $grp->can_manage($current_uid)) {
+                $can_delete = true;
+            }
+        }
+
+        if (!$can_delete) {
+            echo json_encode(['success' => false, 'data' => 'Permission denied']);
+            exit;
+        }
+
+        EventRepository::delete($event_id);
+        echo json_encode(['success' => true, 'data' => ['message' => 'Show deleted']]);
+        exit;
     }
 }
 

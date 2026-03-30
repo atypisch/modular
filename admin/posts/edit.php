@@ -46,6 +46,33 @@ $db = $GLOBALS['db'];
 $postId = $_GET['id'] ?? null;
 $postTypeId = $_GET['post_type_id'] ?? null;
 
+// 'show' post type is managed via simuze_events — redirect to dedicated admin
+$_checkTypeId = $postTypeId;
+if (!$_checkTypeId && $postId) {
+    try {
+        $stmtPT = $db->prepare("SELECT pt.slug FROM posts p INNER JOIN post_types pt ON pt.id = p.post_type_id WHERE p.id = ? LIMIT 1");
+        $stmtPT->execute([$postId]);
+        $ptSlugCheck = $stmtPT->fetchColumn();
+        if ($ptSlugCheck === 'show') {
+            $showsAdminUrl = (defined('ADMIN_URL') ? ADMIN_URL : '') . '/module-page.php?module=simuze-community&page=shows';
+            header('Location: ' . $showsAdminUrl);
+            exit;
+        }
+    } catch (\Throwable $e) { /* ignore */ }
+}
+if ($_checkTypeId) {
+    try {
+        $stmtSlug2 = $db->prepare("SELECT slug FROM post_types WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $stmtSlug2->execute([$_checkTypeId]);
+        $ptSlugRow2 = $stmtSlug2->fetch(\PDO::FETCH_ASSOC);
+        if ($ptSlugRow2 && ($ptSlugRow2['slug'] ?? '') === 'show') {
+            $showsAdminUrl = (defined('ADMIN_URL') ? ADMIN_URL : '') . '/module-page.php?module=simuze-community&page=shows&action=new';
+            header('Location: ' . $showsAdminUrl);
+            exit;
+        }
+    } catch (\Throwable $e) { /* ignore */ }
+}
+
 // Post type slug/name for URL preview and heading (loaded when we have postTypeId)
 $postTypeSlug = '';
 $postTypeName = '';
@@ -105,7 +132,23 @@ if (!$postId && !$postTypeId) {
 $postTypeSchema = null;
 $postTypeMode = 'fixed';
 $fieldData = [];
+$isHierarchicalPostType = false;
 if ($postTypeId) {
+    // Altijd post type metadata laden (incl. hierarchical) zodat sidebar parent-keuze correct zichtbaar is
+    try {
+        $stmtMeta = $db->prepare("SELECT name, slug, mode, hierarchical FROM post_types WHERE id = ? AND deleted_at IS NULL");
+        $stmtMeta->execute([$postTypeId]);
+        $ptMeta = $stmtMeta->fetch(\PDO::FETCH_ASSOC);
+        if ($ptMeta) {
+            $postTypeName = $ptMeta['name'] ?? $postTypeName;
+            $postTypeSlug = $ptMeta['slug'] ?? $postTypeSlug;
+            $postTypeMode = $ptMeta['mode'] ?? $postTypeMode;
+            $isHierarchicalPostType = !empty($ptMeta['hierarchical']);
+        }
+    } catch (\Throwable $e) {
+        error_log("Error loading post type metadata: " . $e->getMessage());
+    }
+
     // Use schema from post row when we already have it (edit), else fetch
     if (!empty($postData['post_type_schema'])) {
         $postTypeSchema = json_decode($postData['post_type_schema'], true);
@@ -113,13 +156,14 @@ if ($postTypeId) {
     }
     if ($postTypeSchema === null) {
         try {
-            $stmt = $db->prepare("SELECT name, slug, mode, `schema` FROM post_types WHERE id = ? AND deleted_at IS NULL");
+            $stmt = $db->prepare("SELECT name, slug, mode, hierarchical, `schema` FROM post_types WHERE id = ? AND deleted_at IS NULL");
             $stmt->execute([$postTypeId]);
             $ptRow = $stmt->fetch(\PDO::FETCH_ASSOC);
             if ($ptRow) {
                 $postTypeName = $ptRow['name'] ?? '';
                 $postTypeSlug = $ptRow['slug'] ?? '';
                 $postTypeMode = $ptRow['mode'] ?? 'fixed';
+                $isHierarchicalPostType = !empty($ptRow['hierarchical']);
                 $postTypeSchema = isset($ptRow['schema']) && $ptRow['schema'] !== '' && $ptRow['schema'] !== null
                     ? json_decode($ptRow['schema'], true)
                     : null;
@@ -256,6 +300,55 @@ require_once ADMIN_PATH . '/templates/header.php';
 
 $base_url = rtrim(SITE_URL ?? '', '/') . '/public/';
 $preview_slug = $postData['slug'] ?? '';
+// Build parent options for hierarchical post types
+$parentOptions = [];
+if ($postTypeId && $isHierarchicalPostType) {
+    try {
+        $stmtParents = $db->prepare("
+            SELECT id, parent_id, title, slug, `order`
+            FROM posts
+            WHERE post_type_id = ? AND deleted_at IS NULL
+            ORDER BY `order`, title
+        ");
+        $stmtParents->execute([$postTypeId]);
+        $allPosts = $stmtParents->fetchAll(\PDO::FETCH_ASSOC);
+        $byParent = [];
+        foreach ($allPosts as $row) {
+            if ($postId && (int)$row['id'] === (int)$postId) {
+                continue;
+            }
+            $parentIdKey = $row['parent_id'] !== null ? (int)$row['parent_id'] : 0;
+            if (!isset($byParent[$parentIdKey])) {
+                $byParent[$parentIdKey] = [];
+            }
+            $byParent[$parentIdKey][] = $row;
+        }
+        $buildOptions = function ($parentId, $depth) use (&$buildOptions, $byParent, &$parentOptions) {
+            if ($depth > 5) {
+                return;
+            }
+            $bucketKey = $parentId !== null ? (int)$parentId : 0;
+            if (empty($byParent[$bucketKey])) {
+                return;
+            }
+            foreach ($byParent[$bucketKey] as $child) {
+                $prefix = str_repeat('— ', max(0, $depth - 1));
+                $label = $child['title'] !== '' ? $child['title'] : ($child['slug'] ?? '');
+                $parentOptions[] = [
+                    'id' => (int)$child['id'],
+                    'label' => $prefix . $label,
+                ];
+                if ($depth < 3) {
+                    $buildOptions($child['id'], $depth + 1);
+                }
+            }
+        };
+        $buildOptions(0, 1);
+    } catch (\Throwable $e) {
+        error_log('Error building parent options: ' . $e->getMessage());
+        $parentOptions = [];
+    }
+}
 ?>
 
 <link rel="stylesheet" href="<?php echo admin_url('assets/css/post-edit.css'); ?>">
@@ -312,7 +405,7 @@ $preview_slug = $postData['slug'] ?? '';
                         <?php if ($user_is_admin): ?>
                         <p class="help-text" style="margin: 0.25rem 0 0;">These fields are defined in <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/field-builder/?id=<?php echo (int)$postTypeId; ?>">Configure fields</a> for this post type.</p>
                         <?php endif; ?>
-                        <?php if ($user_is_admin && $postTypeMode === 'modular'): ?>
+                        <?php if ($postTypeMode === 'modular'): ?>
                         <div class="post-edit-fields-head-actions" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
                             <button type="button" class="btn btn-secondary btn-sm" id="add-fields-btn">
                                 <i class="fas fa-plus"></i> Add fields
@@ -413,6 +506,7 @@ $preview_slug = $postData['slug'] ?? '';
             $pubDateLocal = $pubDate ? date('Y-m-d\TH:i', strtotime($pubDate)) : '';
             $vis = $postData['visibility'] ?? 'public';
             $postPassword = $postData['password'] ?? '';
+            $currentParentId = isset($postData['parent_id']) ? (int)$postData['parent_id'] : 0;
             ?>
             <div class="card">
                 <div class="form-group">
@@ -438,6 +532,20 @@ $preview_slug = $postData['slug'] ?? '';
                     </select>
                     <div class="help-text">Templates are theme PHP files with <code>Template Name: …</code> in a comment block.</div>
                 </div>
+                <?php if ($isHierarchicalPostType): ?>
+                <div class="form-group">
+                    <label for="parent_id">Parent</label>
+                    <select name="parent_id" id="parent_id" class="form-control" aria-label="Parent page">
+                        <option value="0">(No parent)</option>
+                        <?php foreach ($parentOptions as $opt): ?>
+                            <option value="<?php echo (int)$opt['id']; ?>" <?php echo $currentParentId === (int)$opt['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($opt['label']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="help-text">Kies een parent voor hiërarchische navigatie. Maximaal 3 niveaus diep.</div>
+                </div>
+                <?php endif; ?>
                 <div class="form-group">
                     <label for="visibility">Visibility</label>
                     <select name="visibility" id="visibility" class="form-control" aria-label="Post visibility">

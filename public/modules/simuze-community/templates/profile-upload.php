@@ -4,7 +4,7 @@
  * Uses existing Simuze upload functionality
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN')) {
     exit;
 }
 

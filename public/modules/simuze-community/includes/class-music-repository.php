@@ -38,6 +38,24 @@ class MusicRepository {
     }
 
     /**
+     * Find a published album by artist (group unique_name) and album_nicename
+     * for pretty URLs like /{artist_slug}/{album_slug}.
+     */
+    public static function findAlbumByArtistAndSlug(string $artist_slug, string $album_slug): ?array {
+        if ($artist_slug === '' || $album_slug === '') {
+            return null;
+        }
+        $sql = "
+            SELECT a.* FROM md_music_albums a
+            INNER JOIN simuze_groups g ON g.id = a.group_id
+            WHERE g.unique_name = ? AND a.album_nicename = ? AND a.status = 'published' AND a.deleted_at IS NULL
+            LIMIT 1
+        ";
+        $row = md_db_row($sql, [$artist_slug, $album_slug]);
+        return $row ?: null;
+    }
+
+    /**
      * Find all albums belonging to a group, optionally filtered by status.
      * @param string|null $status  'published' | 'draft' | null (all)
      */
@@ -169,7 +187,8 @@ class MusicRepository {
 
     /**
      * Build the album detail URL.
-     * /music/album/{slug}  (Modular route)
+     * Pretty URLs: /{artist_slug}/{album_slug}
+     * Fallback:    /music/album/{slug}
      * @param array|null $album Album row (slug, album_nicename, or id)
      */
     public static function getAlbumUrl(?array $album): string {
@@ -177,6 +196,13 @@ class MusicRepository {
             return '';
         }
         $slug = $album['slug'] ?? $album['album_nicename'] ?? $album['id'] ?? '';
+        $artistSlug = $album['group_slug'] ?? null;
+        if (!$artistSlug && !empty($album['group_id'])) {
+            $artistSlug = md_db_var('SELECT unique_name FROM simuze_groups WHERE id = ? AND deleted_at IS NULL', [$album['group_id']]);
+        }
+        if ($artistSlug) {
+            return md_home_url('/' . $artistSlug . '/' . $slug);
+        }
         return md_home_url('/music/album/' . $slug);
     }
 }

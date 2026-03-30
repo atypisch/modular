@@ -467,6 +467,12 @@ class Simuze_REST_API {
             'callback' => array($this, 'test_paypal_connection'),
             'permission_callback' => array($this, 'check_auth'),
         ));
+
+        register_rest_route($namespace, '/tickets/verify', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'verify_event_ticket'),
+            'permission_callback' => '__return_true',
+        ));
         
         // Webhook endpoints
         $this->register_webhook_routes($namespace);
@@ -948,6 +954,8 @@ class Simuze_REST_API {
         error_log('Simuze Group Creation - Prepared data: ' . print_r($group_data, true));
         
         // Auto-create location groups if location data is provided
+        $location_groups = null;
+        $resolved_city_id = null;
         if (!empty($group_data['city']) || !empty($group_data['province']) || !empty($group_data['country'])) {
             $location_data = array(
                 'city' => $group_data['city'] ?? '',
@@ -962,6 +970,50 @@ class Simuze_REST_API {
             if (class_exists('Simuze_Geo')) {
                 $location_groups = Simuze_Geo::auto_create_location_groups($location_data, $current_user->id);
             }
+
+            // Ensure we also have a canonical simuze_cities row so shows can link reliably via city_id.
+            // Prefer EventRepository (already used across Modular). Fallback: skip silently.
+            if (class_exists('EventRepository') && !empty($location_data['city']) && !empty($location_data['country'])) {
+                try {
+                    $resolved_city_id = EventRepository::findOrCreateCity(
+                        (string) $location_data['city'],
+                        (string) $location_data['country'],
+                        (string) ($location_data['province'] ?? '')
+                    );
+                } catch (\Throwable $e) {
+                    $resolved_city_id = null;
+                }
+            }
+        }
+
+        // Persist linked location IDs as "custom fields" inside simuze_groups.settings JSON.
+        // This makes country/province/city relationships unambiguous across the site.
+        $settings = [];
+        if (!empty($group_data['settings'])) {
+            $settings = is_array($group_data['settings']) ? $group_data['settings'] : (json_decode((string) $group_data['settings'], true) ?: []);
+        }
+        if (!is_array($settings)) $settings = [];
+        if (!isset($settings['location']) || !is_array($settings['location'])) {
+            $settings['location'] = [];
+        }
+        if (!empty($group_data['country']))  $settings['location']['country_name']  = (string) $group_data['country'];
+        if (!empty($group_data['province'])) $settings['location']['province_name'] = (string) $group_data['province'];
+        if (!empty($group_data['city']))     $settings['location']['city_name']     = (string) $group_data['city'];
+        if (!empty($resolved_city_id))       $settings['location']['city_id']       = (int) $resolved_city_id;
+
+        if (is_array($location_groups)) {
+            if (!empty($location_groups['country']['id'])) {
+                $settings['location']['country_group_id'] = (int) $location_groups['country']['id'];
+            }
+            if (!empty($location_groups['province']['id'])) {
+                $settings['location']['province_group_id'] = (int) $location_groups['province']['id'];
+            }
+            if (!empty($location_groups['city']['id'])) {
+                $settings['location']['city_group_id'] = (int) $location_groups['city']['id'];
+            }
+        }
+        if (!empty($settings['location'])) {
+            $group_data['settings'] = $settings;
         }
         
         // Create the main group
@@ -1072,11 +1124,18 @@ class Simuze_REST_API {
             unset($data['header_cropped']);
         }
         
+        // Sanitize websites inside settings before saving
+        if (!empty($data['settings']['websites']) && is_array($data['settings']['websites'])) {
+            $data['settings']['websites'] = array_values(array_filter(
+                array_map('esc_url_raw', $data['settings']['websites'])
+            ));
+        }
+
         $group->update($data);
-        
+
         return rest_ensure_response($group->to_array());
     }
-    
+
     /**
      * Delete group
      */
@@ -1478,11 +1537,22 @@ class Simuze_REST_API {
             ));
         }
         
-        $is_unique = !Simuze_Group::unique_handle_exists($handle, $group_id);
+        $is_current_group_handle = false;
+        if (!empty($group_id)) {
+            $existing_group = Simuze_Group::get_by_unique_handle($handle);
+            if ($existing_group && (int) $existing_group->id === (int) $group_id) {
+                $is_current_group_handle = true;
+            }
+        }
+
+        $is_unique = $is_current_group_handle
+            ? true
+            : !Simuze_Group::unique_handle_exists($handle, $group_id);
         
         return rest_ensure_response(array(
             'is_unique' => $is_unique,
-            'handle' => $handle
+            'handle' => $handle,
+            'accepted_current_group' => $is_current_group_handle,
         ));
     }
     
@@ -3994,6 +4064,41 @@ class Simuze_REST_API {
         }
         
         return new WP_Error('update_failed', 'Failed to reject invitation', array('status' => 500));
+    }
+
+    /**
+     * Verify event ticket by ticket_code or payment/order reference.
+     */
+    public function verify_event_ticket($request) {
+        if (!class_exists('Simuze_Event_Ticketing')) {
+            return new WP_Error('not_available', 'Ticketing service not available', array('status' => 500));
+        }
+        $ticket_code = trim((string) ($request->get_param('ticket_code') ?? ''));
+        $reference = trim((string) ($request->get_param('reference') ?? ''));
+        if ($ticket_code === '' && $reference === '') {
+            return new WP_Error('invalid_request', 'ticket_code or reference is required', array('status' => 400));
+        }
+
+        $ticket = Simuze_Event_Ticketing::findTicket($ticket_code, $reference);
+        if (!$ticket) {
+            return rest_ensure_response([
+                'valid' => false,
+                'message' => 'Ticket not found',
+            ]);
+        }
+
+        return rest_ensure_response([
+            'valid' => ($ticket['status'] ?? '') === 'valid',
+            'ticket_code' => $ticket['ticket_code'] ?? null,
+            'status' => $ticket['status'] ?? null,
+            'event' => [
+                'id' => isset($ticket['event_id']) ? (int) $ticket['event_id'] : null,
+                'title' => $ticket['event_title'] ?? null,
+                'event_date' => $ticket['event_date'] ?? null,
+            ],
+            'reference' => $ticket['external_reference'] ?? null,
+            'issued_at' => $ticket['issued_at'] ?? null,
+        ]);
     }
     
     /**

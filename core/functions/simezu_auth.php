@@ -248,13 +248,14 @@ if (!function_exists('_simezu_populate_globals_early')) {
 
             if (!isset($GLOBALS['current_user'])) {
                 $GLOBALS['current_user'] = (object) [
-                    'id'           => $data['sub'],
-                    'simezu_id'    => $data['sub'],
-                    'email'        => $data['email'] ?? '',
-                    'username'     => $data['username'] ?? ($data['email'] ?? ''),
-                    'display_name' => $data['display_name'] ?? ($data['email'] ?? ''),
-                    'avatar_url'   => $data['avatar_url'] ?? null,
-                    'roles'        => $roles,
+                    'id'                => $data['sub'],
+                    'simezu_id'         => $data['sub'],
+                    'email'             => $data['email'] ?? '',
+                    'username'          => $data['username'] ?? ($data['email'] ?? ''),
+                    'unique_identifier' => $data['unique_identifier'] ?? ($data['unique_id'] ?? null),
+                    'display_name'      => $data['display_name'] ?? ($data['username'] ?? ''),
+                    'avatar_url'        => $data['avatar_url'] ?? null,
+                    'roles'             => $roles,
                 ];
             }
 

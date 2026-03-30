@@ -109,50 +109,109 @@ if (!function_exists('md_upload_dir')) {
 // HTTP client (replaces wp_remote_get / wp_remote_post)
 // ---------------------------------------------------------------------------
 
+/**
+ * Internal helper: execute an HTTP request via cURL (preferred) or file_get_contents fallback.
+ * @internal
+ */
+function _md_http_request(string $method, string $url, array $args = []) {
+    $timeout  = (int) ($args['timeout'] ?? 15);
+    $headers  = $args['headers'] ?? [];
+    $body_raw = $args['body'] ?? '';
+
+    if (is_array($body_raw)) {
+        $body_raw = http_build_query($body_raw);
+        if (!isset($headers['Content-Type'])) {
+            $headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        }
+    }
+
+    // --- cURL (preferred: reliably sends Authorization and all custom headers) ---
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // localhost loopback
+
+        $headerLines = [];
+        foreach ($headers as $k => $v) {
+            $headerLines[] = "{$k}: {$v}";
+        }
+        if (!empty($headerLines)) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headerLines);
+        }
+
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body_raw);
+        } elseif ($method !== 'GET') {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+            if ($body_raw !== '') {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $body_raw);
+            }
+        }
+
+        // Capture response headers to extract status code
+        $responseHeaders = [];
+        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($ch, $header) use (&$responseHeaders) {
+            $responseHeaders[] = rtrim($header);
+            return strlen($header);
+        });
+
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($body === false) {
+            return false;
+        }
+        return ['body' => (string) $body, 'code' => $code, 'headers' => $responseHeaders];
+    }
+
+    // --- file_get_contents fallback ---
+    $headerLines = [];
+    foreach ($headers as $k => $v) {
+        $headerLines[] = "{$k}: {$v}";
+    }
+    $ctx_opts = [
+        'http' => [
+            'method'          => $method,
+            'timeout'         => $timeout,
+            'ignore_errors'   => true,
+            'follow_location' => 1,
+            'header'          => implode("\r\n", $headerLines),
+        ],
+        'ssl' => ['verify_peer' => false],
+    ];
+    if ($body_raw !== '') {
+        $ctx_opts['http']['content'] = $body_raw;
+    }
+
+    $ctx  = stream_context_create($ctx_opts);
+    $body = @file_get_contents($url, false, $ctx);
+
+    if ($body === false) {
+        return false;
+    }
+
+    $code = 200;
+    if (isset($http_response_header) && is_array($http_response_header)) {
+        foreach ($http_response_header as $h) {
+            if (preg_match('#^HTTP/\S+\s+(\d+)#', $h, $m)) {
+                $code = (int) $m[1];
+            }
+        }
+    }
+    return ['body' => $body, 'code' => $code, 'headers' => $http_response_header ?? []];
+}
+
 if (!function_exists('md_http_get')) {
     /**
      * Perform an HTTP GET request.
      * Returns ['body' => string, 'code' => int, 'headers' => array] or false on error.
      */
     function md_http_get(string $url, array $args = []) {
-        $timeout = (int) ($args['timeout'] ?? 15);
-        $headers = $args['headers'] ?? [];
-
-        $ctx_opts = [
-            'http' => [
-                'method'          => 'GET',
-                'timeout'         => $timeout,
-                'ignore_errors'   => true,
-                'follow_location' => 1,
-            ],
-            'ssl' => ['verify_peer' => true],
-        ];
-
-        if (!empty($headers)) {
-            $headerLines = [];
-            foreach ($headers as $k => $v) {
-                $headerLines[] = "{$k}: {$v}";
-            }
-            $ctx_opts['http']['header'] = implode("\r\n", $headerLines);
-        }
-
-        $ctx  = stream_context_create($ctx_opts);
-        $body = @file_get_contents($url, false, $ctx);
-
-        if ($body === false) {
-            return false;
-        }
-
-        $code = 200;
-        if (isset($http_response_header) && is_array($http_response_header)) {
-            foreach ($http_response_header as $h) {
-                if (preg_match('#^HTTP/\S+\s+(\d+)#', $h, $m)) {
-                    $code = (int) $m[1];
-                }
-            }
-        }
-
-        return ['body' => $body, 'code' => $code, 'headers' => $http_response_header ?? []];
+        return _md_http_request('GET', $url, $args);
     }
 }
 
@@ -163,50 +222,7 @@ if (!function_exists('md_http_post')) {
      * Returns ['body' => string, 'code' => int, 'headers' => array] or false on error.
      */
     function md_http_post(string $url, array $args = []) {
-        $timeout  = (int) ($args['timeout'] ?? 15);
-        $headers  = $args['headers'] ?? [];
-        $body_raw = $args['body'] ?? '';
-
-        if (is_array($body_raw)) {
-            $body_raw = http_build_query($body_raw);
-            if (!isset($headers['Content-Type'])) {
-                $headers['Content-Type'] = 'application/x-www-form-urlencoded';
-            }
-        }
-
-        $headerLines = [];
-        foreach ($headers as $k => $v) {
-            $headerLines[] = "{$k}: {$v}";
-        }
-
-        $ctx = stream_context_create([
-            'http' => [
-                'method'          => 'POST',
-                'timeout'         => $timeout,
-                'ignore_errors'   => true,
-                'follow_location' => 1,
-                'header'          => implode("\r\n", $headerLines),
-                'content'         => $body_raw,
-            ],
-            'ssl' => ['verify_peer' => true],
-        ]);
-
-        $body = @file_get_contents($url, false, $ctx);
-
-        if ($body === false) {
-            return false;
-        }
-
-        $code = 200;
-        if (isset($http_response_header) && is_array($http_response_header)) {
-            foreach ($http_response_header as $h) {
-                if (preg_match('#^HTTP/\S+\s+(\d+)#', $h, $m)) {
-                    $code = (int) $m[1];
-                }
-            }
-        }
-
-        return ['body' => $body, 'code' => $code, 'headers' => $http_response_header ?? []];
+        return _md_http_request('POST', $url, $args);
     }
 }
 

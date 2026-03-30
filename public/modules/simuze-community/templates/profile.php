@@ -8,6 +8,12 @@ if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN')) {
     exit;
 }
 
+// Some Modular execution paths render templates without the module bootstrap running first.
+// Ensure the template include base path always exists to prevent fatal errors.
+if (!defined('SIMUZE_COMMUNITY_PLUGIN_DIR')) {
+    define('SIMUZE_COMMUNITY_PLUGIN_DIR', rtrim(dirname(__DIR__), '/') . '/');
+}
+
 // Ensure $user is available
 if (!isset($user) || !$user) {
     echo '<div class="simuze-error"><p>User not found.</p></div>';
@@ -16,7 +22,7 @@ if (!isset($user) || !$user) {
 
 $auth = Simuze_Auth::get_instance();
 $current_user = $auth->get_current_user();
-$is_own_profile = $current_user && $current_user->id === $user->id;
+$is_own_profile = $current_user && (int) $current_user->id === (int) $user->id;
 
 // Modular + Simezu SSO: if Simuze_Auth did not resolve a local user match,
 // fall back to the Simezu JWT context populated in $GLOBALS['current_user'].
@@ -82,12 +88,13 @@ if ($is_own_profile) {
     $nav_items = array(
         'dashboard' => 'Dashboard',
         'playlists' => 'Playlists',
+        'shows'     => 'Shows',
         'activity'  => 'Activity',
         'messages'  => 'Messages',
         'friends'   => 'Friends',
         'groups'    => 'Groups',
     );
-    
+
     // Private-only items
     $nav_items['create-group']     = 'Create Group';
     $nav_items['purchases']        = 'Purchases';
@@ -98,6 +105,7 @@ if ($is_own_profile) {
     $nav_items = array(
         'profile'   => 'Profile',
         'playlists' => 'Playlists',
+        'shows'     => 'Shows',
         'groups'    => 'Groups',
     );
 }
@@ -276,7 +284,26 @@ if ($is_own_profile) {
             // - For public view (other users): always show the public profile template,
             //   but we still respect the selected tab label in the sidebar.
             if (!$is_own_profile) {
-                include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/profile-public.php';
+                // Public profile: allow playlist listing/detail routes, otherwise keep public profile view.
+                switch ($tab) {
+                    case 'playlists':
+                        $playlist_slug = get_query_var('simuze_playlist_slug');
+                        if ($playlist_slug) {
+                            include get_template_directory() . '/single-playlist.php';
+                        } else {
+                            include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/profile-playlists.php';
+                        }
+                        break;
+                    case 'shows':
+                        include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/profile-shows.php';
+                        break;
+                    case 'profile':
+                    case 'dashboard':
+                    case '':
+                    default:
+                        include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/profile-public.php';
+                        break;
+                }
             } else {
                 // Show dashboard for own profile (default)
                 switch ($tab) {
@@ -285,8 +312,13 @@ if ($is_own_profile) {
                         include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/profile-dashboard.php';
                         break;
                     case 'playlists':
-                    include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/profile-playlists.php';
-                    break;
+                        $playlist_slug = get_query_var('simuze_playlist_slug');
+                        if ($playlist_slug) {
+                            include get_template_directory() . '/single-playlist.php';
+                        } else {
+                            include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/profile-playlists.php';
+                        }
+                        break;
                 case 'upload':
                     // Users cannot upload directly - only through Artist/Label groups
                     if ($is_own_profile) {
@@ -306,6 +338,9 @@ if ($is_own_profile) {
                     } else {
                         echo '<div class="access-denied"><p>Access denied.</p></div>';
                     }
+                    break;
+                case 'shows':
+                    include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/profile-shows.php';
                     break;
                 case 'activity':
                     include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/profile-activity.php';

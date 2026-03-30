@@ -14,20 +14,28 @@ if (!isset($group) || !$group) {
     return;
 }
 
-$auth = Simuze_Auth::get_instance();
-$current_user = $auth->get_current_user();
-$is_owner = $current_user && ($group->creator_id === $current_user->id);
+if (class_exists('Simuze_Auth')) {
+    $auth = Simuze_Auth::get_instance();
+    $current_user = $auth->get_current_user();
+} else {
+    $current_user = $GLOBALS['current_user'] ?? null;
+}
+$is_owner = $current_user && ((int) $group->creator_id === (int) $current_user->id);
 $is_member = $current_user && ($group->is_member($current_user->id) || $is_owner);
 $is_admin = $current_user && ($is_owner || $group->is_member($current_user->id, 'admin'));
-$is_following = $current_user && class_exists('Simuze_Follow') ? Simuze_Follow::is_following($current_user->id, 'group', $group->id) : false;
+$can_manage_group = $current_user && method_exists($group, 'can_manage') ? (bool) $group->can_manage($current_user->id) : false;
+$is_simezu_super_admin = false;
+if (class_exists('Simuze_Auth')) {
+    $is_simezu_super_admin = Simuze_Auth::get_instance()->is_admin();
+}
+$is_following = ($current_user && class_exists('Simuze_Follow')) ? Simuze_Follow::is_following($current_user->id, 'group', $group->id) : false;
 
 // Get group type
 $group_type_data = $group->get_group_type();
 $group_type_slug = $group_type_data ? $group_type_data['slug'] : null;
 
-// Get tab from query var (clean URL) or fall back to GET parameter
-$tab = get_query_var('simuze_group_tab');
-if (empty($tab)) {
+// $tab is set by module.php from URL segments; fall back to GET param
+if (!isset($tab) || $tab === '') {
     $tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : '';
 }
 
@@ -60,6 +68,11 @@ if ($is_member && $current_user) {
     // Common items for all member groups
     $nav_items['members'] = 'Members';
     $nav_items['activity'] = 'Activity';
+
+    // Show slot invitations for band groups (artists) — admins/mods only.
+    if ($group_type_slug === 'artist' && $can_manage_group) {
+        $nav_items['shows'] = 'Shows';
+    }
     
     // Settings only for admins
     if ($is_admin) {
@@ -138,7 +151,7 @@ if ($is_member && $current_user) {
                                 <?php 
                                 // Generate clean URL: /group/{handle}/{tab}/
                                 // Dashboard is the default, so no tab in URL for dashboard
-                                if ($nav_key === 'dashboard') {
+                                if ($nav_key === 'dashboard' || $nav_key === 'profile') {
                                     $nav_url = $group_base_url;
                                 } else {
                                     $nav_url = trailingslashit($group_base_url) . $nav_key . '/';
@@ -158,16 +171,16 @@ if ($is_member && $current_user) {
         <div class="row scroll-area full-width-content">
             <?php
             // Route to appropriate template based on membership and tab
-            if ($is_member && $current_user) {
+            if (($is_member || $is_simezu_super_admin) && $current_user) {
                 // MEMBER VIEW - Show member-specific pages
                 switch ($tab) {
                     case 'dashboard':
-                        include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-dashboard.php';
+                        include SIMUZE_COMMUNITY_PATH . '/templates/group-dashboard.php';
                         break;
                     case 'music':
                         // Only Artist groups can access Music page
                         if ($group_type_slug === 'artist') {
-                            include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-music.php';
+                            include SIMUZE_COMMUNITY_PATH . '/templates/group-music.php';
                         } else {
                             echo '<div class="access-denied"><p>This page is only available for Artist groups.</p></div>';
                         }
@@ -175,27 +188,34 @@ if ($is_member && $current_user) {
                     case 'artists':
                         // Only Label groups can access Artists page
                         if ($group_type_slug === 'label') {
-                            include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-artists.php';
+                            include SIMUZE_COMMUNITY_PATH . '/templates/group-artists.php';
                         } else {
                             echo '<div class="access-denied"><p>This page is only available for Label groups.</p></div>';
                         }
                         break;
                     case 'members':
-                        include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-members.php';
+                        include SIMUZE_COMMUNITY_PATH . '/templates/group-members.php';
                         break;
                     case 'activity':
-                        include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-activity.php';
+                        include SIMUZE_COMMUNITY_PATH . '/templates/group-activity.php';
+                        break;
+                    case 'shows':
+                        if ($group_type_slug === 'artist' && $can_manage_group) {
+                            include SIMUZE_COMMUNITY_PATH . '/templates/group-shows.php';
+                        } else {
+                            echo '<div class="access-denied"><p>Access denied.</p></div>';
+                        }
                         break;
                     case 'settings':
                         if ($is_admin) {
-                            include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-settings.php';
+                            include SIMUZE_COMMUNITY_PATH . '/templates/group-settings.php';
                         } else {
                             echo '<div class="access-denied"><p>Access denied. Only group administrators can access settings.</p></div>';
                         }
                         break;
                     default:
                         // Default: show dashboard
-                        include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-dashboard.php';
+                        include SIMUZE_COMMUNITY_PATH . '/templates/group-dashboard.php';
                 }
             } else {
                 // NON-MEMBER VIEW (PUBLIC) - Show public pages
@@ -203,7 +223,7 @@ if ($is_member && $current_user) {
                 if (in_array($group_type_slug, $location_types)) {
                     // For location-based groups, defer to their dedicated templates
                     // Here we show the public profile summary as a safe fallback.
-                    include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-public.php';
+                    include SIMUZE_COMMUNITY_PATH . '/templates/group-public.php';
                 } else {
                     // Other groups show Profile, Music (for Artists), and Activity
                     $group_type_data = $group->get_group_type();
@@ -211,21 +231,21 @@ if ($is_member && $current_user) {
                     
                     switch ($tab) {
                         case 'profile':
-                            include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-public.php';
+                            include SIMUZE_COMMUNITY_PATH . '/templates/group-public.php';
                             break;
                         case 'music':
                             // Only Artist groups can access Music page (public)
                             if ($group_type_slug === 'artist') {
-                                include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-music-public.php';
+                                include SIMUZE_COMMUNITY_PATH . '/templates/group-music-public.php';
                             } else {
                                 echo '<div class="access-denied"><p>This page is only available for Artist groups.</p></div>';
                             }
                             break;
                         case 'activity':
-                            include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-activity-public.php';
+                            include SIMUZE_COMMUNITY_PATH . '/templates/group-activity-public.php';
                             break;
                         default:
-                            include SIMUZE_COMMUNITY_PLUGIN_DIR . 'templates/group-public.php';
+                            include SIMUZE_COMMUNITY_PATH . '/templates/group-public.php';
                     }
                 }
             }

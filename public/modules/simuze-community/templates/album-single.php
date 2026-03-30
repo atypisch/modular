@@ -57,7 +57,7 @@ if (!empty($tracks) && class_exists('MusicRepository')) {
             'license'      => $t['license'] ?? ($t['license_short'] ?? ''),
             'upload_id'    => $t['id'] ?? null,
             'track_post_id'=> 0,
-            'song_url'     => md_home_url('/music/album/' . ($album['album_nicename'] ?? $album['id'])),
+            'song_url'     => $album_url,
         ];
     }
 }

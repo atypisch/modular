@@ -6,7 +6,17 @@
 if (!defined('MODULAR_PATH')) {
     define('MODULAR_PATH', dirname(dirname(__DIR__)));
 }
+if (!defined('SIMUZE_MODULAR_RUN')) {
+    define('SIMUZE_MODULAR_RUN', true);
+}
 require_once MODULAR_PATH . '/admin/config/config.php';
+// Load utility functions needed by community classes (not loaded by bootstrap for non-admin requests)
+if (is_file(MODULAR_PATH . '/core/functions/http.php')) {
+    require_once MODULAR_PATH . '/core/functions/http.php';
+}
+if (is_file(MODULAR_PATH . '/core/functions/database.php')) {
+    require_once MODULAR_PATH . '/core/functions/database.php';
+}
 require_once MODULAR_PATH . '/admin/bootstrap.php';
 if (is_file(MODULAR_PATH . '/core/config/simuze.php')) {
     require_once MODULAR_PATH . '/core/config/simuze.php';

@@ -146,7 +146,7 @@ class Simuze_Group {
         // Filter to allowed columns only
         $allowed_columns = [
             'name', 'slug', 'unique_name', 'unique_handle', 'description',
-            'group_type_id', 'creator_id', 'status', 'avatar_url', 'header_url',
+            'group_type_id', 'creator_id', 'owner_id', 'status', 'avatar_url', 'header_url',
             'city', 'province', 'country', 'geo_id', 'lat', 'lng',
             'settings', 'created_at', 'updated_at',
         ];
@@ -706,6 +706,23 @@ class Simuze_Group {
         return $this->update_member_role($user_id, 'member');
     }
 
+    public static function findByTypeAndSlug(string $type_slug, string $slug): ?self {
+        $row = md_db_row(
+            "SELECT g.*, gt.slug AS type_slug
+             FROM simuze_groups g
+             INNER JOIN simuze_group_types gt ON g.group_type_id = gt.id
+             WHERE gt.slug = ? AND g.slug = ? AND g.deleted_at IS NULL
+             LIMIT 1",
+            [$type_slug, $slug]
+        );
+        if (!$row) return null;
+        try {
+            return new self($row);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     public static function get_all($args = []) {
         $defaults = ['per_page' => 20, 'page' => 1, 'group_type' => null, 'status' => 'public', 'search' => null];
         $args     = array_merge($defaults, $args);
@@ -858,46 +875,7 @@ class Simuze_Group {
     }
 
     public function get_avatar_url($size = 'medium') {
-        $type_slug      = $this->get_type_slug();
-        $location_types = ['country', 'province', 'city'];
-
-        if (in_array($type_slug, $location_types, true) && !empty($this->lat) && !empty($this->lng)) {
-            $zoom = 8;
-            if (isset($this->settings)) {
-                $settings = is_array($this->settings)
-                    ? $this->settings
-                    : (is_string($this->settings) ? json_decode($this->settings, true) : []);
-                if (is_array($settings) && isset($settings['map_zoom'])) {
-                    $zoom = (int) $settings['map_zoom'];
-                } else {
-                    if ($type_slug === 'city')         $zoom = 12;
-                    elseif ($type_slug === 'country')  $zoom = 7;
-                    else                               $zoom = 8;
-                }
-            } else {
-                if ($type_slug === 'city')         $zoom = 12;
-                elseif ($type_slug === 'country')  $zoom = 7;
-                else                               $zoom = 8;
-            }
-
-            $lat  = (float) $this->lat;
-            $lng  = (float) $this->lng;
-            $zoom = max(0, min(18, (int) $zoom));
-
-            if (function_exists('simuze_lat_lng_zoom_to_tile')) {
-                $tile = simuze_lat_lng_zoom_to_tile($lat, $lng, $zoom);
-                if (!empty($tile)) {
-                    return 'https://tile.openstreetmap.org/' . $zoom . '/' . $tile[0] . '/' . $tile[1] . '.png';
-                }
-            }
-
-            $n       = pow(2, $zoom);
-            $x       = (int) floor((($lng + 180) / 360) * $n);
-            $lat_rad = $lat * M_PI / 180;
-            $y       = (int) floor((1 - log(tan($lat_rad) + 1 / cos($lat_rad)) / M_PI) / 2 * $n);
-            return 'https://tile.openstreetmap.org/' . $zoom . '/' . $x . '/' . $y . '.png';
-        }
-
+        // 1) Custom uploads via Simuze_Avatar (non-default) take precedence.
         if (class_exists('Simuze_Avatar')) {
             $avatar      = Simuze_Avatar::get_instance();
             $default_url = $avatar->get_default_group_avatar_url();
@@ -907,6 +885,8 @@ class Simuze_Group {
             }
         }
 
+        // 2) Persisted URL (e.g. LocationAvatar JPEG under public/uploads/simuze-groups/).
+        //    Do not use live map tile URLs here — they break caching and are fragile in the browser.
         if (!empty($this->avatar_url)) {
             if ($size === 'thumb') {
                 if (strpos($this->avatar_url, 'simuze/groups') !== false && strpos($this->avatar_url, '/avatar/') !== false) {

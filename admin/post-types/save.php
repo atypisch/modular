@@ -37,7 +37,8 @@ $post_type = [
     'slug' => filter_input(INPUT_POST, 'slug', FILTER_SANITIZE_STRING) ?? '',
     'description' => filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING) ?? '',
     'public' => isset($_POST['public']) ? 1 : 0,
-    'show_in_menu' => isset($_POST['show_in_menu']) ? 1 : 0
+    'show_in_menu' => isset($_POST['show_in_menu']) ? 1 : 0,
+    'hierarchical' => isset($_POST['hierarchical']) ? 1 : 0,
 ];
 
 // Default mode for new post types is 'fixed'; only allow 'modular' when feature is enabled.

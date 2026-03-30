@@ -108,6 +108,30 @@ function save_permalink_structures(array $structures): bool {
  */
 function get_post_permalink(string $post_type, string $slug, string $category = '', string $year = ''): string {
     $structure = get_permalink_structure($post_type);
+    $db = $GLOBALS['db'] ?? null;
+
+    if ($db instanceof PDO) {
+        try {
+            $stmt = $db->prepare("
+                SELECT p.id, pt.hierarchical
+                FROM posts p
+                INNER JOIN post_types pt ON p.post_type_id = pt.id
+                WHERE pt.slug = ? AND p.slug = ? AND p.deleted_at IS NULL
+                LIMIT 1
+            ");
+            $stmt->execute([$post_type, $slug]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row && !empty($row['hierarchical'])) {
+                $path = get_hierarchical_post_path((int)$row['id'], $db);
+                if ($path !== '') {
+                    $base = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
+                    return $base . '/' . ltrim($path, '/');
+                }
+            }
+        } catch (Throwable $e) {
+            // Fallback to regular structure
+        }
+    }
 
     $url = str_replace(
         ['{slug}', '{post_type}', '{category}', '{year}'],
@@ -158,7 +182,51 @@ function permalink_resolve_path(string $path, PDO $db): ?array {
         }
     }
 
+    // Fallback: hierarchical post types with nested slugs (/parent/child[/grandchild])
+    $segments = array_values(array_filter(explode('/', $path)));
+    if (!empty($segments)) {
+        $slugCandidate = $segments[count($segments) - 1];
+        try {
+            $stmt = $db->prepare("
+                SELECT p.id, p.slug, pt.slug as post_type_slug
+                FROM posts p
+                INNER JOIN post_types pt ON p.post_type_id = pt.id
+                WHERE p.slug = ? AND pt.hierarchical = 1 AND p.deleted_at IS NULL
+            ");
+            $stmt->execute([$slugCandidate]);
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $candidatePath = get_hierarchical_post_path((int)$row['id'], $db);
+                if ($candidatePath !== '' && trim($candidatePath, '/') === trim($path, '/')) {
+                    return ['post_type' => $row['post_type_slug'], 'slug' => $row['slug']];
+                }
+            }
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
     return null;
+}
+
+/**
+ * Build a hierarchical slug path (root/child/grandchild) for one post id.
+ */
+function get_hierarchical_post_path(int $postId, PDO $db): string {
+    $parts = [];
+    $cursor = $postId;
+    $safety = 0;
+    while ($cursor !== null && $safety < 20) {
+        $safety++;
+        $stmt = $db->prepare("SELECT id, slug, parent_id FROM posts WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $stmt->execute([$cursor]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            break;
+        }
+        array_unshift($parts, (string)$row['slug']);
+        $cursor = $row['parent_id'] !== null ? (int)$row['parent_id'] : null;
+    }
+    return implode('/', array_filter($parts, 'strlen'));
 }
 
 /**
@@ -247,16 +315,17 @@ function build_htaccess(string $base_path): string {
     $trimmed = trim($base_path, '/');
     $base    = ($trimmed === '') ? '/' : '/' . $trimmed . '/';
 
+    $dollar = '$';
     return "# BEGIN Modular\n"
          . "<IfModule mod_rewrite.c>\n"
          . "RewriteEngine On\n"
          . "RewriteBase {$base}\n"
-         . "RewriteRule ^index\\.php$ - [L]\n"
+         . "RewriteRule ^index\\.php{$dollar} - [L]\n"
          . "RewriteCond %{REQUEST_FILENAME} -f [OR]\n"
          . "RewriteCond %{REQUEST_FILENAME} -d\n"
          . "RewriteRule ^ - [L]\n"
          . "RewriteCond %{REQUEST_FILENAME}\\.php -f\n"
-         . "RewriteRule ^(.+)$ $1.php [L]\n"
+         . "RewriteRule ^(.+){$dollar} {$dollar}1.php [L]\n"
          . "RewriteRule ^ index.php [L,QSA]\n"
          . "</IfModule>\n"
          . "# END Modular";

@@ -3193,7 +3193,6 @@ img.group-avatar,
     max-width: 100%;
     width: 100%;
     height: auto;
-    image-orientation: 0deg;
 }
 
 .crop-preview.header-crop .cropper-container img {

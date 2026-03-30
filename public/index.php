@@ -6,6 +6,11 @@
  * - Archive: one segment = post type slug → archive-{type}.php or archive.php
  */
 
+// Start session before any output to prevent session_start() warnings from csrf.php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 if (!defined('MODULAR_PATH')) {
     define('MODULAR_PATH', dirname(__DIR__));
 }
@@ -35,7 +40,7 @@ if (!defined('SIMUZE_MODULAR_RUN')) {
     define('SIMUZE_MODULAR_RUN', true);
 }
 $_sc_inc = MODULAR_PATH . '/public/modules/simuze-community/includes';
-foreach (['class-music-repository', 'class-user-repository', 'class-group-repository', 'class-group', 'class-event-repository', 'class-venue-repository'] as $_repo) {
+foreach (['class-music-repository', 'class-user-repository', 'class-group-repository', 'class-group', 'class-user', 'class-auth', 'class-event-repository', 'class-event-ticketing', 'class-venue-repository'] as $_repo) {
     if (is_file($_sc_inc . '/' . $_repo . '.php')) {
         require_once $_sc_inc . '/' . $_repo . '.php';
     }
@@ -74,6 +79,13 @@ if (!defined('ACTIVE_THEME')) {
     define('ACTIVE_THEME', $activeTheme);
 }
 
+// Load theme functions.php early so theme helpers are available before include_header()
+$_themeFunctionsFile = THEMES_PATH . '/' . $activeTheme . '/functions.php';
+if (is_file($_themeFunctionsFile)) {
+    require_once $_themeFunctionsFile;
+}
+unset($_themeFunctionsFile);
+
 $pathInfo = isset($_SERVER['PATH_INFO']) ? trim($_SERVER['PATH_INFO'], '/') : '';
 if ($pathInfo === '' && isset($_SERVER['REQUEST_URI'])) {
     $req = explode('?', $_SERVER['REQUEST_URI'], 2)[0];
@@ -87,17 +99,148 @@ if ($pathInfo === '' && isset($_SERVER['REQUEST_URI'])) {
 
 // Fixed routes (Simuze page templates): path segment → theme template name (without .php)
 $fixedRoutes = [
-    'music' => 'template_music',
-    'network' => 'template_network',
-    'live' => 'template_live',
-    'weblog' => 'template_weblog',
+    'shows'     => 'template_shows',
+    'board'     => 'template_board',
+    'messages'  => 'template_messages',
+    'music'     => 'template_music',
+    'network'   => 'template_network',
+    'live'      => 'template_live',
+    'weblog'    => 'template_weblog',
+    'faq'       => 'template_faq',
     'dashboard' => 'template_dashboard',
-    'login' => 'template_login',
-    'signup' => 'template_signup',
-    'profile' => 'template_profile',
+    'login'            => 'template_login',
+    'signup'           => 'template_signup',
+    'profile'          => 'template_profile',
+    'forgot-password'  => 'template_forgot_password',
+    'account'          => 'template_account',
 ];
 if (function_exists('apply_filters')) {
     $fixedRoutes = apply_filters('public_fixed_routes', $fixedRoutes);
+}
+
+// Fixed routes must be checked BEFORE permalink resolution — otherwise posts with
+// matching slugs (e.g. a page with slug "network") intercept the route first.
+if ($pathInfo !== '') {
+    $_frSegs = array_values(array_filter(explode('/', $pathInfo)));
+    // /dashboard → redirect to /user/{username} or /login
+    if (count($_frSegs) === 1 && $_frSegs[0] === 'dashboard') {
+        if (!empty($GLOBALS['is_logged_in']) && !empty($GLOBALS['current_user'])) {
+            $uname = $GLOBALS['current_user']->username ?? ($GLOBALS['current_user']->unique_identifier ?? null);
+            if ($uname) {
+                header('Location: ' . md_home_url('/user/' . rawurlencode($uname) . '/'), true, 302);
+            } else {
+                header('Location: ' . md_home_url('/login'), true, 302);
+            }
+        } else {
+            header('Location: ' . md_home_url('/login'), true, 302);
+        }
+        exit;
+    }
+    if (count($_frSegs) === 1 && isset($fixedRoutes[$_frSegs[0]])) {
+        $templateName = $fixedRoutes[$_frSegs[0]];
+        $themes = ['MDLR-2025', 'simuze', $activeTheme];
+        foreach ($themes as $theme) {
+            $theme_path = THEMES_PATH . '/' . $theme;
+            $templateFile = $theme_path . '/' . $templateName . '.php';
+            if (is_file($templateFile)) {
+                $route_segment = $_frSegs[0];
+                include $templateFile;
+                exit;
+            }
+        }
+    }
+    // /dashboard/tickets → user ticket history
+    if (count($_frSegs) === 2 && $_frSegs[0] === 'dashboard' && $_frSegs[1] === 'tickets') {
+        foreach (['simuze', $activeTheme] as $_theme) {
+            $_tpl = THEMES_PATH . '/' . $_theme . '/template_dashboard_tickets.php';
+            if (is_file($_tpl)) { include $_tpl; exit; }
+        }
+        unset($_theme, $_tpl);
+    }
+    // /dashboard/shows/{id} → organiser dashboard
+    if (count($_frSegs) === 3 && $_frSegs[0] === 'dashboard' && $_frSegs[1] === 'shows' && ctype_digit((string) $_frSegs[2])) {
+        $_show_id = (int) $_frSegs[2];
+        foreach (['simuze', $activeTheme] as $_theme) {
+            $_tpl = THEMES_PATH . '/' . $_theme . '/template_dashboard_show_organiser.php';
+            if (is_file($_tpl)) { include $_tpl; exit; }
+        }
+        unset($_theme, $_tpl, $_show_id);
+    }
+    // /shows/add → dedicated show creation page
+    if (count($_frSegs) === 2 && $_frSegs[0] === 'shows' && $_frSegs[1] === 'add') {
+        foreach (['simuze', $activeTheme] as $_theme) {
+            $_tpl = THEMES_PATH . '/' . $_theme . '/template_shows_add.php';
+            if (is_file($_tpl)) {
+                include $_tpl;
+                exit;
+            }
+        }
+        unset($_theme, $_tpl);
+    }
+    // Legacy /shows/start → /shows/add (preserve query string)
+    if (count($_frSegs) === 2 && $_frSegs[0] === 'shows' && $_frSegs[1] === 'start') {
+        $_qs = isset($_SERVER['QUERY_STRING']) ? trim((string) $_SERVER['QUERY_STRING']) : '';
+        $_shows_add_redirect = md_home_url('/shows/add') . ($_qs !== '' ? '?' . $_qs : '');
+        header('Location: ' . $_shows_add_redirect, true, 301);
+        exit;
+    }
+    // /shows/{slug}/edit → edit an existing show (reuses template_shows_add.php in edit mode)
+    if (count($_frSegs) === 3 && $_frSegs[0] === 'shows' && $_frSegs[2] === 'edit') {
+        $_editSlug = $_frSegs[1];
+        if (class_exists('EventRepository')) {
+            $edit_show = EventRepository::findBySlug($_editSlug);
+        }
+        if (!empty($edit_show)) {
+            foreach (['simuze', $activeTheme] as $_theme) {
+                $_tpl = THEMES_PATH . '/' . $_theme . '/template_shows_add.php';
+                if (is_file($_tpl)) {
+                    include $_tpl;
+                    exit;
+                }
+            }
+        } else {
+            // Show not found — redirect to shows list
+            header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/shows');
+            exit;
+        }
+        unset($_theme, $_tpl, $_editSlug);
+    }
+    // /board/post → post creation form (served by template_board.php with ?mode=post)
+    if (count($_frSegs) === 2 && $_frSegs[0] === 'board' && $_frSegs[1] === 'post') {
+        $_GET['mode'] = 'post';
+        foreach (['simuze', $activeTheme] as $_theme) {
+            $_tpl = THEMES_PATH . '/' . $_theme . '/template_board.php';
+            if (is_file($_tpl)) {
+                include $_tpl;
+                exit;
+            }
+        }
+        unset($_theme, $_tpl);
+    }
+    // /board/{numeric_id} → single post view (template_board.php reads $_GET['board_id'])
+    if (count($_frSegs) === 2 && $_frSegs[0] === 'board' && ctype_digit((string) $_frSegs[1])) {
+        $_GET['board_id'] = (int) $_frSegs[1];
+        foreach (['simuze', $activeTheme] as $_theme) {
+            $_tpl = THEMES_PATH . '/' . $_theme . '/template_board.php';
+            if (is_file($_tpl)) {
+                include $_tpl;
+                exit;
+            }
+        }
+        unset($_theme, $_tpl);
+    }
+    // /messages/new → compose reply (template_messages.php; use ?board_post=id)
+    if (count($_frSegs) === 2 && $_frSegs[0] === 'messages' && $_frSegs[1] === 'new') {
+        foreach (['simuze', $activeTheme] as $_theme) {
+            $_tpl = THEMES_PATH . '/' . $_theme . '/template_messages.php';
+            if (is_file($_tpl)) {
+                include $_tpl;
+                exit;
+            }
+        }
+        unset($_theme, $_tpl);
+    }
+    unset($_frSegs);
 }
 
 // Load permalink functions
@@ -119,10 +262,91 @@ if ($postTypeSlug === null && $postSlug === null && $pathInfo !== '' && isset($G
     }
 }
 
-// Simuze-specific routes: music/album/{slug}, music/track/{slug}, group/{slug}[/*]
+// Simuze-specific routes: pretty group URLs, pretty music URLs, music/album/{slug}, music/track/{slug}, group/{slug}[/*]
 if ($pathInfo !== '') {
     $segsCheck = array_values(array_filter(explode('/', $pathInfo)));
-    // music/albums/ — albums discovery page
+
+    // Known group sub-page tabs (used for pretty URLs /{group_slug}/{tab})
+    $_groupTabs = ['music','members','activity','artists','discography','dashboard','settings','sales','shows'];
+
+    // /{group_slug} → group public profile (single-segment pretty URL)
+    // /{group_slug}/{tab} → group sub-page (two-segment pretty URL where tab is a known group tab)
+    // These run before album/track lookup so /boyle/ and /boyle/music/ resolve correctly.
+    if (count($segsCheck) >= 1) {
+        $_reservedSlugs = ['shows','board','messages','music','network','live','weblog','dashboard','login','signup','profile','forgot-password','account','group','show','start-a-show','city','user','documentation','admin','api','about','howto','store','subscription'];
+        $_potentialGroup = $segsCheck[0];
+        $_potentialTab   = isset($segsCheck[1]) ? $segsCheck[1] : '';
+        // Only intercept when: first segment is not reserved AND (only 1 segment OR second segment is a known group tab)
+        if (!in_array($_potentialGroup, $_reservedSlugs, true) && ($_potentialTab === '' || in_array($_potentialTab, $_groupTabs, true))) {
+            $_grpPath = 'group/' . $_potentialGroup . ($_potentialTab !== '' ? '/' . $_potentialTab : '');
+            if (function_exists('apply_filters')) {
+                $_grpResp = apply_filters('public_route', null, $_grpPath);
+                if ($_grpResp !== null && $_grpResp !== '') {
+                    echo $_grpResp;
+                    exit;
+                }
+            }
+        }
+        unset($_reservedSlugs, $_potentialGroup, $_potentialTab, $_grpPath, $_grpResp);
+    }
+
+    // Pretty music URLs:
+    // - /{artist_slug}/{album_slug}
+    // - /{artist_slug}/{album_slug}/{track_slug}
+    if (count($segsCheck) >= 2) {
+        $reservedFirst = ['music','network','live','weblog','dashboard','login','signup','profile','group','show','start-a-show','city','user','documentation','admin','api'];
+        $firstSeg = $segsCheck[0];
+        // Also skip if second segment is a group tab (already handled above)
+        if (!in_array($firstSeg, $reservedFirst, true) && !in_array($segsCheck[1], $_groupTabs, true) && class_exists('MusicRepository')) {
+            $artistSlug = $firstSeg;
+            $albumSlug  = $segsCheck[1];
+            $albumTpl   = THEMES_PATH . '/' . $activeTheme . '/template-parts/view-album.php';
+            $trackTpl   = THEMES_PATH . '/' . $activeTheme . '/template-parts/view-track.php';
+
+            // /{artist}/{album}/{track} → track view
+            if (count($segsCheck) >= 3 && is_file($trackTpl)) {
+                $trackSlug = $segsCheck[2];
+                $trackRow = null;
+                try {
+                    $sql = "
+                        SELECT u.*
+                        FROM md_music_uploads u
+                        INNER JOIN md_music_albums a ON u.album_id = a.id
+                        INNER JOIN simuze_groups g ON a.group_id = g.id
+                        WHERE g.unique_name = ?
+                          AND a.album_nicename = ?
+                          AND LOWER(REPLACE(REPLACE(u.song_name,' ','-'),\"'\",'')) = ?
+                          AND u.deleted_at IS NULL
+                        LIMIT 1
+                    ";
+                    $trackRow = md_db_row($sql, [$artistSlug, $albumSlug, $trackSlug]);
+                } catch (\Throwable $e) {
+                    $trackRow = null;
+                }
+                if ($trackRow) {
+                    $item_id = (int) $trackRow['id'];
+                    $item_type = 'track';
+                    include $trackTpl;
+                    exit;
+                }
+            }
+
+            // /{artist}/{album} → album or single view (respect is_album flag)
+            if (is_file($albumTpl)) {
+                $albumRow = \MusicRepository::findAlbumByArtistAndSlug($artistSlug, $albumSlug);
+                if ($albumRow) {
+                    $item_type = !empty($albumRow['is_album']) ? 'album' : 'single';
+                    $item_id   = (int) $albumRow['id'];
+                    if (!empty($albumRow['group_id']) && empty($group_id)) {
+                        $group_id = (int) $albumRow['group_id'];
+                    }
+                    include $albumTpl;
+                    exit;
+                }
+            }
+        }
+    }
+    // music/albums/ — albums discovery page (/music/albums)
     if (count($segsCheck) >= 1 && $segsCheck[0] === 'music' && ($segsCheck[1] ?? '') === 'albums') {
         $tplFile = THEMES_PATH . '/' . $activeTheme . '/template_albums.php';
         if (is_file($tplFile)) { include $tplFile; exit; }
@@ -132,21 +356,23 @@ if ($pathInfo !== '') {
         $tplFile = THEMES_PATH . '/' . $activeTheme . '/template_tracks.php';
         if (is_file($tplFile)) { include $tplFile; exit; }
     }
-    // music/album/{slug}
+    // music/album/{slug} — 301 redirect to canonical /{group}/{album}
     if (count($segsCheck) >= 3 && $segsCheck[0] === 'music' && $segsCheck[1] === 'album') {
         $albumSlug = $segsCheck[2];
-        $albumTpl  = THEMES_PATH . '/' . $activeTheme . '/template-parts/view-album.php';
-        if (is_file($albumTpl) && isset($GLOBALS['db'])) {
-            $item_type = 'album';
-            $albumRow  = $GLOBALS['db']->prepare("SELECT id FROM md_music_albums WHERE album_nicename = ? AND deleted_at IS NULL LIMIT 1");
-            $albumRow->execute([$albumSlug]);
-            $albumRow  = $albumRow->fetch(\PDO::FETCH_ASSOC);
-            if ($albumRow) {
-                $item_id = (int) $albumRow['id'];
-                include $albumTpl;
+        if (isset($GLOBALS['db'])) {
+            $albumRow = md_db_row(
+                "SELECT a.album_nicename, g.unique_name
+                 FROM md_music_albums a
+                 JOIN simuze_groups g ON g.id = a.group_id
+                 WHERE a.album_nicename = ? AND a.deleted_at IS NULL LIMIT 1",
+                [$albumSlug]
+            );
+            if ($albumRow && !empty($albumRow['unique_name'])) {
+                header('Location: ' . md_home_url('/' . $albumRow['unique_name'] . '/' . $albumRow['album_nicename']), true, 301);
                 exit;
             }
         }
+        // Album not found or no group — fall through to 404
     }
     // music/track/{slug}
     if (count($segsCheck) >= 3 && $segsCheck[0] === 'music' && $segsCheck[1] === 'track') {
@@ -164,15 +390,22 @@ if ($pathInfo !== '') {
             }
         }
     }
-    // group/{slug}[/*] — route to module's public group template
+    // /group/{slug}[/{tab}] → 301 redirect to canonical pretty URL (no /group/ prefix in Simuze)
     if (count($segsCheck) >= 2 && $segsCheck[0] === 'group') {
-        if (function_exists('apply_filters')) {
-            $grpResponse = apply_filters('public_route', null, $pathInfo);
-            if ($grpResponse !== null && $grpResponse !== '') {
-                echo $grpResponse;
+        if (class_exists('Simuze_Group')) {
+            $group = Simuze_Group::get_by_unique_name($segsCheck[1]);
+            if ($group) {
+                $canonical = rtrim($group->get_url(), '/');
+                $tab = $segsCheck[2] ?? '';
+                if ($tab !== '' && in_array($tab, $_groupTabs, true)) {
+                    $canonical .= '/' . $tab;
+                }
+                $_qs_g = isset($_SERVER['QUERY_STRING']) ? trim((string) $_SERVER['QUERY_STRING']) : '';
+                header('Location: ' . $canonical . '/' . ($_qs_g !== '' ? '?' . $_qs_g : ''), true, 301);
                 exit;
             }
         }
+        // Group not found — fall through to 404
     }
     // show/{slug} — event detail page
     if (count($segsCheck) >= 2 && $segsCheck[0] === 'show') {
@@ -186,22 +419,84 @@ if ($pathInfo !== '') {
             }
         }
     }
-    // start-a-show — event creation form
+    // start-a-show — redirect to /shows (form is now embedded there)
     if (count($segsCheck) >= 1 && $segsCheck[0] === 'start-a-show') {
-        $showFormTpl = THEMES_PATH . '/' . $activeTheme . '/template-parts/start-a-show.php';
-        if (is_file($showFormTpl)) {
-            include $showFormTpl;
-            exit;
-        }
+        $_qs = isset($_SERVER['QUERY_STRING']) ? trim((string) $_SERVER['QUERY_STRING']) : '';
+        $_target = md_home_url('/shows/add') . ($_qs !== '' ? '?' . $_qs : '');
+        header('Location: ' . $_target);
+        exit;
     }
     // city/{slug} — city scene hub page
     if (count($segsCheck) >= 2 && $segsCheck[0] === 'city') {
         $citySlug = $segsCheck[1];
         $cityTpl  = THEMES_PATH . '/' . $activeTheme . '/template-parts/view-city.php';
         if (is_file($cityTpl) && class_exists('VenueRepository')) {
+            $_qs = isset($_SERVER['QUERY_STRING']) ? trim((string) $_SERVER['QUERY_STRING']) : '';
+
+            // Canonicalize numeric duplicate slugs, e.g. /city/utrecht-1 -> /city/utrecht
+            if (is_string($citySlug) && preg_match('/^(.*)-(\d+)$/', $citySlug, $m)) {
+                $baseSlug = trim((string) ($m[1] ?? ''));
+                if ($baseSlug !== '' && $baseSlug !== $citySlug) {
+                    $baseCity = VenueRepository::findCityBySlug($baseSlug);
+                    if ($baseCity) {
+                        $city = VenueRepository::findCityBySlug($citySlug);
+                        $sameName = $city && !empty($city['name']) && !empty($baseCity['name'])
+                            ? (strcasecmp((string) $city['name'], (string) $baseCity['name']) === 0)
+                            : true; // If we can't compare, still redirect to canonical base slug.
+                        if ($sameName) {
+                            header('Location: ' . md_home_url('/city/' . $baseSlug) . ($_qs !== '' ? '?' . $_qs : ''), true, 301);
+                            exit;
+                        }
+                    }
+                }
+            }
+
             $city = VenueRepository::findCityBySlug($citySlug);
             if ($city) {
                 include $cityTpl;
+                exit;
+            }
+        }
+    }
+    // province/{slug} — province hub page (uses simuze_groups)
+    if (count($segsCheck) >= 2 && $segsCheck[0] === 'province') {
+        $provinceSlug = $segsCheck[1];
+        $provinceTpl  = THEMES_PATH . '/' . $activeTheme . '/template-parts/view-province.php';
+        if (is_file($provinceTpl) && class_exists('Simuze_Group')) {
+            $province = Simuze_Group::findByTypeAndSlug('province', $provinceSlug);
+            if ($province) {
+                include $provinceTpl;
+                exit;
+            }
+        }
+    }
+    // country/{slug} — country hub page (uses simuze_groups)
+    if (count($segsCheck) >= 2 && $segsCheck[0] === 'country') {
+        $countrySlug = $segsCheck[1];
+        $countryTpl  = THEMES_PATH . '/' . $activeTheme . '/template_country.php';
+        if (is_file($countryTpl) && class_exists('Simuze_Group')) {
+            $_qs = isset($_SERVER['QUERY_STRING']) ? trim((string) $_SERVER['QUERY_STRING']) : '';
+
+            // Canonicalize Netherlands country slug to /country/the-netherlands
+            $cs = strtolower(trim((string) $countrySlug));
+            if ($cs === 'netherlands' || $cs === 'nederland') {
+                header('Location: ' . md_home_url('/country/the-netherlands') . ($_qs !== '' ? '?' . $_qs : ''), true, 301);
+                exit;
+            }
+
+            $group = Simuze_Group::findByTypeAndSlug('country', $countrySlug);
+            // Fallback: sometimes callers use unique_name instead of slug.
+            if (!$group) {
+                $candidate = Simuze_Group::get_by_unique_name($countrySlug);
+                if ($candidate) {
+                    $gt = $candidate->get_group_type();
+                    if (!empty($gt) && !empty($gt['slug']) && $gt['slug'] === 'country') {
+                        $group = $candidate;
+                    }
+                }
+            }
+            if ($group) {
+                include $countryTpl;
                 exit;
             }
         }

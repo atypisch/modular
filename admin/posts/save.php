@@ -101,6 +101,76 @@ $dataJson = null;
 $layoutJson = null;
 $componentData = '[]';
 
+// Parent/hiërarchie validatie voor hiërarchische post types
+$parentId = isset($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
+if ($parentId !== null && $parentId <= 0) {
+    $parentId = null;
+}
+$postTypeRow = null;
+try {
+    $stmtPt = $db->prepare("SELECT id, hierarchical FROM post_types WHERE id = ? AND deleted_at IS NULL");
+    $stmtPt->execute([$postTypeId]);
+    $postTypeRow = $stmtPt->fetch(\PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {
+    $postTypeRow = null;
+}
+if (!$postTypeRow) {
+    $_SESSION['error'] = 'Post type not found.';
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
+    exit;
+}
+$isHierarchical = !empty($postTypeRow['hierarchical']);
+if (!$isHierarchical) {
+    $parentId = null;
+} elseif ($parentId !== null) {
+    // Parent moet bestaan en zelfde post_type_id hebben
+    try {
+        $stmtParent = $db->prepare("SELECT id, post_type_id, parent_id FROM posts WHERE id = ? AND deleted_at IS NULL");
+        $stmtParent->execute([$parentId]);
+        $parentRow = $stmtParent->fetch(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $parentRow = false;
+    }
+    if (!$parentRow || (int)$parentRow['post_type_id'] !== (int)$postTypeId) {
+        $_SESSION['error'] = 'Invalid parent selected.';
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
+        exit;
+    }
+    // Maximaal 3 niveaus diep
+    $depth = 1;
+    $cursorParentId = $parentRow['parent_id'] !== null ? (int)$parentRow['parent_id'] : null;
+    while ($cursorParentId !== null) {
+        $depth++;
+        if ($depth > 3) {
+            break;
+        }
+        $stmtDepth = $db->prepare("SELECT parent_id FROM posts WHERE id = ? AND deleted_at IS NULL");
+        $stmtDepth->execute([$cursorParentId]);
+        $rowDepth = $stmtDepth->fetch(\PDO::FETCH_ASSOC);
+        $cursorParentId = $rowDepth && $rowDepth['parent_id'] !== null ? (int)$rowDepth['parent_id'] : null;
+    }
+    if ($depth >= 3) {
+        $_SESSION['error'] = 'Maximum hiërarchische diepte (3 niveaus) overschreden.';
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
+        exit;
+    }
+    // Cirkels voorkomen bij update: parent mag geen descendant zijn
+    if ($postId) {
+        $checkId = $parentId;
+        while ($checkId !== null) {
+            if ((int)$checkId === (int)$postId) {
+                $_SESSION['error'] = 'Een bericht kan geen child van zichzelf (of eigen subpagina) zijn.';
+                header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . (int)$postId);
+                exit;
+            }
+            $stmtChain = $db->prepare("SELECT parent_id FROM posts WHERE id = ? AND deleted_at IS NULL");
+            $stmtChain->execute([$checkId]);
+            $rowChain = $stmtChain->fetch(\PDO::FETCH_ASSOC);
+            $checkId = $rowChain && $rowChain['parent_id'] !== null ? (int)$rowChain['parent_id'] : null;
+        }
+    }
+}
+
 if ($useSchemaForm) {
     require_once CORE_PATH . '/fields/FieldInterface.php';
     require_once CORE_PATH . '/fields/LayoutFieldInterface.php';
@@ -287,13 +357,6 @@ require_once CORE_PATH . '/fields/HiddenField.php';
 }
 
 try {
-    // Check if post type exists
-    $stmt = $db->prepare("SELECT id FROM post_types WHERE id = ? AND deleted_at IS NULL");
-    $stmt->execute([$postTypeId]);
-    if (!$stmt->fetch()) {
-        throw new Exception("Post type not found");
-    }
-
     // Check slug uniqueness
     $checkStmt = $db->prepare("SELECT id FROM posts WHERE slug = ? AND post_type_id = ?" . ($postId ? " AND id != ?" : ""));
     $checkParams = [$slug, $postTypeId];
@@ -308,13 +371,13 @@ try {
     if ($postId) {
         $stmt = $db->prepare("
             UPDATE posts 
-            SET post_type_id = ?, slug = ?, title = ?, excerpt = ?, status = ?, 
+            SET post_type_id = ?, parent_id = ?, slug = ?, title = ?, excerpt = ?, status = ?, 
                 component_data = ?, data = ?, layout = ?, published_at = ?, template = ?, visibility = ?, password = ?,
                 updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
         $stmt->execute([
-            $postTypeId, $slug, $title, $excerpt, $status,
+            $postTypeId, $parentId, $slug, $title, $excerpt, $status,
             $componentData, $dataJson, $layoutJson, $publishedAt, $template, $visibility, $passwordCol,
             $userId, $postId
         ]);
@@ -324,12 +387,12 @@ try {
     } else {
         $stmt = $db->prepare("
             INSERT INTO posts 
-            (post_type_id, slug, title, excerpt, status, component_data, data, layout,
+            (post_type_id, parent_id, slug, title, excerpt, status, component_data, data, layout,
              author_id, created_by, updated_by, published_at, template, visibility, password, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         $stmt->execute([
-            $postTypeId, $slug, $title, $excerpt, $status, $componentData, $dataJson, $layoutJson,
+            $postTypeId, $parentId, $slug, $title, $excerpt, $status, $componentData, $dataJson, $layoutJson,
             $userId, $userId, $userId, $publishedAt, $template, $visibility, $passwordCol
         ]);
         $newId = (int)$db->lastInsertId();

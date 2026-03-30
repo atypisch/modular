@@ -20,6 +20,60 @@ define('SIMUZE_COMMUNITY_VERSION', '1.0.0');
 define('SIMUZE_COMMUNITY_PATH', __DIR__);
 define('SIMUZE_DB_PREFIX', 'simuze_');
 
+// Template files expect this constant to exist.
+// In this Modular variant we don't run the WordPress plugin bootstrap file,
+// so we must define it explicitly.
+define('SIMUZE_COMMUNITY_PLUGIN_DIR', rtrim(__DIR__, '/') . '/');
+
+// Used for asset URLs when enqueuing module scripts/styles.
+// Keep it best-effort; templates that rely only on PLUGIN_DIR should work regardless.
+define(
+    'SIMUZE_COMMUNITY_PLUGIN_URL',
+    (defined('BASE_PATH') ? rtrim(BASE_PATH, '/') : '') . '/public/modules/simuze-community/'
+);
+
+// Mark as running in Modular context (guards in class files check this)
+if (!defined('SIMUZE_MODULAR_RUN')) {
+    define('SIMUZE_MODULAR_RUN', true);
+}
+
+// Load community class files (required for both web requests and AJAX)
+$_sc_includes = __DIR__ . '/includes/';
+foreach ([
+    'modular-bridge.php',
+    'class-database.php',
+    'class-auth.php',            // Simuze_Auth — required by profile.php
+    'class-user.php',            // Simuze_User — user lookups in all subpages
+    'class-avatar.php',
+    'class-group.php',
+    'class-activity.php',        // Simuze_Activity — activity tab + dashboard
+    'class-friend.php',          // Simuze_Friend — friends tab + counts
+    'class-follow.php',          // Simuze_Follow — follow counts
+    'class-message.php',         // Simuze_Message — messages tab + unread count
+    'commerce/class-song.php',           // Simuze_Song — purchase details
+    'commerce/class-album.php',          // Simuze_Album — purchase details
+    'commerce/class-download-flow.php',  // Simuze_Download_Flow::get_user_purchases()
+    'class-user-repository.php',
+    'class-group-repository.php',
+    'class-music-repository.php',
+    'class-venue-repository.php',
+    'class-event-repository.php',
+    'class-activity-post-repository.php',
+    'class-event-ticketing.php',
+    'class-geo.php',
+    'class-rest-api.php',
+    'class-location-avatar.php',
+    'class-show-matcher.php',
+    'ajax-music-upload.php',
+    'ajax-shows.php',
+] as $_sc_file) {
+    $p = $_sc_includes . $_sc_file;
+    if (is_file($p)) {
+        require_once $p;
+    }
+}
+unset($_sc_includes, $_sc_file, $p);
+
 // Activation: DB tables are installed automatically by Module::activate() from
 // migrations/ (e.g. 001_simuze_community_schema.sql). No manual SQL step needed.
 add_action('module_activate', function ($slug) {
@@ -51,7 +105,6 @@ add_action('init', function () {
             'sub' => [
                 ['label' => 'Simuze', 'url' => $base . 'index'],
                 ['label' => 'Shows', 'url' => $base . 'shows'],
-                ['label' => 'Venues', 'url' => $base . 'venues'],
                 ['label' => 'Cities', 'url' => $base . 'cities'],
                 ['label' => 'Groups', 'url' => $base . 'groups'],
                 ['label' => 'Group Types', 'url' => $base . 'group-types'],
@@ -81,7 +134,7 @@ add_action('init', function () {
             // Load the group object
             $group = null;
             if (class_exists('Simuze_Group')) {
-                $group = Simuze_Group::findBySlug($groupSlug);
+                $group = Simuze_Group::get_by_unique_name($groupSlug);
             }
             if (!$group && isset($GLOBALS['db'])) {
                 $row = md_db_row("SELECT * FROM simuze_groups WHERE unique_name = ? AND deleted_at IS NULL LIMIT 1", [$groupSlug]);
@@ -93,36 +146,30 @@ add_action('init', function () {
                 return $response; // let core router 404
             }
 
-            // Map tab to template
-            $tabTemplateMap = [
-                'music'       => 'group-music.php',
-                'members'     => 'group-members.php',
-                'activity'    => 'group-activity-public.php',
-                'artists'     => 'group-artists.php',
-                'discography' => 'group-discography.php',
-                'sales'       => 'group-sales.php',
-                'settings'    => 'group-settings.php',
-                'dashboard'   => 'group-dashboard.php',
-            ];
-            $tabFile = isset($tabTemplateMap[$groupTab])
-                ? SIMUZE_COMMUNITY_PATH . '/templates/' . $tabTemplateMap[$groupTab]
-                : SIMUZE_COMMUNITY_PATH . '/templates/group-public.php';
-
-            // overview/default
-            if ($groupTab === 'overview' || !array_key_exists($groupTab, $tabTemplateMap)) {
-                $tabFile = SIMUZE_COMMUNITY_PATH . '/templates/group-public.php';
-            }
-            if (!is_file($tabFile)) {
-                $tabFile = SIMUZE_COMMUNITY_PATH . '/templates/group-public.php';
-            }
+            // Route through group.php (main wrapper with header/avatar/nav)
+            // Pass $tab so group.php can skip get_query_var()
+            $tab = $groupTab ?: 'overview';
+            $groupTplFile = SIMUZE_COMMUNITY_PATH . '/templates/group.php';
 
             ob_start();
             if (function_exists('include_header')) include_header();
-            if (is_file($tabFile)) {
-                include $tabFile;
+            if (is_file($groupTplFile)) {
+                include $groupTplFile;
             }
             if (function_exists('include_footer')) include_footer();
             return ob_get_clean();
+        }
+
+        // embed/artist/{id} — no header/footer, clean iframeable HTML
+        if ($seg === 'embed' && ($parts[1] ?? '') === 'artist' && !empty($parts[2])) {
+            $artist_id = (int) $parts[2];
+            $tpl = THEMES_PATH . '/simuze/template-parts/embed-artist.php';
+            if (is_file($tpl)) {
+                ob_start();
+                include $tpl;
+                return ob_get_clean();
+            }
+            return $response;
         }
 
         // user/{username}[/tab]
@@ -138,6 +185,20 @@ add_action('init', function () {
                 if (!$user) {
                     return $response; // let core router 404
                 }
+                // Pass subpage tab to template (e.g. /user/marten/playlists → tab=playlists)
+                if (!empty($parts[2])) {
+                    if (!isset($GLOBALS['simuze_query_vars'])) {
+                        $GLOBALS['simuze_query_vars'] = [];
+                    }
+                    $GLOBALS['simuze_query_vars']['simuze_tab'] = trim($parts[2], '/');
+                }
+                // Pass 4th segment as playlist slug (e.g. /user/marten/playlists/my-playlist)
+                if (!empty($parts[3])) {
+                    if (!isset($GLOBALS['simuze_query_vars'])) {
+                        $GLOBALS['simuze_query_vars'] = [];
+                    }
+                    $GLOBALS['simuze_query_vars']['simuze_playlist_slug'] = trim($parts[3], '/');
+                }
                 ob_start();
                 if (function_exists('include_header')) include_header();
                 include $tpl;
@@ -148,4 +209,28 @@ add_action('init', function () {
 
         return $response;
     });
+
+    // Playlist AJAX handlers
+    add_action('wp_ajax_simuze_create_playlist',                'simuze_ajax_create_playlist');
+    add_action('wp_ajax_nopriv_simuze_create_playlist',         'simuze_ajax_create_playlist');
+    add_action('wp_ajax_simuze_edit_playlist',                  'simuze_ajax_edit_playlist');
+    add_action('wp_ajax_simuze_delete_playlist',                'simuze_ajax_delete_playlist');
+    add_action('wp_ajax_simuze_get_playlist_tracks_ajax',       'simuze_get_playlist_tracks_ajax');
+    add_action('wp_ajax_nopriv_simuze_get_playlist_tracks_ajax','simuze_get_playlist_tracks_ajax');
+    add_action('wp_ajax_simuze_reorder_playlist_tracks',        'simuze_ajax_reorder_playlist_tracks');
+    add_action('wp_ajax_simuze_remove_from_playlist',           'simuze_ajax_remove_from_playlist');
+    add_action('wp_ajax_simuze_add_to_playlist',                'simuze_ajax_add_to_playlist');
+    add_action('wp_ajax_nopriv_simuze_add_to_playlist',         'simuze_ajax_add_to_playlist');
+    add_action('wp_ajax_simuze_get_user_playlists_ajax',        'simuze_get_user_playlists_ajax');
+    add_action('wp_ajax_nopriv_simuze_get_user_playlists_ajax', 'simuze_get_user_playlists_ajax');
+
+    // Show AJAX handlers
+    add_action('wp_ajax_simuze_delete_show',              'simuze_ajax_delete_show');
+    add_action('wp_ajax_nopriv_simuze_delete_show',       'simuze_ajax_delete_show');
+    add_action('wp_ajax_simuze_toggle_attendance',        'simuze_ajax_toggle_attendance');
+    add_action('wp_ajax_simuze_post_event_comment',       'simuze_ajax_post_event_comment');
+    add_action('wp_ajax_simuze_add_guestlist_entry',      'simuze_ajax_add_guestlist_entry');
+    add_action('wp_ajax_simuze_get_organiser_dashboard',  'simuze_ajax_get_organiser_dashboard');
+    add_action('wp_ajax_simuze_search_artists',           'simuze_ajax_search_artists');
+    add_action('wp_ajax_nopriv_simuze_search_artists',    'simuze_ajax_search_artists');
 });

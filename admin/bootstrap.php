@@ -20,6 +20,13 @@ require_once CORE_PATH . '/functions/csrf.php';
 require_once CORE_PATH . '/functions/cache.php';
 require_once CORE_PATH . '/functions/admin.php';
 require_once CORE_PATH . '/functions/hooks.php';
+require_once CORE_PATH . '/functions/common.php';
+require_once CORE_PATH . '/functions/template-helpers.php';
+
+// Simezu auth — decodes JWT cookie early so $GLOBALS['is_logged_in'] is available to all templates
+if (is_file(CORE_PATH . '/functions/simezu_auth.php')) {
+    require_once CORE_PATH . '/functions/simezu_auth.php';
+}
 
 // Load core classes
 require_once CORE_PATH . '/classes/Hooks.php';
@@ -38,6 +45,9 @@ if (isset($GLOBALS['db'])) {
             if (function_exists('do_action')) {
                 do_action('init');
             }
+            if (function_exists('_simezu_populate_globals_from_auth')) {
+                _simezu_populate_globals_from_auth();
+            }
         }
     } catch (\PDOException $e) {
         // Modules table doesn't exist yet - that's okay
@@ -45,14 +55,56 @@ if (isset($GLOBALS['db'])) {
     }
 }
 
-// Security headers for admin (send before any output)
+// Security headers for admin + public (send before any output)
 if (!headers_sent()) {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('X-XSS-Protection: 1; mode=block');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    // CSP: allow same origin and inline styles common in admin; tighten as needed
-    $csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; frame-ancestors 'self';";
+
+    // CSP: allow same origin by default, plus Simezu + Leaflet/MarkerCluster CDN assets
+    // Simezu embed + API domains (local + production)
+    $simezuEmbed = defined('SIMEZU_EMBED_URL') ? rtrim(SIMEZU_EMBED_URL, '/') : 'https://simezu.com';
+    $simezuHost  = parse_url($simezuEmbed, PHP_URL_SCHEME) . '://' . parse_url($simezuEmbed, PHP_URL_HOST);
+
+    // Allow unpkg for Leaflet/MarkerCluster when used by themes/modules
+    $leafletCdn = 'https://unpkg.com';
+
+    $scriptSrc = [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        $leafletCdn,
+        $simezuHost,
+    ];
+
+    $styleSrc = [
+        "'self'",
+        "'unsafe-inline'",
+        $leafletCdn,
+        $simezuHost,
+    ];
+
+    $imgSrc = [
+        "'self'",
+        "data:",
+        "blob:",
+        $simezuHost,
+        "https://*.basemaps.cartocdn.com",
+    ];
+
+    $fontSrc = [
+        "'self'",
+    ];
+
+    $csp = sprintf(
+        "default-src 'self'; script-src %s; style-src %s; img-src %s; font-src %s; frame-ancestors 'self';",
+        implode(' ', array_unique($scriptSrc)),
+        implode(' ', array_unique($styleSrc)),
+        implode(' ', array_unique($imgSrc)),
+        implode(' ', array_unique($fontSrc))
+    );
+
     header("Content-Security-Policy: " . $csp);
 }
 

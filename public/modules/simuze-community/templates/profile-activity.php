@@ -4,7 +4,7 @@
  * Full width layout with simple textarea editor
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN')) {
     exit;
 }
 

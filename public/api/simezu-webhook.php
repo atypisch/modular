@@ -9,13 +9,46 @@
  */
 
 // Bootstrap Modular (loads DB, config, functions)
-$bootstrap = dirname(__DIR__, 2) . '/admin/bootstrap.php';
+if (!defined('MODULAR_PATH')) {
+    define('MODULAR_PATH', dirname(__DIR__, 2));
+}
+$_wh_config = MODULAR_PATH . '/admin/config/config.php';
+if (is_file($_wh_config)) {
+    require_once $_wh_config;
+}
+unset($_wh_config);
+
+// Load core function files before bootstrap (same order as simezu-ajax.php)
+foreach (['http', 'database'] as $_wh_fn) {
+    $_wh_fp = MODULAR_PATH . '/core/functions/' . $_wh_fn . '.php';
+    if (is_file($_wh_fp)) {
+        require_once $_wh_fp;
+    }
+}
+unset($_wh_fn, $_wh_fp);
+
+$bootstrap = MODULAR_PATH . '/admin/bootstrap.php';
 if (!is_file($bootstrap)) {
     http_response_code(500);
     echo json_encode(['error' => 'bootstrap missing']);
     exit;
 }
 require_once $bootstrap;
+if (!defined('SIMUZE_MODULAR_RUN')) {
+    define('SIMUZE_MODULAR_RUN', true);
+}
+
+// Load event ticketing class if not already loaded
+$_wh_et = dirname(__DIR__) . '/modules/simuze-community/includes/class-event-ticketing.php';
+if (!class_exists('Simuze_Event_Ticketing') && is_file($_wh_et)) {
+    require_once $_wh_et;
+}
+// Load mail helper
+$_wh_mail = dirname(__DIR__, 2) . '/core/functions/mail.php';
+if (!function_exists('mail_send_template') && is_file($_wh_mail)) {
+    require_once $_wh_mail;
+}
+unset($_wh_et, $_wh_mail);
 
 // Only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -74,6 +107,20 @@ $allowed_types = ['album', 'track', 'playlist'];
 switch ($event) {
 
     case 'payment.completed':
+        // Event ticket flow (uses order reference, not product_id)
+        $event_reference = $data['reference'] ?? '';
+        if ($product_type === 'event_ticket' && $event_reference !== '') {
+            if (class_exists('Simuze_Event_Ticketing')) {
+                $result = Simuze_Event_Ticketing::markOrderPaidAndIssueTickets($event_reference, $data);
+                if ($result) {
+                    _simezu_webhook_send_ticket_confirmation($result['order'] ?? [], $result['tickets'] ?? []);
+                }
+            }
+            http_response_code(200);
+            echo json_encode(['ok' => true, 'event' => $event, 'flow' => 'event_ticket']);
+            break;
+        }
+
         if ($user_id < 1 || $product_id < 1 || !in_array($product_type, $allowed_types, true) || $transaction_id === '') {
             http_response_code(422);
             echo json_encode(['error' => 'missing required fields']);
@@ -155,4 +202,45 @@ switch ($event) {
         http_response_code(200);
         echo json_encode(['ok' => true, 'event' => $event, 'note' => 'unhandled event type']);
         break;
+}
+
+/**
+ * Send ticket confirmation email to the buyer.
+ */
+function _simezu_webhook_send_ticket_confirmation(array $order, array $tickets): void {
+    $to = $order['buyer_email'] ?? '';
+    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return;
+    }
+    if (!function_exists('mail_send_template')) {
+        return;
+    }
+    // Load event info
+    $event_id   = (int) ($order['event_id'] ?? 0);
+    $event_row  = $event_id > 0 ? md_db_row('SELECT title, slug, event_date, venue_label FROM simuze_events WHERE id = ? LIMIT 1', [$event_id]) : null;
+    $event_title = $event_row['title'] ?? 'Your show';
+    $event_date  = !empty($event_row['event_date']) ? date('D j M Y, H:i', strtotime($event_row['event_date'])) : '';
+    $venue       = $event_row['venue_label'] ?? '';
+    $codes       = implode(', ', array_column($tickets, 'ticket_code'));
+    $quantity    = (int) ($order['quantity'] ?? count($tickets));
+    $total       = number_format((float) ($order['total_price'] ?? 0), 2);
+    $currency    = $order['currency'] ?? 'EUR';
+    $show_url    = !empty($event_row['slug']) ? (defined('SITE_URL') ? SITE_URL : '') . '/show/' . $event_row['slug'] : '';
+
+    mail_send_template('ticket_confirmation', $to, [
+        'buyer_name'   => $order['buyer_name'] ?? '',
+        'event_title'  => $event_title,
+        'event_date'   => $event_date,
+        'venue'        => $venue,
+        'ticket_codes' => $codes,
+        'quantity'     => $quantity,
+        'total_price'  => $currency . ' ' . $total,
+        'show_url'     => $show_url,
+        // Fallback subject/body when no DB template is configured
+        'subject_fallback' => 'Your tickets for ' . $event_title,
+        'body_fallback'    => "Hi,\n\nHere are your tickets for {$event_title}:\n\nDate: {$event_date}\nVenue: {$venue}\nTicket(s): {$codes}\nTotal: {$currency} {$total}\n\nSee you there!\n\nSimuze",
+    ]);
+
+    // TODO: cron md_hook_run('simuze_pre_show_reminder', $event_id) — 24h before event_date
+    // TODO: cron md_hook_run('simuze_post_show_feedback', $event_id) — 24h after event_date
 }

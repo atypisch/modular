@@ -77,13 +77,52 @@ if (defined('APP_DEBUG') && APP_DEBUG) {
 // Check permissions
 $can_upload = $is_member && ($is_simezu_super_admin || $has_admin_rights);
 
+// Output CSS + JS config now so it's always available, including in edit mode.
+// (The edit handler below returns early, skipping the rest of this template.)
+{
+    $_gm_base_url = function_exists('md_home_url') ? rtrim(md_home_url(''), '/') : (defined('SITE_URL') ? rtrim(SITE_URL, '/') : '');
+    $_gm_theme_js = $_gm_base_url . '/public/themes/simuze/js';
+    $_gm_mod_css  = $_gm_base_url . '/public/modules/simuze-community/assets/css';
+    echo '<link rel="stylesheet" href="' . md_esc_url($_gm_mod_css . '/community.css') . '?v=1" id="simuze-group-music-community-css">';
+    echo '<script>';
+    echo '(function(){var cfg=' . json_encode([
+        'ajax_url'       => md_url('/api/simezu-ajax.php'),
+        'ajaxurl'        => md_url('/api/simezu-ajax.php'),
+        'nonce'          => md_csrf_token(),
+        'upload_nonce'   => md_csrf_token(),
+        'delete_nonce'   => md_csrf_token(),
+        'rename_nonce'   => md_csrf_token(),
+        'playlist_nonce' => md_csrf_token(),
+        'favorite_nonce' => md_csrf_token(),
+        'group_id'       => $group_id,
+        'group_name'     => $group->name,
+        'max_file_size'  => 1000 * 1024 * 1024,
+        'can_upload'     => $can_upload,
+        'is_admin'       => $is_simezu_super_admin,
+        'is_mod'         => $is_group_mod,
+        'current_user_id'=> $current_user_id,
+    ]) . ';';
+    echo 'window.simuze_upload=window.simuze_upload||{};Object.assign(window.simuze_upload,cfg);';
+    echo 'window.simuze_ajax=window.simuze_ajax||{};';
+    echo 'window.simuze_ajax.ajaxurl=cfg.ajax_url;';
+    echo 'window.simuze_ajax.nonce=cfg.playlist_nonce;';
+    echo 'window.simuze_ajax.playlist_nonce=cfg.playlist_nonce;';
+    echo 'window.simuze_ajax.favorite_nonce=cfg.favorite_nonce;';
+    echo 'window.simuze_ajax.current_user_id=cfg.current_user_id;';
+    echo '})();</script>';
+    if ($_gm_base_url !== '') {
+        echo '<script src="' . md_esc_url($_gm_theme_js . '/music-upload.js') . '?v=2.2.4" id="simuze-music-upload-js-edit"></script>';
+    }
+    unset($_gm_base_url, $_gm_theme_js, $_gm_mod_css);
+}
+
 // If edit=true and album_id present, load album edit view directly.
 // In Modular, album_id in the URL is always the md_music_albums.id (no WP post mapping needed).
 if (isset($_GET['edit']) && $_GET['edit'] === 'true' && !empty($_GET['album_id'])) {
     $album_db_id = intval($_GET['album_id']);
     $album_data  = simuze_get_album_for_editing($album_db_id, $group_id, $current_user_id);
     if (!$album_data) {
-        echo '<div class="no-music"><i class="fas fa-exclamation-circle"></i><h3>' . __('Album not found or no permission to edit.', 'simuze') . '</h3></div>';
+        echo '<div class="no-music"><i class="fas fa-exclamation-circle"></i><h3>' . 'Album not found or no permission to edit.' . '</h3></div>';
         return;
     }
     $album_edit_tpl = md_locate_template('template-parts/album-edit.php');
@@ -124,7 +163,7 @@ $theme_js_url = $base_url . '/public/themes/simuze/js';
 $module_js_url = $base_url . '/public/modules/simuze-community/assets/js';
 $module_css_url = $base_url . '/public/modules/simuze-community/assets/css';
 ?>
-<link rel="stylesheet" href="<?php echo esc_url($module_css_url . '/community.css'); ?>?v=1" id="simuze-group-music-community-css">
+<link rel="stylesheet" href="<?php echo md_esc_url($module_css_url . '/community.css'); ?>?v=1" id="simuze-group-music-community-css">
 <style id="simuze-group-music-inline-css">
 /* Span full width of parent .row.scroll-area.full-width-content without exceeding it */
 .row.scroll-area.full-width-content { width: 100%; max-width: 100%; box-sizing: border-box; }
@@ -161,26 +200,41 @@ $module_css_url = $base_url . '/public/modules/simuze-community/assets/css';
 .group-discography .upload-actions .button.disabled { opacity: 0.6; cursor: not-allowed; }
 </style>
 <script>
-window.simuze_upload = window.simuze_upload || <?php echo json_encode([
-    'ajax_url' => md_url('/api/simezu-ajax.php'),
-    'ajaxurl'  => md_url('/api/simezu-ajax.php'),
-    'nonce' => md_csrf_token(),
-    'upload_nonce' => md_csrf_token(),
-    'delete_nonce' => md_csrf_token(),
-    'rename_nonce' => md_csrf_token(),
-    'group_id' => $group_id,
-    'group_name' => $group->name,
-    'max_file_size' => 1000 * 1024 * 1024,
-    'can_upload' => $can_upload,
-    'is_admin' => $is_simezu_super_admin,
-    'is_mod' => $is_group_mod,
-    'current_user_id' => $current_user_id,
-]); ?>;
+(function() {
+    // Always refresh security values on page load; don't keep stale/null values from previous pages.
+    var cfg = <?php echo json_encode([
+        'ajax_url' => md_url('/api/simezu-ajax.php'),
+        'ajaxurl'  => md_url('/api/simezu-ajax.php'),
+        'nonce' => md_csrf_token(),
+        'upload_nonce' => md_csrf_token(),
+        'delete_nonce' => md_csrf_token(),
+        'rename_nonce' => md_csrf_token(),
+        'playlist_nonce' => md_csrf_token(),
+        'favorite_nonce' => md_csrf_token(),
+        'group_id' => $group_id,
+        'group_name' => $group->name,
+        'max_file_size' => 1000 * 1024 * 1024,
+        'can_upload' => $can_upload,
+        'is_admin' => $is_simezu_super_admin,
+        'is_mod' => $is_group_mod,
+        'current_user_id' => $current_user_id,
+    ]); ?>;
+
+    window.simuze_upload = window.simuze_upload || {};
+    Object.assign(window.simuze_upload, cfg);
+
+    // audio-player.js reads window.simuze_ajax for playlist actions.
+    window.simuze_ajax = window.simuze_ajax || {};
+    window.simuze_ajax.ajaxurl = cfg.ajax_url;
+    window.simuze_ajax.nonce = cfg.playlist_nonce;
+    window.simuze_ajax.playlist_nonce = cfg.playlist_nonce;
+    window.simuze_ajax.favorite_nonce = cfg.favorite_nonce;
+    window.simuze_ajax.current_user_id = cfg.current_user_id;
+})();
 </script>
 <?php if ($base_url !== ''): ?>
-<script src="<?php echo esc_url($theme_js_url . '/jquery-4.0.0.min.js'); ?>" id="simuze-jquery"></script>
-<script src="<?php echo esc_url($theme_js_url . '/music-upload.js'); ?>?v=2.2.4" id="simuze-music-upload-js"></script>
-<script src="<?php echo esc_url($theme_js_url . '/discography.js'); ?>?v=1.0.3" id="simuze-discography-js"></script>
+<script src="<?php echo md_esc_url($theme_js_url . '/music-upload.js'); ?>?v=2.2.4" id="simuze-music-upload-js"></script>
+<script src="<?php echo md_esc_url($theme_js_url . '/discography.js'); ?>?v=1.0.3" id="simuze-discography-js"></script>
 <?php endif; ?>
 <script id="simuze-upload-type-fallback">
 (function() {
@@ -208,23 +262,23 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
     <div class="tabs">
         <ul class="tab-list clearfix">
             <li class="tab-item <?php echo $current_tab === 'overview' ? 'active' : ''; ?>" data-tab="overview-tab" id="tab-overview">
-                <i class="fas fa-music"></i> <?php _e('Overview', 'simuze'); ?>
+                <i class="fas fa-music"></i> <?php echo 'Overview'; ?>
                 <span class="tab-count" id="overview-count"><?php echo $published_count; ?></span>
             </li>
             <li class="tab-item <?php echo $current_tab === 'in-progress' ? 'active' : ''; ?>" data-tab="in-progress-tab" id="tab-in-progress">
-                <i class="fas fa-clock"></i> <?php _e('In Progress', 'simuze'); ?>
+                <i class="fas fa-clock"></i> <?php echo 'In Progress'; ?>
                 <span class="tab-count" id="in-progress-count"><?php echo $draft_count; ?></span>
             </li>
             <li class="tab-item <?php echo $current_tab === 'scheduled' ? 'active' : ''; ?>" data-tab="scheduled-tab" id="tab-scheduled">
-                <i class="fas fa-calendar-alt"></i> <?php _e('Scheduled', 'simuze'); ?>
+                <i class="fas fa-calendar-alt"></i> <?php echo 'Scheduled'; ?>
                 <span class="tab-count" id="scheduled-count"><?php echo $scheduled_count; ?></span>
             </li>
             <li class="tab-item <?php echo $current_tab === 'under-review' ? 'active' : ''; ?>" data-tab="under-review-tab" id="tab-under-review">
-                <i class="fas fa-eye"></i> <?php _e('Under Review', 'simuze'); ?>
+                <i class="fas fa-eye"></i> <?php echo 'Under Review'; ?>
                 <span class="tab-count" id="under-review-count"><?php echo $under_review_count; ?></span>
             </li>
             <li class="tab-item <?php echo $current_tab === 'upload' ? 'active' : ''; ?>" data-tab="upload-tab" id="tab-upload">
-                <i class="fas fa-upload"></i> <?php _e('Upload', 'simuze'); ?>
+                <i class="fas fa-upload"></i> <?php echo 'Upload'; ?>
             </li>
         </ul>
     </div>
@@ -234,13 +288,13 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
     <div class="tab-content <?php echo ($current_tab === 'overview' || !$show_all_tabs) ? 'active' : ''; ?>" id="overview-tab">
         <?php if (!empty($published_albums)) : ?>
             <div class="music-collection">
-                <h3><?php _e('Published Music', 'simuze'); ?></h3>
+                <h3><?php echo 'Published Music'; ?></h3>
                 
                 
                 <?php
                 $albums = $published_albums;
                 $show_actions = $show_edit_delete_buttons; // Only show actions if user has permission
-                $empty_message = __('No published music found.', 'simuze');
+                $empty_message = 'No published music found.';
                 $grid_class = 'albums-grid';
                 // Pass group_id to template context
                 $template_group_id = $group_id;
@@ -256,14 +310,14 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
         <?php else : ?>
             <div class="no-music">
                 <i class="fas fa-music"></i>
-                <h3><?php _e('No music uploads yet!', 'simuze'); ?></h3>
+                <h3><?php echo 'No music uploads yet!'; ?></h3>
                 <?php if ($can_upload) : ?>
-                    <p><?php _e('Start by uploading your first track or album.', 'simuze'); ?></p>
+                    <p><?php echo 'Start by uploading your first track or album.'; ?></p>
                     <button id="show-upload-empty" class="button">
-                        <i class="fas fa-upload"></i> <?php _e('Upload Music', 'simuze'); ?>
+                        <i class="fas fa-upload"></i> <?php echo 'Upload Music'; ?>
                     </button>
                 <?php else : ?>
-                    <p><?php _e('No music has been uploaded to this group yet.', 'simuze'); ?></p>
+                    <p><?php echo 'No music has been uploaded to this group yet.'; ?></p>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
@@ -272,8 +326,8 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
     <?php if ($show_all_tabs) : ?>
     <!-- In Progress Tab Content -->
     <div class="tab-content <?php echo $current_tab === 'in-progress' ? 'active' : ''; ?>" id="in-progress-tab">
-        <h3><?php _e('In Progress', 'simuze'); ?></h3>
-        <p><?php _e('Drafts and uploads that are not yet completed.', 'simuze'); ?></p>
+        <h3><?php echo 'In Progress'; ?></h3>
+        <p><?php echo 'Drafts and uploads that are not yet completed.'; ?></p>
         
         <?php 
         $user_id = null;
@@ -288,7 +342,7 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
                         <?php
             $albums = $draft_albums;
             $show_actions = $show_edit_delete_buttons; // Only show actions if user has permission
-            $empty_message = __('No drafts found.', 'simuze');
+            $empty_message = 'No drafts found.';
             $grid_class = 'albums-grid draft-albums';
             $template_group_id = $group_id; // Pass group_id to album-grid.php
             
@@ -297,9 +351,9 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
         <?php else : ?>
             <div class="no-albums-message">
                 <i class="fas fa-clock"></i>
-                <p><?php _e('No drafts found. Start a new upload to create drafts.', 'simuze'); ?></p>
+                <p><?php echo 'No drafts found. Start a new upload to create drafts.'; ?></p>
                 <button class="button show-upload-tab">
-                    <i class="fas fa-upload"></i> <?php _e('Start Upload', 'simuze'); ?>
+                    <i class="fas fa-upload"></i> <?php echo 'Start Upload'; ?>
                 </button>
                                 </div>
         <?php endif; ?>
@@ -307,8 +361,8 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
     
     <!-- Scheduled Tab Content -->
     <div class="tab-content <?php echo $current_tab === 'scheduled' ? 'active' : ''; ?>" id="scheduled-tab">
-        <h3><?php _e('Scheduled', 'simuze'); ?></h3>
-        <p><?php _e('Items scheduled for future release.', 'simuze'); ?></p>
+        <h3><?php echo 'Scheduled'; ?></h3>
+        <p><?php echo 'Items scheduled for future release.'; ?></p>
         
         <?php 
         $user_id = null;
@@ -323,7 +377,7 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
             <?php 
             $albums = $scheduled_albums;
             $show_actions = $show_edit_delete_buttons; // Only show actions if user has permission
-            $empty_message = __('No scheduled releases found.', 'simuze');
+            $empty_message = 'No scheduled releases found.';
             $grid_class = 'albums-grid scheduled-albums';
             $template_group_id = $group_id; // Pass group_id to album-grid.php
             
@@ -332,16 +386,16 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
         <?php else : ?>
             <div class="no-albums-message">
                 <i class="fas fa-calendar-alt"></i>
-                <p><?php _e('No scheduled releases found.', 'simuze'); ?></p>
-                <p><small><?php _e('Albums with future release dates will appear here.', 'simuze'); ?></small></p>
+                <p><?php echo 'No scheduled releases found.'; ?></p>
+                <p><small><?php echo 'Albums with future release dates will appear here.'; ?></small></p>
                                 </div>
         <?php endif; ?>
                             </div>
                             
     <!-- Under Review Tab Content -->
     <div class="tab-content <?php echo $current_tab === 'under-review' ? 'active' : ''; ?>" id="under-review-tab">
-        <h3><?php _e('Under Review', 'simuze'); ?></h3>
-        <p><?php _e('Items that require editorial review before publication.', 'simuze'); ?></p>
+        <h3><?php echo 'Under Review'; ?></h3>
+        <p><?php echo 'Items that require editorial review before publication.'; ?></p>
         
         <?php 
         $user_id = null;
@@ -356,7 +410,7 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
             <?php 
             $albums = $review_albums;
             $show_actions = $show_edit_delete_buttons; // Only show actions if user has permission
-            $empty_message = __('No items under review.', 'simuze');
+            $empty_message = 'No items under review.';
             $grid_class = 'albums-grid review-albums';
             $template_group_id = $group_id; // Pass group_id to album-grid.php
             
@@ -365,7 +419,7 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
         <?php else : ?>
             <div class="no-albums-message">
                 <i class="fas fa-eye"></i>
-                <p><?php _e('No items currently under review.', 'simuze'); ?></p>
+                <p><?php echo 'No items currently under review.'; ?></p>
             </div>
         <?php endif; ?>
                                 </div>
@@ -374,55 +428,55 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
     <div class="tab-content <?php echo $current_tab === 'upload' ? 'active' : ''; ?>" id="upload-tab">
         <div id="simuze-upload-container" class="upload-wizard" data-current-step="1">
             <div class="upload-header">
-                <h3><?php _e('Upload Music', 'simuze'); ?></h3>
-                <p><?php _e('Share your music with the group by uploading tracks or albums.', 'simuze'); ?></p>
+                <h3><?php echo 'Upload Music'; ?></h3>
+                <p><?php echo 'Share your music with the group by uploading tracks or albums.'; ?></p>
                                 </div>
                                 
             <!-- Step Navigation -->
             <div class="upload-steps">
                 <div class="step active" data-step="1">
                     <div class="step-number">1</div>
-                    <div class="step-title"><?php _e('Choose Type', 'simuze'); ?></div>
+                    <div class="step-title"><?php echo 'Choose Type'; ?></div>
                                 </div>
                 <div class="step" data-step="2">
                     <div class="step-number">2</div>
-                    <div class="step-title"><?php _e('Upload Files', 'simuze'); ?></div>
+                    <div class="step-title"><?php echo 'Upload Files'; ?></div>
                                         </div>
                 <div class="step" data-step="3">
                     <div class="step-number">3</div>
-                    <div class="step-title"><?php _e('Add Details', 'simuze'); ?></div>
+                    <div class="step-title"><?php echo 'Add Details'; ?></div>
                                     </div>
                                 </div>
                                 
             <!-- Step 1: Choose Upload Type -->
             <div id="step-1" class="upload-step-content">
-                <h4><?php _e('What would you like to upload?', 'simuze'); ?></h4>
+                <h4><?php echo 'What would you like to upload?'; ?></h4>
                 <div class="upload-type-choices">
                     <div class="upload-type" data-type="single">
                         <i class="fas fa-music"></i>
-                        <h5><?php _e('Single Track', 'simuze'); ?></h5>
-                        <p><?php _e('Upload one standalone song', 'simuze'); ?></p>
+                        <h5><?php echo 'Single Track'; ?></h5>
+                        <p><?php echo 'Upload one standalone song'; ?></p>
                     </div>
                     <div class="upload-type" data-type="album">
                         <i class="fas fa-compact-disc"></i>
-                        <h5><?php _e('Album', 'simuze'); ?></h5>
-                        <p><?php _e('Upload multiple songs as an album', 'simuze'); ?></p>
+                        <h5><?php echo 'Album'; ?></h5>
+                        <p><?php echo 'Upload multiple songs as an album'; ?></p>
                     </div>
                                     </div>
                                 </div>
                                 
             <!-- Step 2: Upload Files -->
             <div id="step-2" class="upload-step-content hidden">
-                <h4><?php _e('Upload Your Files', 'simuze'); ?></h4>
+                <h4><?php echo 'Upload Your Files'; ?></h4>
                 <div class="file-upload-area">
                     <input type="file" id="music-files" multiple accept=".mp3,.wav,.aiff,.flac,.m4a,.ogg" class="file-input-hidden">
                     <div id="drag-drop-area" class="upload-dropzone">
                         <div class="upload-icon">
                             <i class="fas fa-cloud-upload-alt"></i>
                                 </div>
-                        <p class="upload-text"><?php _e('Drag and drop your files here, or click to browse', 'simuze'); ?></p>
+                        <p class="upload-text"><?php echo 'Drag and drop your files here, or click to browse'; ?></p>
                         <button type="button" class="button upload-button browse-files" id="browse-files">
-                            <i class="fas fa-folder-open"></i> <?php _e('Browse Files', 'simuze'); ?>
+                            <i class="fas fa-folder-open"></i> <?php echo 'Browse Files'; ?>
                         </button>
                     </div>
                     <div class="uploaded-files"></div>
@@ -431,7 +485,7 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
 
             <!-- Step 3: Add Metadata -->
             <div id="step-3" class="upload-step-content hidden">
-                <h4><?php _e('Add Details', 'simuze'); ?></h4>
+                <h4><?php echo 'Add Details'; ?></h4>
                 <form id="metadata-form">
                     <!-- Album Details (only shown for albums) -->
                     <div id="album-details"></div>
@@ -445,19 +499,19 @@ window.simuze_upload = window.simuze_upload || <?php echo json_encode([
             <!-- Navigation Buttons -->
             <div class="upload-actions">
                 <button type="button" class="button prev-step hidden">
-                    <i class="fas fa-arrow-left"></i> <?php _e('Previous', 'simuze'); ?>
+                    <i class="fas fa-arrow-left"></i> <?php echo 'Previous'; ?>
                 </button>
                 <button type="button" class="button cancel-upload hidden">
-                    <i class="fas fa-times"></i> <?php _e('Cancel', 'simuze'); ?>
+                    <i class="fas fa-times"></i> <?php echo 'Cancel'; ?>
                 </button>
                 <button type="button" class="button next-step">
-                    <?php _e('Next', 'simuze'); ?> <i class="fas fa-arrow-right"></i>
+                    <?php echo 'Next'; ?> <i class="fas fa-arrow-right"></i>
                 </button>
                 <button type="button" class="button submit-upload hidden" id="finish-upload">
-                    <i class="fas fa-check"></i> <?php _e('Publish', 'simuze'); ?>
+                    <i class="fas fa-check"></i> <?php echo 'Publish'; ?>
                 </button>
                 <button type="button" class="button save-draft hidden" id="save-draft">
-                    <i class="fas fa-save"></i> <?php _e('Save as Draft', 'simuze'); ?>
+                    <i class="fas fa-save"></i> <?php echo 'Save as Draft'; ?>
                 </button>
             </div>
         </div>

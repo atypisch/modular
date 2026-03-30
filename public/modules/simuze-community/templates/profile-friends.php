@@ -4,7 +4,7 @@
  * Full width layout matching Playlists style
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN')) {
     exit;
 }
 
@@ -111,7 +111,7 @@ if ($search && !empty($friends)) {
                         <a href="<?php echo esc_url(md_home_url('/user/' . $friend['username'] . '/')); ?>" class="friend-link-full">
                             <img src="<?php echo esc_url($friend_avatar_url); ?>" 
                                  alt="<?php echo esc_attr($friend['display_name']); ?>" 
-                                 class="friend-avatar"
+                                 class="friend-avatar user-avatar"
                                  <?php if (!empty($friend_simezu_id)): ?>data-simezu-user-id="<?php echo esc_attr($friend_simezu_id); ?>"<?php endif; ?>>
                             <div class="friend-info-col">
                                 <span class="friend-name"><?php echo esc_html($friend['display_name']); ?></span>
@@ -178,7 +178,7 @@ if ($search && !empty($friends)) {
                             ?>
                             <img src="<?php echo esc_url($requester_avatar_url); ?>" 
                                  alt="" 
-                                 class="requester-avatar"
+                                 class="requester-avatar user-avatar"
                                  <?php if (!empty($requester_simezu_id)): ?>data-simezu-user-id="<?php echo esc_attr($requester_simezu_id); ?>"<?php endif; ?>>
                             <div class="requester-info-col">
                                 <span class="requester-name"><?php echo esc_html($requester->display_name); ?></span>
@@ -239,7 +239,7 @@ if ($search && !empty($friends)) {
                             ?>
                             <img src="<?php echo esc_url($recipient_avatar_url); ?>" 
                                  alt="" 
-                                 class="requester-avatar"
+                                 class="requester-avatar user-avatar"
                                  <?php if (!empty($recipient_simezu_id)): ?>data-simezu-user-id="<?php echo esc_attr($recipient_simezu_id); ?>"<?php endif; ?>>
                             <div class="requester-info-col">
                                 <span class="requester-name"><?php echo esc_html($recipient->display_name); ?></span>

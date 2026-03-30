@@ -4,7 +4,7 @@
  * Full width layout matching Playlists style
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN')) {
     exit;
 }
 
@@ -99,7 +99,7 @@ if ($compose_to) {
                             ?>
                                 <img src="<?php echo esc_url($participant_avatar_url); ?>" 
                                      alt="" 
-                                     class="thread-avatar"
+                                     class="thread-avatar user-avatar"
                                      <?php if (!empty($participant_simezu_id)): ?>data-simezu-user-id="<?php echo esc_attr($participant_simezu_id); ?>"<?php endif; ?>>
                                 <div class="thread-info">
                                     <span class="thread-name"><?php echo esc_html($participant->display_name); ?></span>
@@ -153,7 +153,7 @@ if ($compose_to) {
                         ?>
                         <img src="<?php echo esc_url($thread_participant_avatar_url); ?>" 
                              alt="" 
-                             class="participant-avatar"
+                             class="participant-avatar user-avatar"
                              <?php if (!empty($thread_participant_simezu_id)): ?>data-simezu-user-id="<?php echo esc_attr($thread_participant_simezu_id); ?>"<?php endif; ?>>
                         <div>
                             <span class="participant-name"><?php echo esc_html($thread_participant->display_name); ?></span>
@@ -215,7 +215,7 @@ if ($compose_to) {
                         ?>
                         <img src="<?php echo esc_url($compose_recipient_avatar_url); ?>" 
                              alt="" 
-                             class="participant-avatar"
+                             class="participant-avatar user-avatar"
                              <?php if (!empty($compose_recipient_simezu_id)): ?>data-simezu-user-id="<?php echo esc_attr($compose_recipient_simezu_id); ?>"<?php endif; ?>>
                         <div>
                             <span class="participant-name"><?php echo esc_html($compose_recipient->display_name); ?></span>

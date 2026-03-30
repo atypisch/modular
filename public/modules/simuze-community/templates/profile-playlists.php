@@ -4,7 +4,7 @@
  * Uses existing Simuze playlists functionality
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN')) {
     exit;
 }
 

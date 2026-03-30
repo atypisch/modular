@@ -4,7 +4,7 @@
  * Shows recent public activity for the group.
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN') && !defined('MODULAR_PATH')) {
     exit;
 }
 

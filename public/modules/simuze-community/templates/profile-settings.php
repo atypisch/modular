@@ -5,7 +5,7 @@
  * Local storage: header image, bio, websites (repeater), Simezu ID
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN')) {
     exit;
 }
 
@@ -32,6 +32,10 @@ $current_header_url = $user->header_url ?? '';
 // Get local bio and websites (stored in Simuze, not Simezu)
 $local_bio = $user->profile['bio'] ?? '';
 $local_websites = $user->profile['websites'] ?? [];
+// Local fallbacks for Simezu-sourced fields (populated by JS on load, but pre-filled here as fallback)
+$local_first_name = $user->profile['first_name'] ?? '';
+$local_last_name  = $user->profile['last_name'] ?? '';
+$local_location   = $user->profile['location'] ?? '';
 if (!is_array($local_websites)) {
     $local_websites = !empty($local_websites) ? [$local_websites] : [];
 }
@@ -99,12 +103,12 @@ if (!is_array($local_websites)) {
         <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 20px;">
             <div class="form-group" style="flex: 1;">
                 <label for="first_name" style="color: #fff; font-weight: 600; margin-bottom: 8px; display: block;">First Name</label>
-                <input type="text" id="first_name" name="first_name" value="" 
+                <input type="text" id="first_name" name="first_name" value="<?php echo esc_attr($local_first_name); ?>"
                        style="width: 100%; padding: 10px 12px; background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 6px; font-size: 14px; color: #fff;">
             </div>
             <div class="form-group" style="flex: 1;">
                 <label for="last_name" style="color: #fff; font-weight: 600; margin-bottom: 8px; display: block;">Last Name</label>
-                <input type="text" id="last_name" name="last_name" value="" 
+                <input type="text" id="last_name" name="last_name" value="<?php echo esc_attr($local_last_name); ?>"
                        style="width: 100%; padding: 10px 12px; background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 6px; font-size: 14px; color: #fff;">
             </div>
         </div>
@@ -138,7 +142,7 @@ if (!is_array($local_websites)) {
 
         <div class="form-group" style="margin-bottom: 20px;">
                 <label for="location" style="color: #fff; font-weight: 600; margin-bottom: 8px; display: block;">Location</label>
-            <input type="text" id="location" name="location" value="" 
+            <input type="text" id="location" name="location" value="<?php echo esc_attr($local_location); ?>"
                        style="width: 100%; padding: 10px 12px; background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 6px; font-size: 14px; color: #fff;">
             </div>
             
@@ -1565,18 +1569,22 @@ jQuery(document).ready(function($) {
             : '';
         
         var localUpdate = new Promise(function(resolve, reject) {
-        $.ajax({
+            $.ajax({
                 url: apiUrl + 'users/' + <?php echo $user->id; ?>,
-            method: 'PUT',
+                method: 'PUT',
                 data: JSON.stringify({
+                    display_name: formData.display_name,
+                    first_name: formData.first_name,
+                    last_name: formData.last_name,
                     profile: {
                         bio: formData.bio,
-                        websites: formData.websites
+                        websites: formData.websites,
+                        location: formData.location
                     },
                     header_cropped: formData.header_cropped
                 }),
-            contentType: 'application/json',
-            beforeSend: function(xhr) {
+                contentType: 'application/json',
+                beforeSend: function(xhr) {
                     if (nonce) {
                         xhr.setRequestHeader('X-WP-Nonce', nonce);
                     }
@@ -1588,42 +1596,49 @@ jQuery(document).ready(function($) {
                 reject(jqXHR);
             });
         });
-        
-        // Wait for both to complete
-        Promise.all([simezuUpdate, localUpdate]).then(function(results) {
-                submitBtn.prop('disabled', false).html(originalText);
-                
-                $('<div class="notice notice-success" style="background: #2a4a2a; border: 1px solid #a8d5ba; color: #a8d5ba; padding: 15px; border-radius: 4px; margin-top: 15px;"><p>Settings saved successfully!</p></div>')
-                    .insertBefore('#profile-settings-form')
-                    .delay(3000)
-                    .fadeOut();
-                
-                // Reset cropped flags
+
+        // Run both saves independently — local save succeeds even if Simezu is down
+        var simezuError = null;
+        var localError  = null;
+
+        var simezuSettled = simezuUpdate.catch(function(err) {
+            simezuError = err && err.message ? err.message : 'Simezu sync failed';
+            console.error('Simezu update error:', err);
+        });
+        var localSettled = localUpdate.catch(function(jqXHR) {
+            var msg = (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message)
+                ? jqXHR.responseJSON.message
+                : 'Local save failed';
+            localError = msg;
+            console.error('Local save error:', jqXHR);
+        });
+
+        Promise.all([simezuSettled, localSettled]).then(function() {
+            submitBtn.prop('disabled', false).html(originalText);
+
+            if (!localError) {
+                // Local data saved — consider it a success regardless of Simezu
                 avatarCropped = null;
                 headerCropped = null;
-            
-            // Reload page to show updated data
-                setTimeout(function() {
-                    window.location.reload();
-                }, 1500);
-        }).catch(function(err) {
-                submitBtn.prop('disabled', false).html(originalText);
-                
-                let errorMessage = 'Failed to save settings';
-            if (err.responseJSON && err.responseJSON.message) {
-                errorMessage = err.responseJSON.message;
-            } else if (err.message) {
-                errorMessage = err.message;
-            } else if (typeof err === 'string') {
-                errorMessage = err;
-            }
-            
-            console.error('Save error:', err);
-                
-                $('<div class="notice notice-error" style="background: #4a2a2a; border: 1px solid #ff6b6b; color: #ff6b6b; padding: 15px; border-radius: 4px; margin-top: 15px;"><p>' + errorMessage + '</p></div>')
+
+                var msg = 'Settings saved successfully!';
+                if (simezuError) {
+                    msg += ' (Simezu sync failed — profile fields may not be updated remotely)';
+                }
+                var cls = simezuError ? 'notice-warning" style="background:#4a3a1a; border:1px solid #ffa500; color:#ffa500' : 'notice-success" style="background:#2a4a2a; border:1px solid #a8d5ba; color:#a8d5ba';
+                $('<div class="notice ' + cls + '; padding:15px; border-radius:4px; margin-top:15px;"><p>' + msg + '</p></div>')
                     .insertBefore('#profile-settings-form')
-                    .delay(5000)
-                    .fadeOut();
+                    .delay(3000).fadeOut();
+
+                setTimeout(function() { window.location.reload(); }, 1500);
+            } else {
+                // Local save failed — show error
+                var errorMessage = localError;
+                if (simezuError) errorMessage += ' | Simezu: ' + simezuError;
+                $('<div class="notice notice-error" style="background:#4a2a2a; border:1px solid #ff6b6b; color:#ff6b6b; padding:15px; border-radius:4px; margin-top:15px;"><p>' + errorMessage + '</p></div>')
+                    .insertBefore('#profile-settings-form')
+                    .delay(5000).fadeOut();
+            }
         });
     });
 });

@@ -24,24 +24,52 @@ if ($apiBase === '' || $appToken === '') {
     exit;
 }
 
-// Path after /api/auth[/...] – e.g. login, register, me, auth/me
-$path = isset($GLOBALS['simezu_auth_path']) ? $GLOBALS['simezu_auth_path'] : '';
+// Path after /api/auth[/...] – e.g. login, register, me, forms, users/me
+// Supports:
+// - rewrite query (?path=...)
+// - legacy global injection ($GLOBALS['simezu_auth_path'])
+$path = '';
+if (isset($_GET['path'])) {
+    $path = trim((string) $_GET['path'], '/');
+} elseif (isset($GLOBALS['simezu_auth_path'])) {
+    $path = trim((string) $GLOBALS['simezu_auth_path'], '/');
+}
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $targetUrl = $apiBase . '/auth' . ($path !== '' ? '/' . $path : '');
 
 $query = $_SERVER['QUERY_STRING'] ?? '';
 if ($query !== '') {
-    $targetUrl .= '?' . $query;
+    parse_str($query, $qp);
+    unset($qp['path']);
+    $cleaned = http_build_query($qp);
+    if ($cleaned !== '') {
+        $targetUrl .= '?' . $cleaned;
+    }
 }
 
-// Use user token when present (e.g. /me, /roles); otherwise app token for server-side (login, register)
+// Use user token only for user-context endpoints (e.g. /me, /users/*).
+// IMPORTANT: Form/embed endpoints must always use app token, otherwise a stale
+// browser access token can break /auth/forms with "Missing or invalid App API Token".
 $userToken = null;
 if (!empty($_SERVER['HTTP_AUTHORIZATION'])) {
     $userToken = $_SERVER['HTTP_AUTHORIZATION'];
 } elseif (isset($_COOKIE['accessToken']) && $_COOKIE['accessToken'] !== '') {
     $userToken = 'Bearer ' . $_COOKIE['accessToken'];
 }
-$authHeader = $userToken !== null ? $userToken : ('Bearer ' . $appToken);
+
+$pathLower = strtolower((string) $path);
+$allowUserToken = false;
+if ($pathLower === 'me' || strpos($pathLower, 'me/') === 0) {
+    $allowUserToken = true;
+} elseif (strpos($pathLower, 'users/') === 0 || $pathLower === 'users') {
+    $allowUserToken = true;
+} elseif ($pathLower === 'roles' || strpos($pathLower, 'roles/') === 0) {
+    $allowUserToken = true;
+}
+
+$authHeader = ($allowUserToken && $userToken !== null)
+    ? $userToken
+    : ('Bearer ' . $appToken);
 
 $headers = [
     'Content-Type: application/json',
@@ -80,6 +108,18 @@ foreach (explode("\r\n", $respHeaders) as $line) {
     if (stripos($line, 'Content-Type:') === 0) {
         header(trim($line));
         break;
+    }
+}
+
+// Bridge auth cookies to PHP: simezu-forms.js only writes to localStorage, not cookies.
+// Setting cookies here lets PHP detect the logged-in state on the next request.
+if ($httpCode === 200 && in_array($pathLower, ['login', 'register', 'magic-link/verify', ''], true)) {
+    $decoded = json_decode($respBody, true);
+    if (!empty($decoded['accessToken'])) {
+        setcookie('accessToken', $decoded['accessToken'], time() + 86400 * 14, '/');
+    }
+    if (!empty($decoded['refreshToken'])) {
+        setcookie('refreshToken', $decoded['refreshToken'], time() + 86400 * 90, '/');
     }
 }
 

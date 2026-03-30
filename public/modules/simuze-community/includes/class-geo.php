@@ -114,15 +114,25 @@ class Simuze_Geo {
     }
 
     public static function auto_create_location_groups($location_data, $creator_id) {
+        // Guard against recursive calls (Simuze_Group::create() also calls this)
+        static $running = false;
+        if ($running) return ['city' => null, 'province' => null, 'country' => null];
+        $running = true;
+
         $results  = ['city' => null, 'province' => null, 'country' => null];
         $base_lat = $location_data['lat'] ?? null;
         $base_lng = $location_data['lng'] ?? null;
+
+        // Canonical names (strings) for linkage + display
+        $country_name  = !empty($location_data['country']) ? (string) $location_data['country'] : '';
+        $province_name = !empty($location_data['province']) ? (string) $location_data['province'] : '';
+        $city_name     = !empty($location_data['city']) ? (string) $location_data['city'] : '';
 
         if (!empty($location_data['country'])) {
             $results['country'] = self::get_or_create_location_group(
                 $location_data['country'], 'country',
                 ['country' => $location_data['country'], 'lat' => $base_lat, 'lng' => $base_lng, 'settings' => ['map_zoom' => 7]],
-                1
+                $creator_id
             );
         }
 
@@ -142,6 +152,45 @@ class Simuze_Geo {
             );
         }
 
+        // Persist parent links in settings JSON for location groups (custom fields).
+        // This makes it possible to traverse country -> provinces -> cities and back reliably.
+        try {
+            $country_group_id  = !empty($results['country']['id'])  ? (int) $results['country']['id']  : 0;
+            $province_group_id = !empty($results['province']['id']) ? (int) $results['province']['id'] : 0;
+            $city_group_id     = !empty($results['city']['id'])     ? (int) $results['city']['id']     : 0;
+
+            if ($province_group_id > 0 && $country_group_id > 0 && class_exists('Simuze_Group')) {
+                $prov = Simuze_Group::get($province_group_id);
+                if ($prov) {
+                    $ps = is_array($prov->settings) ? $prov->settings : (is_string($prov->settings) ? json_decode((string) $prov->settings, true) : []);
+                    if (!is_array($ps)) $ps = [];
+                    if (!isset($ps['location']) || !is_array($ps['location'])) $ps['location'] = [];
+                    $ps['location']['country_group_id'] = $country_group_id;
+                    if ($country_name !== '') $ps['location']['country_name'] = $country_name;
+                    if ($province_name !== '') $ps['location']['province_name'] = $province_name;
+                    $prov->update(['settings' => $ps], ['skip_location_groups' => true]);
+                }
+            }
+
+            if ($city_group_id > 0 && class_exists('Simuze_Group')) {
+                $cityg = Simuze_Group::get($city_group_id);
+                if ($cityg) {
+                    $cs = is_array($cityg->settings) ? $cityg->settings : (is_string($cityg->settings) ? json_decode((string) $cityg->settings, true) : []);
+                    if (!is_array($cs)) $cs = [];
+                    if (!isset($cs['location']) || !is_array($cs['location'])) $cs['location'] = [];
+                    if ($country_group_id > 0) $cs['location']['country_group_id'] = $country_group_id;
+                    if ($province_group_id > 0) $cs['location']['province_group_id'] = $province_group_id;
+                    if ($country_name !== '') $cs['location']['country_name'] = $country_name;
+                    if ($province_name !== '') $cs['location']['province_name'] = $province_name;
+                    if ($city_name !== '') $cs['location']['city_name'] = $city_name;
+                    $cityg->update(['settings' => $cs], ['skip_location_groups' => true]);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Non-critical; ignore
+        }
+
+        $running = false;
         return $results;
     }
 
@@ -186,6 +235,7 @@ class Simuze_Geo {
             'description'   => sprintf('%s - %s', ucfirst($type), $name),
             'status'        => 'public',
             'creator_id'    => $admin_id,
+            'owner_id'      => $admin_id, // owner_id is NOT NULL in DB schema
         ], $location_data);
 
         $group = Simuze_Group::create($group_data);
@@ -401,10 +451,145 @@ function self_geo_parse_settings($settings) {
     return [];
 }
 
+/**
+ * One-time backfill: persist linked location IDs into simuze_groups.settings.location
+ * and normalize simuze_cities.country to the canonical (local/native) country group name.
+ */
+function simuze_backfill_location_links_if_needed() {
+    if (simuze_get_backfill_flag('simuze_location_links_backfilled')) return;
+    if (!class_exists('Simuze_Group') || !class_exists('Simuze_Geo')) {
+        simuze_set_backfill_flag('simuze_location_links_backfilled');
+        return;
+    }
+
+    // ---------------------------
+    // 1) Backfill group.settings.location.*_group_id for existing groups
+    // ---------------------------
+    $rows = md_db_query(
+        "SELECT id, city, province, country, geo_id, lat, lng, settings
+         FROM simuze_groups
+         WHERE deleted_at IS NULL
+           AND (country <> '' OR province <> '' OR city <> '')
+         LIMIT 800"
+    ) ?: [];
+
+    foreach ($rows as $r) {
+        $gid = (int) ($r['id'] ?? 0);
+        if ($gid <= 0) continue;
+
+        $settings = self_geo_parse_settings($r['settings'] ?? null);
+        if (!isset($settings['location']) || !is_array($settings['location'])) {
+            $settings['location'] = [];
+        }
+        $loc = $settings['location'];
+
+        // Skip if already linked.
+        if (!empty($loc['country_group_id']) || !empty($loc['province_group_id']) || !empty($loc['city_group_id'])) {
+            continue;
+        }
+
+        $country = trim((string) ($r['country'] ?? ''));
+        $province = trim((string) ($r['province'] ?? ''));
+        $city = trim((string) ($r['city'] ?? ''));
+
+        $location_data = [
+            'country' => $country,
+            'province' => $province,
+            'city' => $city,
+            'geo_id' => $r['geo_id'] ?? null,
+            'lat' => $r['lat'] ?? null,
+            'lng' => $r['lng'] ?? null,
+        ];
+
+        $created = null;
+        try {
+            $created = Simuze_Geo::auto_create_location_groups($location_data, 1);
+        } catch (\Throwable $e) {
+            $created = null;
+        }
+
+        if (is_array($created)) {
+            if (!empty($created['country']['id']))  $loc['country_group_id']  = (int) $created['country']['id'];
+            if (!empty($created['province']['id'])) $loc['province_group_id'] = (int) $created['province']['id'];
+            if (!empty($created['city']['id']))     $loc['city_group_id']     = (int) $created['city']['id'];
+        }
+        if ($country !== '')  $loc['country_name']  = $country;
+        if ($province !== '') $loc['province_name'] = $province;
+        if ($city !== '')     $loc['city_name']     = $city;
+
+        if (!empty($loc['country_group_id']) || !empty($loc['province_group_id']) || !empty($loc['city_group_id'])) {
+            $settings['location'] = $loc;
+            $g = Simuze_Group::get($gid);
+            if ($g) {
+                $g->update(['settings' => $settings], ['skip_location_groups' => true]);
+            }
+        }
+    }
+
+    // ---------------------------
+    // 2) Normalize simuze_cities.country to canonical local/native country group name
+    // ---------------------------
+    $country_type_id = Simuze_Geo::get_group_type_id('country');
+    if ($country_type_id) {
+        // Build lookup table: lowercase(country_group.name) => canonical name
+        $country_groups = md_db_query(
+            "SELECT id, name, settings
+             FROM simuze_groups
+             WHERE group_type_id = ?
+               AND deleted_at IS NULL",
+            [(int) $country_type_id]
+        ) ?: [];
+
+        $canon_by_lower = [];
+        foreach ($country_groups as $cg) {
+            $nm = trim((string) ($cg['name'] ?? ''));
+            if ($nm === '') continue;
+            $canon_by_lower[mb_strtolower($nm)] = $nm;
+
+            // Optional aliases in settings.location.aliases: ["Netherlands","The Netherlands"]
+            $st = self_geo_parse_settings($cg['settings'] ?? null);
+            $aliases = $st['location']['aliases'] ?? [];
+            if (is_array($aliases)) {
+                foreach ($aliases as $a) {
+                    $a = trim((string) $a);
+                    if ($a !== '') $canon_by_lower[mb_strtolower($a)] = $nm;
+                }
+            }
+        }
+
+        // Hardcoded common alias (requested case: Netherlands -> Nederland) when such group exists.
+        if (isset($canon_by_lower['nederland'])) {
+            $canon_by_lower['netherlands'] = $canon_by_lower['nederland'];
+            $canon_by_lower['the netherlands'] = $canon_by_lower['nederland'];
+        }
+
+        $cities = md_db_query(
+            "SELECT id, country FROM simuze_cities
+             WHERE country <> ''
+             LIMIT 5000"
+        ) ?: [];
+
+        foreach ($cities as $c) {
+            $cid = (int) ($c['id'] ?? 0);
+            $cn = trim((string) ($c['country'] ?? ''));
+            if ($cid <= 0 || $cn === '') continue;
+            $key = mb_strtolower($cn);
+            if (!isset($canon_by_lower[$key])) continue;
+            $canonical = $canon_by_lower[$key];
+            if ($canonical !== '' && $canonical !== $cn) {
+                md_db_update('simuze_cities', ['country' => $canonical], ['id' => $cid]);
+            }
+        }
+    }
+
+    simuze_set_backfill_flag('simuze_location_links_backfilled');
+}
+
 // Register backfills on init
 md_hook_action('init', 'simuze_backfill_province_locations_if_needed');
 md_hook_action('init', 'simuze_backfill_country_locations_if_needed');
 md_hook_action('init', 'simuze_backfill_city_locations_if_needed', 20);
+md_hook_action('init', 'simuze_backfill_location_links_if_needed', 30);
 
 // Register city search AJAX (modular REST route handles this; keep as hook for WP compat)
 if (function_exists('add_action')) {

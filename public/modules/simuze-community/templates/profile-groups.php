@@ -3,7 +3,7 @@
  * User Profile Groups Template with Create Group functionality
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN')) {
     exit;
 }
 

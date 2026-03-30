@@ -12,6 +12,16 @@ add_action('wp_ajax_simuze_get_tab_counts', 'simuze_modular_ajax_get_tab_counts'
 add_action('wp_ajax_simuze_upload_single_file', 'simuze_modular_ajax_upload_single_file');
 add_action('wp_ajax_simuze_save_metadata', 'simuze_modular_ajax_save_metadata');
 
+// Album edit actions
+add_action('wp_ajax_simuze_update_album',            'simuze_modular_ajax_update_album');
+add_action('wp_ajax_simuze_delete_track',            'simuze_modular_ajax_delete_track');
+add_action('wp_ajax_simuze_delete_album_frontend',   'simuze_modular_ajax_delete_album_frontend');
+add_action('wp_ajax_simuze_change_audio_file',       'simuze_modular_ajax_change_audio_file');
+add_action('wp_ajax_simuze_refresh_in_progress_tab', 'simuze_modular_ajax_refresh_in_progress_tab');
+add_action('wp_ajax_simuze_search_genres',           'simuze_modular_ajax_search_genres');
+add_action('wp_ajax_nopriv_simuze_search_genres',    'simuze_modular_ajax_search_genres');
+add_action('wp_ajax_simuze_create_genre',            'simuze_modular_ajax_create_genre');
+
 function simuze_modular_ajax_create_album() {
     if (!function_exists('md_csrf_token') || empty($_POST['_ajax_nonce']) || !hash_equals(md_csrf_token(), $_POST['_ajax_nonce'])) {
         wp_send_json(['success' => false, 'message' => 'Invalid nonce']);
@@ -25,7 +35,7 @@ function simuze_modular_ajax_create_album() {
         wp_send_json(['success' => false, 'message' => 'Not logged in']);
     }
     $group_id = isset($_POST['group_id']) ? (int) $_POST['group_id'] : 0;
-    $upload_type = isset($_POST['upload_type']) ? sanitize_text_field($_POST['upload_type']) : 'single';
+    $upload_type = isset($_POST['upload_type']) ? md_sanitize_text($_POST['upload_type']) : 'single';
     if ($group_id <= 0) {
         wp_send_json(['success' => false, 'message' => 'Missing group_id']);
     }
@@ -229,7 +239,7 @@ function simuze_modular_ajax_save_metadata() {
     if ($release_date === null && !empty($album['release_date'])) {
         $release_date = $album['release_date'];
     }
-    $license = isset($album_data['license']) ? sanitize_text_field($album_data['license']) : ($album['license'] ?? 'cc-by');
+    $license = isset($album_data['license']) ? md_sanitize_text($album_data['license']) : ($album['license'] ?? 'cc-by');
     $status = $is_draft ? 'draft' : 'published';
     $update_album = [
         'album_name' => $title,
@@ -267,10 +277,10 @@ function simuze_modular_ajax_save_metadata() {
                 'status' => $status,
             ];
             if (isset($track['genre'])) {
-                $track_update['genre'] = sanitize_text_field($track['genre']);
+                $track_update['genre'] = md_sanitize_text($track['genre']);
             }
             if (isset($track['license'])) {
-                $track_update['license'] = sanitize_text_field($track['license']);
+                $track_update['license'] = md_sanitize_text($track['license']);
             }
             if (!empty($track['releaseDate'])) {
                 $ts = strtotime($track['releaseDate']);
@@ -327,4 +337,380 @@ if (!function_exists('wp_send_json')) {
         echo json_encode($data);
         exit;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Shared nonce helper — accepts _ajax_nonce OR _csrf_token
+// ---------------------------------------------------------------------------
+function _simuze_check_nonce(): bool {
+    $nonce = $_POST['_ajax_nonce'] ?? $_POST['_csrf_token'] ?? '';
+    return function_exists('md_csrf_token') && $nonce !== '' && hash_equals(md_csrf_token(), $nonce);
+}
+
+// ---------------------------------------------------------------------------
+// Permission helper — loads album, verifies group ownership + user membership
+// ---------------------------------------------------------------------------
+function _simuze_album_permission(int $album_id, int $group_id, int $uid): ?array {
+    if ($album_id <= 0 || $group_id <= 0 || $uid <= 0) return null;
+    $album = md_db_row('SELECT * FROM md_music_albums WHERE id = ? AND deleted_at IS NULL', [$album_id]);
+    if (!$album || (int) $album['group_id'] !== $group_id) return null;
+    // Super admins always have permission
+    if (class_exists('Simuze_Auth') && Simuze_Auth::get_instance()->is_admin()) return $album;
+    $is_member = md_db_var(
+        'SELECT id FROM simuze_group_members WHERE group_id = ? AND user_id = ? AND status = ?',
+        [$group_id, $uid, 'active']
+    );
+    if (!$is_member && (int) ($album['created_by'] ?? 0) !== $uid) return null;
+    return $album;
+}
+
+// ---------------------------------------------------------------------------
+// simuze_update_album — save / publish / schedule / set-to-draft
+// ---------------------------------------------------------------------------
+function simuze_modular_ajax_update_album() {
+    if (!_simuze_check_nonce()) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Invalid nonce']]);
+    }
+    $user = null;
+    if (class_exists('Simuze_Auth')) {
+        $user = Simuze_Auth::get_instance()->get_current_user();
+    }
+    if (!$user || empty($user->id)) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Not logged in']]);
+    }
+    $uid      = (int) $user->id;
+    $album_id = (int) ($_POST['album_id'] ?? 0);
+    $group_id = (int) ($_POST['group_id'] ?? 0);
+    $save_type = trim($_POST['save_type'] ?? 'update');
+
+    $album = _simuze_album_permission($album_id, $group_id, $uid);
+    if (!$album) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Album not found or permission denied']]);
+    }
+
+    $now = date('Y-m-d H:i:s');
+
+    // Determine new status
+    $release_date_raw = trim($_POST['album_release_date'] ?? '');
+    $release_ts       = $release_date_raw ? strtotime($release_date_raw) : false;
+    switch ($save_type) {
+        case 'publish':
+            $new_status = 'published';
+            break;
+        case 'schedule':
+            $new_status = ($release_ts && $release_ts > time()) ? 'scheduled' : 'published';
+            break;
+        case 'draft':
+            $new_status = 'draft';
+            break;
+        default: // 'update'
+            $new_status = $album['status'];
+    }
+
+    // Build album update
+    $album_update = ['status' => $new_status, 'updated_at' => $now];
+    $title = trim($_POST['album_title'] ?? '');
+    if ($title !== '') {
+        $slug = preg_replace('/[^a-z0-9\-]/', '-', strtolower($title));
+        $slug = preg_replace('/-+/', '-', trim($slug, '-')) ?: ('release-' . $album_id);
+        $album_update['album_name']     = $title;
+        $album_update['album_nicename'] = $slug;
+    }
+    $desc = $_POST['album_description'] ?? null;
+    if ($desc !== null) {
+        $album_update['description'] = trim($desc);
+    }
+    if ($release_ts) {
+        $album_update['release_date'] = date('Y-m-d', $release_ts);
+    }
+    $license = trim($_POST['album_license'] ?? '');
+    if ($license !== '') {
+        $album_update['license'] = $license;
+    }
+    $price_raw = $_POST['album_price'] ?? null;
+    if ($price_raw !== null && $price_raw !== '') {
+        $price = (float) $price_raw;
+        $album_update['price']   = $price > 0 ? $price : null;
+        $album_update['is_free'] = $price <= 0 ? 1 : 0;
+    }
+    if ($save_type === 'publish') {
+        $album_update['publication_date'] = $now;
+    }
+
+    md_db_update('md_music_albums', $album_update, ['id' => $album_id]);
+
+    // Artwork — cropped first, then raw upload
+    $artwork_file = null;
+    if (!empty($_FILES['cropped_artwork']) && $_FILES['cropped_artwork']['error'] === UPLOAD_ERR_OK) {
+        $artwork_file = $_FILES['cropped_artwork'];
+    } elseif (!empty($_FILES['new_album_artwork']) && $_FILES['new_album_artwork']['error'] === UPLOAD_ERR_OK) {
+        $artwork_file = $_FILES['new_album_artwork'];
+    }
+    if ($artwork_file) {
+        $upload_dir = md_upload_dir();
+        $basedir    = $upload_dir['basedir'];
+        $subdir     = 'music/group_' . $group_id . '/album_' . $album_id;
+        $art_dir    = $basedir . '/' . $subdir;
+        if (!is_dir($art_dir)) {
+            @mkdir($art_dir, 0755, true);
+        }
+        $ext      = strtolower(pathinfo($artwork_file['name'], PATHINFO_EXTENSION) ?: 'jpg');
+        $art_name = 'artwork_' . $album_id . '_' . time() . '.' . $ext;
+        $art_path = $art_dir . '/' . $art_name;
+        if (move_uploaded_file($artwork_file['tmp_name'], $art_path)) {
+            $relative = $subdir . '/' . $art_name;
+            md_db_update('md_music_albums', [
+                'artwork_path'           => $relative,
+                'artwork_thumbnail_path' => $relative,
+                'updated_at'             => $now,
+            ], ['id' => $album_id]);
+        }
+    }
+
+    // Tracks
+    $tracks = $_POST['tracks'] ?? [];
+    if (is_array($tracks)) {
+        foreach ($tracks as $t) {
+            $tid = (int) ($t['upload_id'] ?? $t['post_id'] ?? 0);
+            if ($tid <= 0) continue;
+            $row = md_db_row(
+                'SELECT id FROM md_music_uploads WHERE id = ? AND album_id = ? AND deleted_at IS NULL',
+                [$tid, $album_id]
+            );
+            if (!$row) continue;
+            $tu = ['updated_at' => $now, 'status' => $new_status];
+            if (isset($t['title'])        && trim($t['title']) !== '')   $tu['song_name']    = trim($t['title']);
+            if (isset($t['genre']))                                       $tu['genre']        = trim($t['genre']);
+            if (isset($t['license'])      && trim($t['license']) !== '') $tu['license']      = trim($t['license']);
+            if (!empty($t['release_date'])) {
+                $rts = strtotime($t['release_date']);
+                if ($rts) $tu['release_date'] = date('Y-m-d', $rts);
+            }
+            if (isset($t['price']) && $t['price'] !== '') {
+                $tp = (float) $t['price'];
+                $tu['price']   = $tp > 0 ? $tp : null;
+                $tu['is_free'] = $tp <= 0 ? 1 : 0;
+            }
+            // Moods
+            $moods = $t['moods'] ?? [];
+            if (!empty($moods)) {
+                $map = [
+                    'slowFast'        => 'mood_slow_fast',
+                    'quietLoud'       => 'mood_quiet_loud',
+                    'staticDynamic'   => 'mood_static_dynamic',
+                    'sadHappy'        => 'mood_sad_happy',
+                    'mellowAggressive'=> 'mood_mellow_aggressive',
+                ];
+                foreach ($map as $js_key => $col) {
+                    if (isset($moods[$js_key])) {
+                        $tu[$col] = (int) $moods[$js_key];
+                    }
+                }
+            }
+            md_db_update('md_music_uploads', $tu, ['id' => $tid]);
+        }
+    }
+
+    wp_send_json(['success' => true, 'data' => ['status' => $new_status, 'message' => 'Saved.']]);
+}
+
+// ---------------------------------------------------------------------------
+// simuze_delete_track — soft-delete a single track
+// ---------------------------------------------------------------------------
+function simuze_modular_ajax_delete_track() {
+    if (!_simuze_check_nonce()) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Invalid nonce']]);
+    }
+    $user = null;
+    if (class_exists('Simuze_Auth')) {
+        $user = Simuze_Auth::get_instance()->get_current_user();
+    }
+    if (!$user || empty($user->id)) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Not logged in']]);
+    }
+    $uid      = (int) $user->id;
+    $track_id = (int) ($_POST['track_id'] ?? 0);
+    if ($track_id <= 0) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Invalid track ID']]);
+    }
+    $track = md_db_row('SELECT * FROM md_music_uploads WHERE id = ? AND deleted_at IS NULL', [$track_id]);
+    if (!$track) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Track not found']]);
+    }
+    $album_id = (int) ($track['album_id'] ?? 0);
+    $group_id = (int) ($track['group_id'] ?? 0);
+    if (!_simuze_album_permission($album_id, $group_id, $uid)) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Permission denied']]);
+    }
+    $now = date('Y-m-d H:i:s');
+    md_db_update('md_music_uploads', ['deleted_at' => $now, 'status' => 'trash'], ['id' => $track_id]);
+    wp_send_json(['success' => true]);
+}
+
+// ---------------------------------------------------------------------------
+// simuze_delete_album_frontend — soft-delete album + its tracks
+// ---------------------------------------------------------------------------
+function simuze_modular_ajax_delete_album_frontend() {
+    if (!_simuze_check_nonce()) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Invalid nonce']]);
+    }
+    $user = null;
+    if (class_exists('Simuze_Auth')) {
+        $user = Simuze_Auth::get_instance()->get_current_user();
+    }
+    if (!$user || empty($user->id)) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Not logged in']]);
+    }
+    $uid      = (int) $user->id;
+    $album_id = (int) ($_POST['album_id'] ?? 0);
+    $group_id = (int) ($_POST['group_id'] ?? 0);
+    $album    = _simuze_album_permission($album_id, $group_id, $uid);
+    if (!$album) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Album not found or permission denied']]);
+    }
+    $now = date('Y-m-d H:i:s');
+    md_db_update('md_music_albums',  ['deleted_at' => $now, 'status' => 'trash'], ['id' => $album_id]);
+    md_db_update('md_music_uploads', ['deleted_at' => $now, 'status' => 'trash'], ['album_id' => $album_id]);
+    wp_send_json(['success' => true]);
+}
+
+// ---------------------------------------------------------------------------
+// simuze_change_audio_file — replace the audio file for a single
+// ---------------------------------------------------------------------------
+function simuze_modular_ajax_change_audio_file() {
+    if (!_simuze_check_nonce()) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Invalid nonce']]);
+    }
+    $user = null;
+    if (class_exists('Simuze_Auth')) {
+        $user = Simuze_Auth::get_instance()->get_current_user();
+    }
+    if (!$user || empty($user->id)) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Not logged in']]);
+    }
+    $uid      = (int) $user->id;
+    $album_id = (int) ($_POST['album_id'] ?? 0);
+    $group_id = (int) ($_POST['group_id'] ?? 0);
+    $album    = _simuze_album_permission($album_id, $group_id, $uid);
+    if (!$album) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Album not found or permission denied']]);
+    }
+    if (empty($_FILES['new_audio_file']) || $_FILES['new_audio_file']['error'] !== UPLOAD_ERR_OK) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'No file or upload error']]);
+    }
+    $file    = $_FILES['new_audio_file'];
+    $allowed = ['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/aiff','audio/x-aiff',
+                'audio/flac','audio/x-flac','audio/m4a','audio/x-m4a','audio/ogg','audio/mp4'];
+    $finfo   = finfo_open(FILEINFO_MIME_TYPE);
+    $mime    = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    if (!in_array($mime, $allowed, true)) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Invalid file type']]);
+    }
+    $track = md_db_row(
+        'SELECT * FROM md_music_uploads WHERE album_id = ? AND deleted_at IS NULL ORDER BY id ASC LIMIT 1',
+        [$album_id]
+    );
+    if (!$track) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'No track found for this album']]);
+    }
+    $upload_dir = md_upload_dir();
+    $basedir    = $upload_dir['basedir'];
+    $baseurl    = $upload_dir['baseurl'];
+    $subdir     = 'music/group_' . $group_id . '/album_' . $album_id;
+    $dir        = $basedir . '/' . $subdir;
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    $ext       = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION) ?: 'mp3');
+    $safe_name = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($file['name'], '.' . $ext));
+    $filename  = $safe_name . '_' . time() . '.' . $ext;
+    $dest      = $dir . '/' . $filename;
+    if (!move_uploaded_file($file['tmp_name'], $dest)) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Failed to save file']]);
+    }
+    $relative = '/' . $subdir . '/' . $filename;
+    $now      = date('Y-m-d H:i:s');
+    md_db_update('md_music_uploads', [
+        'file_path'          => $relative,
+        'original_file_path' => $relative,
+        'mime_type'          => $mime,
+        'file_size'          => (int) $file['size'],
+        'updated_at'         => $now,
+    ], ['id' => (int) $track['id']]);
+    $url = rtrim($baseurl, '/') . $relative;
+    wp_send_json(['success' => true, 'data' => ['file_info' => [
+        'filename' => $file['name'],
+        'size'     => round($file['size'] / 1024, 1) . ' KB',
+        'url'      => $url,
+    ]]]);
+}
+
+// ---------------------------------------------------------------------------
+// simuze_refresh_in_progress_tab — return HTML list of draft albums
+// ---------------------------------------------------------------------------
+function simuze_modular_ajax_refresh_in_progress_tab() {
+    if (!_simuze_check_nonce()) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Invalid nonce']]);
+    }
+    $group_id = (int) ($_POST['group_id'] ?? 0);
+    $drafts   = $group_id > 0
+        ? (md_db_query(
+            'SELECT id, album_name, updated_at FROM md_music_albums WHERE group_id = ? AND status = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 20',
+            [$group_id, 'draft']
+          ) ?: [])
+        : [];
+    ob_start();
+    if (empty($drafts)): ?>
+        <p style="color:var(--color-text-muted,#888);padding:.5rem 0;">No drafts.</p>
+    <?php else: ?>
+        <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem;">
+        <?php foreach ($drafts as $d):
+            $edit_url = md_home_url('/group/music?edit=true&album_id=' . (int)$d['id'] . '&group_id=' . $group_id);
+            $updated  = !empty($d['updated_at']) ? date('j M Y', strtotime($d['updated_at'])) : '';
+        ?>
+            <li style="display:flex;align-items:center;gap:.6rem;padding:.4rem .6rem;border:1px solid var(--color-border,#2f3642);border-radius:6px;">
+                <span style="flex:1;font-size:.9rem;"><?php echo htmlspecialchars((string)$d['album_name'], ENT_QUOTES); ?></span>
+                <?php if ($updated): ?><span style="font-size:.75rem;color:#888;"><?php echo $updated; ?></span><?php endif; ?>
+                <a href="<?php echo htmlspecialchars($edit_url); ?>" style="font-size:.8rem;">Edit</a>
+            </li>
+        <?php endforeach; ?>
+        </ul>
+    <?php endif;
+    $html = ob_get_clean();
+    wp_send_json(['success' => true, 'data' => ['html' => $html]]);
+}
+
+// ---------------------------------------------------------------------------
+// simuze_search_genres — autocomplete from existing track genres
+// ---------------------------------------------------------------------------
+function simuze_modular_ajax_search_genres() {
+    $term = trim($_REQUEST['search_term'] ?? $_REQUEST['term'] ?? $_REQUEST['q'] ?? '');
+    if ($term === '') {
+        $rows = md_db_query(
+            "SELECT genre, COUNT(*) AS c FROM md_music_uploads WHERE genre != '' AND genre IS NOT NULL AND deleted_at IS NULL GROUP BY genre ORDER BY c DESC LIMIT 20"
+        ) ?: [];
+    } else {
+        $rows = md_db_query(
+            "SELECT DISTINCT genre FROM md_music_uploads WHERE genre LIKE ? AND deleted_at IS NULL ORDER BY genre LIMIT 20",
+            ['%' . $term . '%']
+        ) ?: [];
+    }
+    $genres = array_map(fn($r) => ['id' => 0, 'name' => (string)($r['genre'] ?? '')], $rows);
+    $genres = array_values(array_filter($genres, fn($g) => $g['name'] !== ''));
+    wp_send_json(['success' => true, 'data' => ['genres' => $genres]]);
+}
+
+// ---------------------------------------------------------------------------
+// simuze_create_genre — return normalised genre name (no genres table)
+// ---------------------------------------------------------------------------
+function simuze_modular_ajax_create_genre() {
+    if (!_simuze_check_nonce()) {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Invalid nonce']]);
+    }
+    $name = trim($_POST['genre_name'] ?? '');
+    if ($name === '') {
+        wp_send_json(['success' => false, 'data' => ['message' => 'Genre name required']]);
+    }
+    wp_send_json(['success' => true, 'data' => ['genre' => ['id' => 0, 'name' => $name], 'created' => true]]);
 }

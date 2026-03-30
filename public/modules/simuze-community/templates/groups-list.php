@@ -3,7 +3,7 @@
  * Groups List Template
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN') && !defined('MODULAR_PATH')) {
     exit;
 }
 

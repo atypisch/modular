@@ -4,7 +4,7 @@
  * Shows published albums and singles for Artist groups (public view)
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN') && !defined('MODULAR_PATH')) {
     exit;
 }
 
@@ -19,8 +19,7 @@ if ($group_type_slug !== 'artist') {
 
 // Determine if the current user can manage this group's music (uploader/admin): they see card style with border + edit/delete
 if (!isset($current_user)) {
-    $auth = Simuze_Auth::get_instance();
-    $current_user = $auth->get_current_user();
+    $current_user = class_exists('Simuze_Auth') ? Simuze_Auth::get_instance()->get_current_user() : ($GLOBALS['current_user'] ?? null);
 }
 $is_simezu_super_admin = $current_user && class_exists('Simuze_Auth') && Simuze_Auth::get_instance()->is_admin();
 $can_manage_music = $is_simezu_super_admin || ($current_user && $group->can_manage($current_user->id));

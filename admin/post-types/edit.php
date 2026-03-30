@@ -172,6 +172,14 @@ require_once ADMIN_PATH . '/templates/header.php';
                 </label>
             </div>
 
+            <div class="checkbox-group">
+                <input type="checkbox" name="hierarchical" id="hierarchical" value="1" <?php echo (!empty($postTypeData['hierarchical'])) ? 'checked' : ''; ?>>
+                <label for="hierarchical">
+                    <strong>Hierarchical (pages)</strong>
+                    <div class="help-text">Maakt dit post type hiërarchisch; items kunnen een parent hebben (zoals Pages in WordPress). Maximaal 3 niveaus.</div>
+                </label>
+            </div>
+
             <hr class="section-divider">
 
             <h3 style="margin-top: 0;">Taxonomies</h3>

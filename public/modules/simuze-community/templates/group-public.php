@@ -8,8 +8,9 @@ if (!defined('SIMUZE_MODULAR_RUN') && !defined('ABSPATH')) {
     exit;
 }
 
-$auth = Simuze_Auth::get_instance();
-$current_user = $auth->get_current_user();
+if (!isset($current_user)) {
+    $current_user = class_exists('Simuze_Auth') ? Simuze_Auth::get_instance()->get_current_user() : ($GLOBALS['current_user'] ?? null);
+}
 $is_owner = $current_user && ($group->creator_id === $current_user->id);
 $is_member = $current_user && ($group->is_member($current_user->id) || $is_owner);
 $is_admin = $current_user && $group->can_manage($current_user->id);
@@ -49,6 +50,13 @@ $derived_genres = array();
 if ($group_type_slug === 'artist' && function_exists('simuze_get_artist_genres_from_uploads')) {
     $derived_genres = simuze_get_artist_genres_from_uploads($group->id, 20);
 }
+
+// Artist settings — for availability badge + embed code
+$group_settings      = is_array($group->settings) ? $group->settings : (is_string($group->settings) ? json_decode($group->settings, true) : []);
+$group_settings      = is_array($group_settings) ? $group_settings : [];
+$is_available        = !empty($group_settings['available_for_shows']);
+$group_type_label    = $group_type_data['name'] ?? ucfirst((string) $group_type_slug);
+$embed_url           = md_home_url('/embed/artist/' . $group->id);
 ?>
 
 <div class="public-profile group-profile">
@@ -59,6 +67,19 @@ if ($group_type_slug === 'artist' && function_exists('simuze_get_artist_genres_f
             <?php if (!empty($group->description)): ?>
                 <p class="group-description"><?php echo esc_html($group->description); ?></p>
             <?php endif; ?>
+
+            <div style="display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem;">
+                <?php if (!empty($group_type_label)): ?>
+                    <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);color:#ddd;border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:.3rem .9rem;font-size:.82rem;font-weight:600;">
+                        <i class="fas fa-tag"></i> <?php echo esc_html($group_type_label); ?>
+                    </span>
+                <?php endif; ?>
+                <?php if ($is_available): ?>
+                    <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(168,213,186,.12);color:#a8d5ba;border:1px solid rgba(168,213,186,.35);border-radius:20px;padding:.3rem .9rem;font-size:.82rem;font-weight:600;">
+                        <i class="fas fa-bolt"></i> Active and looking for shows
+                    </span>
+                <?php endif; ?>
+            </div>
             
             <?php if (!empty($derived_genres)): ?>
                 <div class="group-genres-public">
@@ -73,6 +94,40 @@ if ($group_type_slug === 'artist' && function_exists('simuze_get_artist_genres_f
                 </div>
             <?php endif; ?>
             
+            <?php
+            $public_links = [];
+            if (!empty($group_settings['website']) && is_string($group_settings['website'])) {
+                $public_links[] = ['label' => 'Website', 'url' => $group_settings['website']];
+            }
+            if (!empty($group_settings['websites']) && is_array($group_settings['websites'])) {
+                foreach ($group_settings['websites'] as $_w) {
+                    if (is_string($_w) && trim($_w) !== '') {
+                        $public_links[] = ['label' => 'Link', 'url' => $_w];
+                    }
+                }
+            }
+            if (!empty($group_settings['links']) && is_array($group_settings['links'])) {
+                foreach ($group_settings['links'] as $_lk) {
+                    if (is_array($_lk) && !empty($_lk['url'])) {
+                        $public_links[] = [
+                            'label' => !empty($_lk['label']) ? (string) $_lk['label'] : 'Link',
+                            'url'   => (string) $_lk['url'],
+                        ];
+                    }
+                }
+            }
+            ?>
+            <?php if (!empty($public_links)): ?>
+                <div class="profile-links" style="display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem;">
+                    <?php foreach ($public_links as $_pl): ?>
+                        <a href="<?php echo esc_url($_pl['url']); ?>" target="_blank" rel="noopener noreferrer"
+                           style="display:inline-flex;align-items:center;gap:6px;padding:.3rem .8rem;border-radius:16px;border:1px solid rgba(255,255,255,.2);text-decoration:none;color:#ddd;font-size:.8rem;">
+                            <i class="fas fa-link"></i> <?php echo esc_html($_pl['label']); ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
             <!-- Public Stats -->
             <div class="public-stats">
                 <div class="stat-item">
@@ -120,9 +175,22 @@ if ($group_type_slug === 'artist' && function_exists('simuze_get_artist_genres_f
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
+
+            <?php if ($is_admin && $group_type_slug === 'artist'): ?>
+                <details class="embed-code-block" style="margin-top:1.25rem;">
+                    <summary style="cursor:pointer;color:#a8d5ba;font-size:.85rem;font-weight:600;list-style:none;display:flex;align-items:center;gap:6px;user-select:none;">
+                        <i class="fas fa-code"></i> Embed your shows
+                    </summary>
+                    <div style="margin-top:.75rem;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:.75rem 1rem;">
+                        <p style="font-size:.8rem;color:#888;margin-bottom:.5rem;">Paste this snippet on any website to show your upcoming shows:</p>
+                        <code id="embed-snippet" style="display:block;font-size:.78rem;background:#111;color:#a8d5ba;padding:.6rem .75rem;border-radius:4px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;">&lt;iframe src="<?php echo esc_attr($embed_url); ?>" width="100%" height="400" frameborder="0" style="border:none;"&gt;&lt;/iframe&gt;</code>
+                        <button type="button" onclick="(function(){var c=document.getElementById('embed-snippet').textContent;navigator.clipboard&&navigator.clipboard.writeText(c).then(function(){var b=event.target;var o=b.textContent;b.textContent='Copied!';setTimeout(function(){b.textContent=o;},2000);});})()" style="margin-top:.5rem;font-size:.78rem;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:.3rem .7rem;cursor:pointer;">Copy</button>
+                    </div>
+                </details>
+            <?php endif; ?>
         </div>
     </div>
-    
+
     <!-- Recent Members -->
     <?php if (!empty($recent_members)): ?>
     <div class="profile-section">
@@ -207,14 +275,21 @@ if ($group_type_slug === 'artist' && function_exists('simuze_get_artist_genres_f
                     $gs_date = !empty($gs['event_date']) ? date('D j M Y', strtotime($gs['event_date'])) : '';
                     $gs_url  = md_home_url('/show/' . $gs['slug']);
                     $gs_city = $gs['city_name'] ?? '';
+                    $gs_ticket_price = isset($gs['ticket_price']) ? (float) $gs['ticket_price'] : 0.0;
+                    $gs_price_label  = $gs_ticket_price > 0 ? 'EUR ' . number_format($gs_ticket_price, 2) : 'Free';
+                    $gs_slots = (int) ($gs['open_slots'] ?? 0);
                     ?>
                     <li class="event-list-item">
                         <span class="event-list-date"><?php echo esc_html($gs_date); ?></span>
                         <div class="event-list-info">
                             <a href="<?php echo esc_url($gs_url); ?>" class="event-list-title"><?php echo esc_html($gs['title']); ?></a>
-                            <?php if ($gs_city !== ''): ?><span class="event-list-city"><?php echo esc_html($gs_city); ?></span><?php endif; ?>
+                            <span class="event-list-city"><?php
+                                if ($gs_city !== '') echo esc_html($gs_city);
+                                if ($gs_slots > 0) echo ($gs_city !== '' ? ' &middot; ' : '') . $gs_slots . ' open slot' . ($gs_slots === 1 ? '' : 's');
+                                echo ($gs_city !== '' || $gs_slots > 0 ? ' &middot; ' : '') . esc_html($gs_price_label);
+                            ?></span>
                         </div>
-                        <a href="<?php echo esc_url($gs_url); ?>" class="event-list-link"><i class="fas fa-arrow-right"></i></a>
+                        <a href="<?php echo esc_url($gs_url); ?>" class="event-list-link event-ticket-btn-light">Tickets</a>
                     </li>
                 <?php endforeach; ?>
             </ul>

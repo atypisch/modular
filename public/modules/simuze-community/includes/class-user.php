@@ -12,6 +12,7 @@ class Simuze_User {
     public $id;
     public $simezu_id;
     public $username;
+    public $unique_identifier;
     public $email;
     public $display_name;
     public $avatar_url;
@@ -52,6 +53,9 @@ class Simuze_User {
                 $profile['websites'] = [];
             }
             $this->profile = $profile;
+            if (!empty($profile['unique_id'])) {
+                $this->unique_identifier = $profile['unique_id'];
+            }
         } else {
             $this->profile = null;
         }

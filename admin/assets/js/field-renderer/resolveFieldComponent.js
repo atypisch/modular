@@ -6,7 +6,9 @@
 (function (global) {
     'use strict';
 
-    var UTILITY_TYPES = ['message', 'accordion', 'tab', 'divider'];
+    // Utility fields are UI-only and never stored.
+    // Accordion is stored/rendered on the frontend, so it is not a utility type.
+    var UTILITY_TYPES = ['message', 'tab', 'divider'];
     var LAYOUT_TYPES = ['group', 'repeater', 'flexible_content'];
     var NO_STORAGE_TYPES = UTILITY_TYPES.slice();
 
@@ -420,8 +422,17 @@
                 break;
 
             case 'accordion':
-                result.component = 'Accordion';
-                result.props = { multiple: !!o.multiple };
+                // MVP editor: JSON textarea.
+                // Expected JSON:
+                // [
+                //   { "label": "Question?", "content": "Answer text", "open": false },
+                //   ...
+                // ]
+                result.component = 'Textarea';
+                result.props = Object.assign({}, base, {
+                    rows: o.rows ? parseInt(o.rows, 10) : 10,
+                    placeholder: o.placeholder || '[{"label":"Question?","content":"Answer text","open":false}]',
+                });
                 break;
 
             case 'tab':

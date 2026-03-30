@@ -1048,16 +1048,16 @@ class Simuze_Community {
             true
         );
         
-        // Cropper.js for image cropping (CDN)
+        // Cropper.js for image cropping (CSP-safe host)
         wp_enqueue_style(
             'cropperjs',
-            'https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.css',
+            'https://unpkg.com/cropperjs@1.6.1/dist/cropper.min.css',
             array(),
             '1.6.1'
         );
         wp_enqueue_script(
             'cropperjs',
-            'https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.js',
+            'https://unpkg.com/cropperjs@1.6.1/dist/cropper.min.js',
             array(),
             '1.6.1',
             true

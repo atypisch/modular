@@ -3193,7 +3193,6 @@ img.group-avatar,
     max-width: 100%;
     width: 100%;
     height: auto;
-    image-orientation: 0deg;
 }
 
 .crop-preview.header-crop .cropper-container img {
@@ -4559,6 +4558,29 @@ img.group-avatar,
 
 .view-all-link a:hover {
     color: #45a049;
+}
+
+/* Avatar shape contract:
+   - users: round
+   - groups: square with rounded corners */
+img.user-avatar,
+img.member-avatar,
+img.friend-avatar,
+img.requester-avatar,
+img.thread-avatar,
+img.participant-avatar,
+img.avatar-small.user-avatar,
+img.avatar-large.user-avatar {
+    border-radius: 50% !important;
+}
+
+img.group-avatar,
+img.avatar-large.group-avatar,
+.group-avatar-large img.group-avatar,
+.group-card-public .group-avatar,
+.network-card img.group-avatar,
+img.map-group-avatar.group-avatar {
+    border-radius: 8px !important;
 }
 
 /* ----------------------------------------- */

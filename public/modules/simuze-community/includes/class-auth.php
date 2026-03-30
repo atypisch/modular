@@ -30,19 +30,26 @@ class Simuze_Auth {
     }
     
     private function __construct() {
-        // Default to localhost Simezu API
-        // Use /api endpoint (not /api.php/auth) for consistency
-        $this->api_url = defined('SIMEZU_API_BASE') ? SIMEZU_API_BASE : get_option('simuze_auth_api_url', 'http://localhost/simezu/api');
-        // Use the constant if available — get_option falls back to wrong default when settings table is missing
-        $this->jwt_secret = defined('SIMEZU_JWT_SECRET') ? SIMEZU_JWT_SECRET : get_option('simuze_jwt_secret', 'simezu-auth-secret-key-change-in-production-2024');
-        
+        // Configure API base and JWT secret differently for Modular vs WordPress runtimes
         if (defined('SIMUZE_MODULAR_RUN')) {
+            // Modular app: always use core/config/simuze.php constants
+            $this->api_url   = defined('SIMEZU_API_BASE') ? SIMEZU_API_BASE : 'http://localhost/simezu/api';
+            $this->jwt_secret = defined('SIMEZU_JWT_SECRET') ? SIMEZU_JWT_SECRET : 'simezu-auth-secret-key-change-in-production-2024';
+
             // In Modular there is only one early init call from admin/bootstrap.php.
             // When this class is first instantiated during that init, we must run
             // authentication immediately rather than waiting for another init hook.
             $this->authenticate_user();
             $this->handle_auth_actions();
         } else {
+            // WordPress plugin: fall back to options API with sensible defaults
+            $this->api_url = defined('SIMEZU_API_BASE')
+                ? SIMEZU_API_BASE
+                : get_option('simuze_auth_api_url', 'http://localhost/simezu/api');
+            $this->jwt_secret = defined('SIMEZU_JWT_SECRET')
+                ? SIMEZU_JWT_SECRET
+                : get_option('simuze_jwt_secret', 'simezu-auth-secret-key-change-in-production-2024');
+
             // WordPress behaviour: hook into init / template_redirect / wp_footer
             add_action('init', array($this, 'authenticate_user'), 5);
             add_action('init', array($this, 'handle_auth_actions'), 6);
@@ -59,6 +66,19 @@ class Simuze_Auth {
      * is based on the shared cookies/headers managed by Simezu.
      */
     public function handle_auth_actions() {
+        // Modular runtime: use Modular helpers / redirects instead of WP functions
+        if (defined('SIMUZE_MODULAR_RUN')) {
+            if (isset($_GET['simuze_logout']) && $_GET['simuze_logout'] === '1') {
+                $this->logout();
+                $target = defined('SITE_URL') ? SITE_URL : '/';
+                header('Location: ' . $target, true, 302);
+                exit;
+            }
+
+            // Legacy login callback is not used in Modular; rely on shared cookies/JWT instead.
+            return;
+        }
+
         // Handle logout
         if (isset($_GET['simuze_logout']) && $_GET['simuze_logout'] === '1') {
             $this->logout();
@@ -82,6 +102,9 @@ class Simuze_Auth {
      * Redirect to profile after successful login
      */
     public function maybe_redirect_after_login() {
+        if (defined('SIMUZE_MODULAR_RUN')) {
+            return;
+        }
         // If user just logged in (has token but no redirect happened yet)
         if (isset($_GET['logged_in']) && $_GET['logged_in'] === '1') {
             $user = $this->get_current_user();
@@ -96,6 +119,9 @@ class Simuze_Auth {
      * Output auth scripts in footer
      */
     public function output_auth_scripts() {
+        if (defined('SIMUZE_MODULAR_RUN')) {
+            return;
+        }
         $simezu_login_url = get_option('simuze_login_url', 'http://localhost/simezu/login.php');
         $current_user = $this->get_current_user();
         ?>
@@ -406,7 +432,7 @@ class Simuze_Auth {
             'id' => $data['sub'] ?? null,
             'email' => $data['email'] ?? null,
             'username' => $data['username'] ?? ($data['email'] ?? null),
-            'display_name' => $data['display_name'] ?? $data['email'] ?? null,
+            'display_name' => $data['display_name'] ?? $data['username'] ?? null,
             'roles' => $data['roles'] ?? array(),
             'avatar_url' => $data['avatar_url'] ?? null,
         );
@@ -650,12 +676,20 @@ class Simuze_Auth {
      * Get Simezu login URL
      */
     public function get_login_url($redirect = null) {
+        if (defined('SIMUZE_MODULAR_RUN')) {
+            $login_base = defined('SIMEZU_LOGIN_URL') ? SIMEZU_LOGIN_URL : 'http://localhost/simezu/login';
+            if (!$redirect) {
+                $redirect = defined('SITE_URL') ? rtrim(SITE_URL, '/') . '/profile/?logged_in=1' : '/profile/?logged_in=1';
+            }
+            return rtrim($login_base, '?') . (strpos($login_base, '?') === false ? '?' : '&') . 'redirect=' . urlencode($redirect);
+        }
+
         $login_url = get_option('simuze_login_url', 'http://localhost/simezu/login.php');
-        
+
         if (!$redirect) {
             $redirect = home_url('/profile/?logged_in=1');
         }
-        
+
         return $login_url . '?redirect=' . urlencode($redirect);
     }
     
@@ -663,12 +697,20 @@ class Simuze_Auth {
      * Get Simezu register URL
      */
     public function get_register_url($redirect = null) {
+        if (defined('SIMUZE_MODULAR_RUN')) {
+            $register_base = defined('SIMEZU_ACCOUNT_URL') ? SIMEZU_ACCOUNT_URL : 'http://localhost/simezu/register';
+            if (!$redirect) {
+                $redirect = defined('SITE_URL') ? rtrim(SITE_URL, '/') . '/profile/?logged_in=1' : '/profile/?logged_in=1';
+            }
+            return rtrim($register_base, '?') . (strpos($register_base, '?') === false ? '?' : '&') . 'redirect=' . urlencode($redirect);
+        }
+
         $register_url = get_option('simuze_register_url', 'http://localhost/simezu/register.php');
-        
+
         if (!$redirect) {
             $redirect = home_url('/profile/?logged_in=1');
         }
-        
+
         return $register_url . '?redirect=' . urlencode($redirect);
     }
     
@@ -697,6 +739,30 @@ class Simuze_Auth {
      * Check if user is admin
      */
     public function is_admin() {
+        if (defined('SIMUZE_MODULAR_RUN')) {
+            // In Modular we derive roles purely from JWT / Simuze_User flags
+            if ($this->has_role('admin') || $this->has_role('superadmin') || $this->has_role('Super Admin')) {
+                return true;
+            }
+
+            $user = $this->get_current_user();
+            if ($user && isset($user->is_admin) && $user->is_admin) {
+                return true;
+            }
+
+            if ($user && isset($user->email)) {
+                $super_admin_emails = [
+                    'marten@atypisch.nl',
+                    'admin@simuze.com',
+                ];
+                if (in_array(strtolower($user->email), array_map('strtolower', $super_admin_emails), true)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // Check JWT roles first
         if ($this->has_role('admin') || $this->has_role('superadmin') || $this->has_role('Super Admin')) {
             return true;

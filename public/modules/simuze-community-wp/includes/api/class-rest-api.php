@@ -1505,11 +1505,22 @@ class Simuze_REST_API {
             ));
         }
         
-        $is_unique = !Simuze_Group::unique_handle_exists($handle, $group_id);
+        $is_current_group_handle = false;
+        if (!empty($group_id)) {
+            $existing_group = Simuze_Group::get_by_unique_handle($handle);
+            if ($existing_group && (int) $existing_group->id === (int) $group_id) {
+                $is_current_group_handle = true;
+            }
+        }
+
+        $is_unique = $is_current_group_handle
+            ? true
+            : !Simuze_Group::unique_handle_exists($handle, $group_id);
         
         return rest_ensure_response(array(
             'is_unique' => $is_unique,
-            'handle' => $handle
+            'handle' => $handle,
+            'accepted_current_group' => $is_current_group_handle,
         ));
     }
     

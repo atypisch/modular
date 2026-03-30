@@ -22,6 +22,7 @@ if (!defined('SIMEZU_PAYMENTS_API_URL')) {
     define('SIMEZU_PAYMENTS_API_URL', getenv('SIMEZU_PAYMENTS_API_URL') ?: '');
 }
 // Embed: base URL where SIMEZU assets are served (no trailing slash). For loading simezu-forms.js, simezu-embed.js, avatar.css
+// For local development we default to the local Simezu instance; production can override via SIMEZU_EMBED_URL env.
 if (!defined('SIMEZU_EMBED_URL')) {
     define('SIMEZU_EMBED_URL', getenv('SIMEZU_EMBED_URL') ?: 'http://localhost/simezu');
 }
@@ -37,7 +38,6 @@ if (!defined('SIMEZU_API_KEY')) {
     define('SIMEZU_API_KEY', getenv('SIMEZU_API_KEY') ?: '43235892f8e2145a694df1aef077bbf55f72f9a7be76dbcbaf3ac6be4302f88e');
 }
 if (!defined('SIMEZU_APP')) {
-    // Local app slug in Simezu is now "simuze-mdlr"
     define('SIMEZU_APP', getenv('SIMEZU_APP') ?: 'simuze-mdlr');
 }
 // JWT secret shared with the Simezu auth server. Override in config.local.php for production.
@@ -49,8 +49,12 @@ if (!defined('SIMEZU_LOGIN_URL')) {
     define('SIMEZU_LOGIN_URL', getenv('SIMEZU_LOGIN_URL') ?: (defined('SITE_URL') ? rtrim(SITE_URL, '/') . '/login' : 'http://localhost/simuze-mdlr/login'));
 }
 if (!defined('SIMEZU_DASHBOARD_URL')) {
-    define('SIMEZU_DASHBOARD_URL', getenv('SIMEZU_DASHBOARD_URL') ?: 'http://localhost/simuze-mdlr/dashboard');
+    define('SIMEZU_DASHBOARD_URL', getenv('SIMEZU_DASHBOARD_URL') ?: 'http://localhost/simuze-mdlr/user/{username}');
 }
 if (!defined('SIMEZU_ACCOUNT_URL')) {
     define('SIMEZU_ACCOUNT_URL', getenv('SIMEZU_ACCOUNT_URL') ?: 'http://localhost/simuze-mdlr/account');
+}
+// Super administrator user ID in simuze_users — owns all auto-created location groups (city/province/country).
+if (!defined('SIMUZE_SUPER_ADMIN_ID')) {
+    define('SIMUZE_SUPER_ADMIN_ID', (int) (getenv('SIMUZE_SUPER_ADMIN_ID') ?: 2));
 }

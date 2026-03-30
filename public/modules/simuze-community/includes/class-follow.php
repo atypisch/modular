@@ -98,3 +98,42 @@ class Simuze_Follow {
         );
     }
 }
+
+// -------------------------------------------------------------------------
+// AJAX handlers
+// -------------------------------------------------------------------------
+
+function simuze_ajax_follow_group() {
+    if (empty($GLOBALS['is_logged_in'])) {
+        echo json_encode(['success' => false, 'data' => 'Not logged in']);
+        exit;
+    }
+    $group_id = (int) ($_POST['group_id'] ?? 0);
+    if (!$group_id) {
+        echo json_encode(['success' => false, 'data' => 'Invalid group']);
+        exit;
+    }
+    $user_id = (int) ($GLOBALS['current_user']->id ?? 0);
+    $result = Simuze_Follow::follow($user_id, 'group', $group_id);
+    echo json_encode(['success' => (bool) $result]);
+    exit;
+}
+
+function simuze_ajax_unfollow_group() {
+    if (empty($GLOBALS['is_logged_in'])) {
+        echo json_encode(['success' => false, 'data' => 'Not logged in']);
+        exit;
+    }
+    $group_id = (int) ($_POST['group_id'] ?? 0);
+    if (!$group_id) {
+        echo json_encode(['success' => false, 'data' => 'Invalid group']);
+        exit;
+    }
+    $user_id = (int) ($GLOBALS['current_user']->id ?? 0);
+    $result = Simuze_Follow::unfollow($user_id, 'group', $group_id);
+    echo json_encode(['success' => (bool) $result]);
+    exit;
+}
+
+add_action('wp_ajax_simuze_follow_group',   'simuze_ajax_follow_group');
+add_action('wp_ajax_simuze_unfollow_group', 'simuze_ajax_unfollow_group');

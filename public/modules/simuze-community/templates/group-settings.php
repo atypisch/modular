@@ -3,7 +3,7 @@
  * Group Settings Template
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN') && !defined('MODULAR_PATH')) {
     exit;
 }
 
@@ -16,10 +16,14 @@ if (!$is_admin) {
     return;
 }
 
+// Parse current settings for form pre-fill
+$_group_settings_raw = is_array($group->settings) ? $group->settings : (is_string($group->settings) ? json_decode($group->settings, true) : []);
+$current_websites = isset($_group_settings_raw['websites']) && is_array($_group_settings_raw['websites']) ? $_group_settings_raw['websites'] : [];
+
 ?>
-<!-- Cropper.js for image cropping -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.css">
-<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.js"></script>
+<!-- Cropper.js for image cropping (CSP allows unpkg.com) -->
+<link rel="stylesheet" href="https://unpkg.com/cropperjs@1.6.1/dist/cropper.min.css">
+<script src="https://unpkg.com/cropperjs@1.6.1/dist/cropper.min.js"></script>
 
 <div class="group-settings" style="background: #1a1a1a; color: #fff; padding: 30px; border-radius: 8px;">
     <h2 style="color: #a8d5ba; margin-bottom: 30px; border-bottom: 2px solid #a8d5ba; padding-bottom: 10px;">Group Settings</h2>
@@ -37,7 +41,7 @@ if (!$is_admin) {
             </label>
             <input type="text" id="group_unique_handle" name="unique_handle" value="<?php echo esc_attr($group->unique_handle ?: ''); ?>" 
                    placeholder="<?php echo esc_attr(Simuze_Group::slugify_handle($group->name)); ?>"
-                   pattern="[a-z0-9-]{3,64}" 
+                   pattern="[a-z0-9\-]{3,64}" 
                    minlength="3"
                    maxlength="64"
                    style="width: 100%; padding: 10px 12px; background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 6px; font-size: 14px; color: #fff;">
@@ -57,10 +61,37 @@ if (!$is_admin) {
         
         <div class="form-group">
             <label for="group_description" style="color: #fff; font-weight: 600; margin-bottom: 8px; display: block;">Description</label>
-            <textarea id="group_description" name="description" rows="5" 
+            <textarea id="group_description" name="description" rows="5"
                       style="width: 100%; padding: 10px 12px; background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 6px; font-size: 14px; color: #fff;"><?php echo esc_textarea($group->description); ?></textarea>
         </div>
-        
+
+        <!-- Group URLs / Websites Repeater -->
+        <div class="form-group" style="margin-top: 20px;">
+            <label style="color: #fff; font-weight: 600; margin-bottom: 8px; display: block;">
+                <i class="fas fa-link"></i> Links &amp; Websites
+            </label>
+            <div id="group-websites-repeater" style="display: flex; flex-direction: column; gap: 10px;">
+                <?php
+                $repeater_sites = empty($current_websites) ? [''] : $current_websites;
+                foreach ($repeater_sites as $site_url): ?>
+                    <div class="group-website-item" style="display: flex; gap: 8px; align-items: center;">
+                        <input type="url" name="group_websites[]" value="<?php echo esc_attr($site_url); ?>"
+                               placeholder="https://yourwebsite.com"
+                               style="flex: 1; padding: 10px 12px; background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 6px; font-size: 14px; color: #fff;">
+                        <button type="button" class="remove-group-website button"
+                                style="background: #ff6b6b; color: #fff; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <button type="button" id="add-group-website-btn" class="button"
+                    style="background: #a8d5ba; color: #1a1a1a; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: 600; margin-top: 10px;">
+                <i class="fas fa-plus"></i> Add Link
+            </button>
+            <small style="display: block; margin-top: 8px; color: #999;">Links appear on your public group page.</small>
+        </div>
+
         <?php
         // Genre field - only for Artist groups
         $group_type_data = $group->get_group_type();
@@ -69,31 +100,107 @@ if (!$is_admin) {
         $current_genre = $current_settings['genre'] ?? '';
         
         if ($group_type_slug === 'artist'):
-            // Get all genres from taxonomy
-            $all_genres = get_terms([
-                'taxonomy' => 'genre',
-                'hide_empty' => false,
-                'orderby' => 'name',
-                'order' => 'ASC'
-            ]);
+            // Query genres from terms table; hardcoded fallback if empty
+            $all_genres = md_db_query(
+                "SELECT t.name FROM terms t
+                 INNER JOIN taxonomies tx ON t.taxonomy_id = tx.id
+                 WHERE tx.slug = 'genre'
+                 ORDER BY t.name ASC",
+                []
+            ) ?: [];
+            if (empty($all_genres)) {
+                $all_genres = array_map(fn($g) => ['name' => $g], [
+                    'Ambient', 'Blues', 'Classical', 'Country', 'Dance', 'Electronic',
+                    'Folk', 'Funk', 'Hip-Hop', 'Indie', 'Jazz', 'Metal', 'Pop',
+                    'Post-rock', 'Punk', 'R&B', 'Reggae', 'Rock', 'Singer-songwriter',
+                    'Soul', 'World',
+                ]);
+            }
         ?>
             <div class="form-group">
                 <label for="group_genre" style="color: #fff; font-weight: 600; margin-bottom: 8px; display: block;">Genre</label>
-                <select id="group_genre" name="genre" 
+                <select id="group_genre" name="genre"
                         style="width: 100%; padding: 10px 12px; background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 6px; font-size: 14px; color: #fff;">
-                    <option value=""><?php _e('Select a genre...', 'simuze'); ?></option>
-                    <?php if (!is_wp_error($all_genres) && !empty($all_genres)): ?>
-                        <?php foreach ($all_genres as $genre): ?>
-                            <option value="<?php echo esc_attr($genre->name); ?>" <?php selected($current_genre, $genre->name); ?>>
-                                <?php echo esc_html($genre->name); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                    <option value="">Select a genre...</option>
+                    <?php foreach ($all_genres as $genre): ?>
+                        <option value="<?php echo esc_attr($genre['name']); ?>"
+                                <?php if ($current_genre === $genre['name']) echo 'selected'; ?>>
+                            <?php echo esc_html($genre['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
                 </select>
                 <small style="display: block; margin-top: 8px; color: #999;">Select the primary genre for this artist group.</small>
             </div>
+
+            <?php
+            $is_active         = (bool) ($current_settings['is_active'] ?? true);
+            $available         = (bool) ($current_settings['available_for_shows'] ?? false);
+            $bp                = is_array($current_settings['booking_preferences'] ?? null)
+                                    ? $current_settings['booking_preferences']
+                                    : [];
+            $bp_genres         = $bp['genres'] ?? [];
+            $bp_mood           = $bp['mood'] ?? '';
+            $bp_show_types     = $bp['show_types'] ?? [];
+            $mood_options      = ['energetic', 'mellow', 'dark', 'acoustic', 'eclectic', 'ambient', 'loud'];
+            $show_type_options = ['show', 'diy', 'house', 'jam'];
+            ?>
+            <div class="form-section" style="margin-top:28px; border-top:1px solid #333; padding-top:20px;">
+                <h3 style="color:#a8d5ba; font-size:15px; margin-bottom:16px;">Bookings &amp; Availability</h3>
+
+                <div class="form-group" style="display:flex; gap:32px; flex-wrap:wrap; margin-bottom:18px;">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc; font-size:14px;">
+                        <input type="checkbox" id="is_active" name="is_active" value="1"
+                               <?php if ($is_active) echo 'checked'; ?>
+                               style="accent-color:#a8d5ba; width:16px; height:16px;">
+                        This act is still active
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc; font-size:14px;">
+                        <input type="checkbox" id="available_for_shows" name="available_for_shows" value="1"
+                               <?php if ($available) echo 'checked'; ?>
+                               style="accent-color:#a8d5ba; width:16px; height:16px;">
+                        Available for bookings
+                    </label>
+                </div>
+
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label for="bp_genres" style="color:#fff; font-weight:600; margin-bottom:8px; display:block; font-size:13px;">
+                        Booking genres <small style="color:#999; font-weight:normal;">(comma-separated)</small>
+                    </label>
+                    <input type="text" id="bp_genres" name="bp_genres"
+                           value="<?php echo esc_attr(implode(', ', (array)$bp_genres)); ?>"
+                           placeholder="e.g. punk, indie, post-rock"
+                           style="width:100%; padding:10px 12px; background:#2a2a2a; border:1px solid #4a4a4a; border-radius:6px; font-size:14px; color:#fff;">
+                </div>
+
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label for="bp_mood" style="color:#fff; font-weight:600; margin-bottom:8px; display:block; font-size:13px;">Mood</label>
+                    <select id="bp_mood" name="bp_mood"
+                            style="width:100%; padding:10px 12px; background:#2a2a2a; border:1px solid #4a4a4a; border-radius:6px; font-size:14px; color:#fff;">
+                        <option value="">— no preference —</option>
+                        <?php foreach ($mood_options as $m): ?>
+                            <option value="<?php echo $m; ?>" <?php if ($bp_mood === $m) echo 'selected'; ?>>
+                                <?php echo ucfirst($m); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom:8px;">
+                    <label style="color:#fff; font-weight:600; margin-bottom:10px; display:block; font-size:13px;">Preferred show types</label>
+                    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                        <?php foreach ($show_type_options as $st): ?>
+                            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#ccc; font-size:14px;">
+                                <input type="checkbox" name="bp_show_types[]" value="<?php echo $st; ?>"
+                                       <?php if (in_array($st, (array)$bp_show_types)) echo 'checked'; ?>
+                                       style="accent-color:#a8d5ba; width:15px; height:15px;">
+                                <?php echo ucfirst($st); ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
         <?php endif; ?>
-        
+
         <!-- Avatar Upload Section -->
         <div class="form-group" style="margin-top: 30px;">
             <label style="color: #fff; font-weight: 600; margin-bottom: 15px; display: block; border-bottom: 2px solid #a8d5ba; padding-bottom: 8px;">
@@ -836,6 +943,7 @@ jQuery(document).ready(function($) {
     
     // Unique name validation and preview
     // Unique Handle validation and preview
+    const currentGroupHandle = '<?php echo esc_js((string) ($group->unique_handle ?: Simuze_Group::slugify_handle($group->name))); ?>';
     $('#group_unique_handle').on('input', function() {
         let handle = $(this).val().toLowerCase().replace(/[^a-z0-9-]/g, '');
         $(this).val(handle);
@@ -866,8 +974,10 @@ jQuery(document).ready(function($) {
                 xhr.setRequestHeader('X-WP-Nonce', simuzeCommunity.nonce);
             },
             success: function(response) {
-                if (response.is_unique) {
-                    statusDiv.html('<span style="color: #a8d5ba;"><i class="fas fa-check-circle"></i> Available!</span>').show();
+                if (response.accepted_current_group || handle === currentGroupHandle) {
+                    statusDiv.html('<span style="color: #a8d5ba;"><i class="fas fa-check-circle"></i> Unique handle accepted (current group)</span>').show();
+                } else if (response.is_unique) {
+                    statusDiv.html('<span style="color: #a8d5ba;"><i class="fas fa-check-circle"></i> Unique handle available</span>').show();
                 } else {
                     statusDiv.html('<span style="color: #ff6b6b;"><i class="fas fa-times-circle"></i> Already taken</span>').show();
                 }
@@ -888,6 +998,18 @@ jQuery(document).ready(function($) {
         }
     });
     
+    // Group websites repeater
+    function addGroupWebsiteField(url) {
+        var html = '<div class="group-website-item" style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">' +
+                   '<input type="url" name="group_websites[]" value="' + (url || '') + '" placeholder="https://yourwebsite.com" ' +
+                   'style="flex:1;padding:10px 12px;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:6px;font-size:14px;color:#fff;">' +
+                   '<button type="button" class="remove-group-website button" style="background:#ff6b6b;color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;">' +
+                   '<i class="fas fa-times"></i></button></div>';
+        $('#group-websites-repeater').append(html);
+    }
+    $('#add-group-website-btn').on('click', function() { addGroupWebsiteField(''); });
+    $(document).on('click', '.remove-group-website', function() { $(this).closest('.group-website-item').remove(); });
+
     // Form submission
     $('#group-settings-form').on('submit', function(e) {
         e.preventDefault();
@@ -898,10 +1020,30 @@ jQuery(document).ready(function($) {
             unique_name: $('#group_unique_name').val() || null, // Legacy support
             description: $('#group_description').val(),
             status: $('#group_status').val(),
-            settings: {
-                payment_recipient_user_id: $('#payment_recipient').val() || null,
-                genre: $('#group_genre').length ? $('#group_genre').val() || null : null
-            }
+            settings: (function() {
+                const groupWebsites = [];
+                $('#group-websites-repeater .group-website-item input').each(function() {
+                    const v = $(this).val().trim();
+                    if (v) groupWebsites.push(v);
+                });
+                const s = {
+                    payment_recipient_user_id: $('#payment_recipient').val() || null,
+                    genre: $('#group_genre').length ? $('#group_genre').val() || null : null,
+                    websites: groupWebsites
+                };
+                if ($('#is_active').length) {
+                    s.is_active           = $('#is_active').is(':checked');
+                    s.available_for_shows = $('#available_for_shows').is(':checked');
+                    const bpShowTypes = [];
+                    $('input[name="bp_show_types[]"]:checked').each(function() { bpShowTypes.push($(this).val()); });
+                    s.booking_preferences = {
+                        genres:     ($('#bp_genres').val() || '').split(',').map(g => g.trim()).filter(Boolean),
+                        mood:       $('#bp_mood').val() || null,
+                        show_types: bpShowTypes
+                    };
+                }
+                return s;
+            })()
         };
         
         // Add cropped images if available

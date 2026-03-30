@@ -138,6 +138,10 @@ CREATE TABLE IF NOT EXISTS posts (
     INDEX idx_author (author_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Idempotent: add helpful indexes for hierarchical ordering
+ALTER TABLE posts ADD INDEX IF NOT EXISTS idx_parent (parent_id);
+ALTER TABLE posts ADD INDEX IF NOT EXISTS idx_order (`order`);
+
 CREATE TABLE IF NOT EXISTS component_definitions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     post_type_id INT NOT NULL,

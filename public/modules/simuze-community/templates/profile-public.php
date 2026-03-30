@@ -4,7 +4,7 @@
  * Public view of user profile - visible to everyone
  */
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('SIMUZE_MODULAR_RUN')) {
     exit;
 }
 
@@ -25,6 +25,13 @@ $user_groups = Simuze_Group::get_user_groups($user->id, 6);
 
 // Get recent public activity
 $recent_activity = class_exists('Simuze_Activity') ? Simuze_Activity::get_user_activity($user->id, 5) : array();
+
+// Get upcoming shows organised by this user
+$profile_user_shows = class_exists('EventRepository') ? EventRepository::findByOrganiser((int) $user->id, 'user', 8) : [];
+$public_websites = $user->profile['websites'] ?? [];
+if (!is_array($public_websites)) {
+    $public_websites = !empty($public_websites) ? [$public_websites] : [];
+}
 ?>
 
 <div class="public-profile user-profile">
@@ -53,8 +60,31 @@ $recent_activity = class_exists('Simuze_Activity') ? Simuze_Activity::get_user_a
                     <p>This user has no public activity yet.</p>
                 </div>
             <?php endif; ?>
+            <?php if (!empty($profile_user_shows)): ?>
+                <div class="profile-section">
+                    <h2>Shows</h2>
+                    <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:.5rem;">
+                        <?php foreach ($profile_user_shows as $pshow):
+                            $pshow_date = !empty($pshow['event_date']) ? date('j M Y', strtotime($pshow['event_date'])) : '';
+                            $pshow_url  = md_home_url('/show/' . $pshow['slug']);
+                        ?>
+                            <li style="display:flex; align-items:center; gap:.75rem; padding:.5rem 0; border-bottom:1px solid var(--color-border,#e5e7eb);">
+                                <div style="flex:1; min-width:0;">
+                                    <a href="<?php echo esc_url($pshow_url); ?>" style="font-weight:500; text-decoration:none; color:inherit;"><?php echo esc_html($pshow['title']); ?></a>
+                                    <div style="font-size:.8rem; color:var(--color-text-muted,#888);">
+                                        <?php echo esc_html($pshow_date); ?>
+                                        <?php if (!empty($pshow['city_name'])): ?>&middot; <?php echo esc_html($pshow['city_name']); ?><?php endif; ?>
+                                    </div>
+                                </div>
+                                <a href="<?php echo esc_url($pshow_url); ?>" class="button button-sm">View</a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <p style="margin-top:.75rem; margin-bottom:0;"><a href="<?php echo esc_url(md_home_url('/shows')); ?>">Browse all shows &rarr;</a></p>
+                </div>
+            <?php endif; ?>
         </div>
-        
+
         <div class="public-profile-sidebar">
             <!-- Public info / About -->
             <div class="profile-section">
@@ -63,6 +93,18 @@ $recent_activity = class_exists('Simuze_Activity') ? Simuze_Activity::get_user_a
                     <p class="profile-bio"><?php echo esc_html($user->profile['bio']); ?></p>
                 <?php else: ?>
                     <p>This user hasn't added a bio yet.</p>
+                <?php endif; ?>
+                <?php if (!empty($public_websites)): ?>
+                    <div style="margin-top:.75rem; display:flex; flex-direction:column; gap:.45rem;">
+                        <?php foreach ($public_websites as $_site): ?>
+                            <?php if (is_string($_site) && trim($_site) !== ''): ?>
+                                <a href="<?php echo esc_url($_site); ?>" target="_blank" rel="noopener noreferrer"
+                                   style="display:inline-flex;align-items:center;gap:6px;color:inherit;text-decoration:none;">
+                                    <i class="fas fa-link" aria-hidden="true"></i> <?php echo esc_html($_site); ?>
+                                </a>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
                 <?php endif; ?>
             </div>
             
