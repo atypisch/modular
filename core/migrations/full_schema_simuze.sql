@@ -625,6 +625,7 @@ CREATE TABLE IF NOT EXISTS simuze_events (
     ticket_sales_enabled TINYINT(1) NOT NULL DEFAULT 0,
     ticket_type ENUM('none','simuze','external') NOT NULL DEFAULT 'none',
     ticket_url VARCHAR(500) DEFAULT NULL,
+    header_image_url VARCHAR(500) DEFAULT NULL,
     description TEXT DEFAULT NULL,
     diy_notes TEXT DEFAULT NULL,
     contact_name VARCHAR(255) DEFAULT NULL,
@@ -830,6 +831,12 @@ BEGIN
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'simuze_events' AND COLUMN_NAME = 'mood'
     ) THEN
         ALTER TABLE simuze_events ADD COLUMN mood VARCHAR(100) DEFAULT NULL AFTER genres;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'simuze_events' AND COLUMN_NAME = 'header_image_url'
+    ) THEN
+        ALTER TABLE simuze_events ADD COLUMN header_image_url VARCHAR(500) DEFAULT NULL AFTER ticket_url;
     END IF;
     IF NOT EXISTS (
         SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS

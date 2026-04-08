@@ -216,17 +216,37 @@ function simuze_ajax_search_artists(): void {
     $like  = '%' . $q . '%';
     $users = md_db_query(
         "SELECT id, display_name, username, avatar_url FROM simuze_users
-         WHERE deleted_at IS NULL AND (display_name LIKE ? OR username LIKE ?)
+         WHERE (display_name LIKE ? OR username LIKE ?)
          ORDER BY display_name ASC LIMIT 20",
         [$like, $like]
     ) ?: [];
-    echo json_encode(['success' => true, 'data' => array_map(fn($u) => [
+    $groups = md_db_query(
+        "SELECT id, name, slug, group_type FROM simuze_groups
+         WHERE deleted_at IS NULL
+           AND (name LIKE ? OR slug LIKE ?)
+           AND (group_type = 'artist' OR group_type = 'band' OR group_type = 'collective')
+         ORDER BY name ASC LIMIT 20",
+        [$like, $like]
+    ) ?: [];
+
+    $user_items = array_map(fn($u) => [
         'id'         => (int) $u['id'],
         'label'      => $u['display_name'] ?: $u['username'],
         'username'   => $u['username'],
         'avatar_url' => $u['avatar_url'] ?? '',
         'type'       => 'user',
-    ], $users)]);
+        'kind'       => 'user',
+    ], $users);
+    $group_items = array_map(fn($g) => [
+        'id'         => (int) $g['id'],
+        'label'      => (string) ($g['name'] ?? ''),
+        'username'   => (string) ($g['slug'] ?? ''),
+        'avatar_url' => '',
+        'type'       => 'group',
+        'kind'       => 'group',
+    ], $groups);
+
+    echo json_encode(['success' => true, 'data' => array_values(array_merge($user_items, $group_items))]);
     exit;
 }
 

@@ -164,6 +164,9 @@ class EventRepository {
         if (self::hasColumn('simuze_events', 'ticket_url')) {
             $row['ticket_url'] = !empty($data['ticket_url']) ? $data['ticket_url'] : null;
         }
+        if (self::hasColumn('simuze_events', 'header_image_url')) {
+            $row['header_image_url'] = !empty($data['header_image_url']) ? $data['header_image_url'] : null;
+        }
         if (self::hasColumn('simuze_events', 'genres') && isset($data['genres'])) {
             // Accept already-encoded JSON string or array
             $row['genres'] = is_array($data['genres']) ? json_encode($data['genres']) : $data['genres'];
