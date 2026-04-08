@@ -28,21 +28,21 @@ if (!defined('SIMEZU_EMBED_URL')) {
 }
 // App API Token (sk_live_...) from Tokens tab – server-side only, never expose to frontend. Set in config.local.php for production.
 if (!defined('SIMEZU_APP_API_TOKEN')) {
-    define('SIMEZU_APP_API_TOKEN', getenv('SIMEZU_APP_API_TOKEN') ?: 'sk_live_56d2e65297f1638620e315c7b6d2e76a268c4bdcd97b4c314818a492ead3a408');
+    define('SIMEZU_APP_API_TOKEN', getenv('SIMEZU_APP_API_TOKEN') ?: '');
 }
 // App ID (UUID) and API Key from App settings – for API auth headers
 if (!defined('SIMEZU_APP_ID')) {
-    define('SIMEZU_APP_ID', getenv('SIMEZU_APP_ID') ?: '40c92edc-15ba-11f1-a294-77c575fa87b4');
+    define('SIMEZU_APP_ID', getenv('SIMEZU_APP_ID') ?: '');
 }
 if (!defined('SIMEZU_API_KEY')) {
-    define('SIMEZU_API_KEY', getenv('SIMEZU_API_KEY') ?: '43235892f8e2145a694df1aef077bbf55f72f9a7be76dbcbaf3ac6be4302f88e');
+    define('SIMEZU_API_KEY', getenv('SIMEZU_API_KEY') ?: '');
 }
 if (!defined('SIMEZU_APP')) {
     define('SIMEZU_APP', getenv('SIMEZU_APP') ?: 'simuze-mdlr');
 }
 // JWT secret shared with the Simezu auth server. Override in config.local.php for production.
 if (!defined('SIMEZU_JWT_SECRET')) {
-    define('SIMEZU_JWT_SECRET', getenv('SIMEZU_JWT_SECRET') ?: '0TZnhRBoj2NH82BXm29S8Am0ixOYSL2Or4jLaeBPcKuchTf/4KFgBTXSZ85LbJRT');
+    define('SIMEZU_JWT_SECRET', getenv('SIMEZU_JWT_SECRET') ?: '');
 }
 // Login page URL for redirect when unauthenticated. Defaults to the Modular-hosted login route.
 if (!defined('SIMEZU_LOGIN_URL')) {
