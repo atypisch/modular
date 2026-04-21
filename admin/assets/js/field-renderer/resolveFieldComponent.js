@@ -348,7 +348,9 @@
                     url: (window.MODULAR_BASE_URL || '') + '/admin/media/upload-handler.php?_csrf_token=' + (window.MODULAR_CSRF_TOKEN || ''),
                     accept: type === 'image' ? 'image/*' : (o.accept || '*/*'),
                     multiple: o.multiple || false,
-                    chooseLabel: o.choose_label || 'Choose',
+                    chooseLabel: o.choose_label || (type === 'image' ? 'Kies afbeelding' : 'Kies bestand'),
+                    chooseIcon: 'pi pi-cloud-upload',
+                    class: 'modular-fileupload modular-fileupload--compact',
                     uploadLabel: o.upload_label || 'Upload',
                     cancelLabel: o.cancel_label || 'Cancel',
                     auto: true,
@@ -362,7 +364,9 @@
                     url: (window.MODULAR_BASE_URL || '') + '/admin/media/upload-handler.php?_csrf_token=' + (window.MODULAR_CSRF_TOKEN || ''),
                     accept: 'image/*',
                     multiple: true,
-                    chooseLabel: o.choose_label || 'Add Images',
+                    chooseLabel: o.choose_label || 'Voeg afbeeldingen toe',
+                    chooseIcon: 'pi pi-cloud-upload',
+                    class: 'modular-fileupload modular-fileupload--compact',
                     uploadLabel: o.upload_label || 'Upload',
                     cancelLabel: o.cancel_label || 'Cancel',
                     auto: true,
@@ -392,7 +396,9 @@
                     url: (window.MODULAR_BASE_URL || '') + '/admin/media/upload-handler.php?_csrf_token=' + (window.MODULAR_CSRF_TOKEN || ''),
                     accept: 'audio/*',
                     multiple: false,
-                    chooseLabel: o.choose_label || 'Choose Audio',
+                    chooseLabel: o.choose_label || 'Kies audio',
+                    chooseIcon: 'pi pi-cloud-upload',
+                    class: 'modular-fileupload modular-fileupload--compact',
                     auto: true,
                 });
                 break;
@@ -404,7 +410,9 @@
                     url: (window.MODULAR_BASE_URL || '') + '/admin/media/upload-handler.php?_csrf_token=' + (window.MODULAR_CSRF_TOKEN || ''),
                     accept: 'video/*',
                     multiple: false,
-                    chooseLabel: o.choose_label || 'Choose Video',
+                    chooseLabel: o.choose_label || 'Kies video',
+                    chooseIcon: 'pi pi-cloud-upload',
+                    class: 'modular-fileupload modular-fileupload--compact',
                     auto: true,
                 });
                 break;

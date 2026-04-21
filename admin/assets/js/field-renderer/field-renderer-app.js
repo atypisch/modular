@@ -73,6 +73,60 @@
         });
     }
 
+    // Reactive cache of media_id -> public URL. Shared across all FileUpload previews,
+    // so a single fetch per media_id feeds every thumbnail. Used by the field-renderer
+    // image/file/gallery preview.
+    var mediaUrlCache = reactive({});
+    var MEDIA_PENDING = '__pending__';
+
+    function buildMediaUrl(m) {
+        if (!m) return '';
+        if (m.url) return m.url;
+        var fp = m.file_path || '';
+        if (!fp) return '';
+        if (/^https?:\/\//i.test(fp)) return fp;
+        var base = window.MODULAR_BASE_URL || '';
+        if (fp.charAt(0) !== '/') fp = '/' + fp;
+        return base + fp;
+    }
+
+    function resolveMediaUrl(id) {
+        if (!id) return;
+        if (mediaUrlCache[id] !== undefined) return;
+        mediaUrlCache[id] = MEDIA_PENDING;
+        var apiBase = (window.MODULAR_BASE_URL || '') + '/admin/api/index.php';
+        fetch(apiBase + '/api/v1/media/' + encodeURIComponent(id), {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+        })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (m) {
+                var url = buildMediaUrl(m);
+                if (url) {
+                    mediaUrlCache[id] = url;
+                } else {
+                    delete mediaUrlCache[id];
+                }
+            })
+            .catch(function () { delete mediaUrlCache[id]; });
+    }
+
+    function getCachedMediaUrl(id) {
+        if (!id) return '';
+        var v = mediaUrlCache[id];
+        if (v === undefined) {
+            resolveMediaUrl(id);
+            return '';
+        }
+        if (v === MEDIA_PENDING) return '';
+        return v;
+    }
+
+    function isImageUrl(url) {
+        if (!url) return false;
+        return /\.(jpe?g|png|gif|webp|svg|avif|bmp)(\?.*)?$/i.test(url);
+    }
+
     /**
      * Normalize initial value for a field type (e.g. Calendar expects Date or string in format).
      */
@@ -330,6 +384,10 @@
                         try {
                             var response = JSON.parse(xhr.responseText);
                             if (response.success) {
+                                var freshUrl = buildMediaUrl(response);
+                                if (response.media_id && freshUrl) {
+                                    mediaUrlCache[response.media_id] = freshUrl;
+                                }
                                 var currentValue = ctx.localValue;
                                 if (resolved.props.multiple) {
                                     if (!Array.isArray(currentValue)) currentValue = [];
@@ -367,6 +425,10 @@
                             try {
                                 var response = JSON.parse(xhr.responseText);
                                 if (response.success) {
+                                    var freshUrl = buildMediaUrl(response);
+                                    if (response.media_id && freshUrl) {
+                                        mediaUrlCache[response.media_id] = freshUrl;
+                                    }
                                     var currentValue = ctx.localValue;
                                     if (resolved.props.multiple) {
                                         if (!Array.isArray(currentValue)) currentValue = [];
@@ -404,6 +466,63 @@
                 inputEl = h('input', { type: 'hidden', name: 'field_data[' + (field.name || field.key) + ']', value: ctx.localValue });
             } else {
                 inputEl = h(component, bindProps);
+            }
+
+            // Wrap FileUpload with inline thumbnail preview (image/gallery/file/audio/video).
+            // PrimeVue 'basic' mode has no preview UI, so we render thumbs ourselves from
+            // media_id -> URL via the shared mediaUrlCache.
+            if (tag === 'p-fileupload') {
+                var isMulti = !!resolved.props.multiple;
+                var rawIds;
+                if (isMulti) {
+                    rawIds = Array.isArray(ctx.localValue) ? ctx.localValue : [];
+                } else {
+                    rawIds = (ctx.localValue !== null && ctx.localValue !== undefined && ctx.localValue !== '') ? [ctx.localValue] : [];
+                }
+                var thumbs = rawIds.map(function (mid, idx) {
+                    var url = getCachedMediaUrl(mid);
+                    var children;
+                    if (!url) {
+                        children = [h('span', { class: 'modular-fileupload-thumb-spinner', 'aria-hidden': 'true' }, [
+                            h('i', { class: 'pi pi-spin pi-spinner' })
+                        ])];
+                    } else if (isImageUrl(url)) {
+                        children = [h('img', { src: url, alt: '', loading: 'lazy' })];
+                    } else {
+                        var name = url.split('/').pop() || '';
+                        children = [
+                            h('span', { class: 'modular-fileupload-thumb-icon', 'aria-hidden': 'true' }, [
+                                h('i', { class: 'pi pi-file' })
+                            ]),
+                            h('span', { class: 'modular-fileupload-thumb-name', title: name }, name),
+                        ];
+                    }
+                    children.push(h('button', {
+                        type: 'button',
+                        class: 'modular-fileupload-remove',
+                        'aria-label': 'Verwijderen',
+                        title: 'Verwijderen',
+                        onClick: function (e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (isMulti) {
+                                var next = Array.isArray(ctx.localValue) ? ctx.localValue.slice() : [];
+                                next.splice(idx, 1);
+                                ctx.localValue = next;
+                            } else {
+                                ctx.localValue = null;
+                            }
+                        },
+                    }, '\u00d7'));
+                    return h('div', {
+                        class: 'modular-fileupload-thumb' + (isImageUrl(url) ? '' : ' is-file'),
+                        key: String(mid) + ':' + idx,
+                    }, children);
+                });
+                var previewEl = h('div', {
+                    class: 'modular-fileupload-preview' + (isMulti ? ' is-multi' : '') + (thumbs.length === 0 ? ' is-empty' : ''),
+                }, thumbs);
+                inputEl = h('div', { class: 'modular-fileupload-wrap' }, [previewEl, inputEl]);
             }
 
             var helpEl = resolved.instructions ? h('div', { class: 'help-text' }, resolved.instructions) : null;
