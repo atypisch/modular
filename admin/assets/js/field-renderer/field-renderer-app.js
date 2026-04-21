@@ -82,20 +82,10 @@
 
     function buildMediaUrl(m) {
         if (!m) return '';
-        // Prefer file_path: upload-handler.php stores it as a host-absolute path that
-        // already includes BASE_PATH (e.g. "/atypisch-mdlr/public/uploads/xxx.png"),
-        // so the browser resolves it correctly against the current origin.
-        var fp = m.file_path || '';
-        if (fp) {
-            if (/^https?:\/\//i.test(fp)) return fp;
-            if (fp.charAt(0) !== '/') fp = '/' + fp;
-            return fp;
-        }
+        // Prefer the server-provided `url`: upload-handler.php now returns it as a
+        // clean host-absolute web path (UPLOADS_WEB_PATH + filename). If an older
+        // record had `SITE_URL + file_path` that doubled BASE_PATH, collapse it.
         if (m.url) {
-            // The server currently builds `url` as SITE_URL + file_path, but SITE_URL
-            // and file_path both contain BASE_PATH, producing a doubled prefix like
-            // "/atypisch-mdlr/atypisch-mdlr/public/uploads/...". Collapse it here so
-            // older/other media records still render.
             var base = (window.MODULAR_BASE_URL || '').replace(/\/+$/, '');
             if (base && base !== '/') {
                 var doubled = base + base;
@@ -105,7 +95,16 @@
             }
             return m.url;
         }
-        return '';
+        // Fallback: file_path may be either an absolute URL, a host-absolute path,
+        // or a bare filename relative to UPLOADS_WEB_PATH. Normalize accordingly.
+        var fp = m.file_path || '';
+        if (!fp) return '';
+        if (/^https?:\/\//i.test(fp)) return fp;
+        if (fp.charAt(0) === '/') return fp;
+        var uploadsBase = (window.MODULAR_UPLOADS_WEB_PATH
+            || ((window.MODULAR_BASE_URL || '') + '/public/uploads')
+        ).replace(/\/+$/, '');
+        return uploadsBase + '/' + fp;
     }
 
     function resolveMediaUrl(id) {
