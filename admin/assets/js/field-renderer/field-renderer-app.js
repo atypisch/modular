@@ -414,8 +414,10 @@
             // FileUpload with customUpload: one XHR per file with live upload progress.
             // Server-side upload-handler.php only returns JSON when X-Requested-With is set,
             // so routing through customUpload also avoids the 302 that basic-mode triggers.
+            // PrimeVue emits 'uploader' (payload: {files}), which binds as onUploader in
+            // render functions. The previous 'uploadHandler' key was a dead prop.
             if (tag === 'p-fileupload' && resolved.props.customUpload) {
-                bindProps.uploadHandler = function(options) {
+                bindProps.onUploader = function(options) {
                     var files = (options && options.files) || [];
                     if (!files.length) return;
                     var csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
@@ -442,9 +444,9 @@
                     };
                     var finishOne = function () {
                         remaining -= 1;
-                        if (remaining <= 0 && options && typeof options.clear === 'function') {
-                            try { options.clear(); } catch (_) { /* noop */ }
-                        }
+                        // PrimeVue basic mode resets its internal file list on the next
+                        // selection (`this.isBasic && this.hasFiles && (this.files = [])`),
+                        // so no explicit clear is needed here.
                     };
                     Array.prototype.forEach.call(files, function (file) {
                         var tid = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
