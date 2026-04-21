@@ -52,6 +52,7 @@ if (!$tableCheck['all_exist'] || in_array('forms', $tableCheck['missing'])) {
             $form['settings'] = json_decode($form['settings'] ?? '{}', true);
             $form['spam_protection'] = json_decode($form['spam_protection'] ?? '{}', true);
         }
+        unset($form);
     } catch (PDOException $e) {
         // Check if it's a "table doesn't exist" error
         if (strpos($e->getMessage(), "doesn't exist") !== false || strpos($e->getMessage(), "Base table or view not found") !== false) {

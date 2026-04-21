@@ -30,7 +30,8 @@ class FormsController {
             $form['settings'] = json_decode($form['settings'], true);
             $form['spam_protection'] = json_decode($form['spam_protection'], true);
         }
-        
+        unset($form);
+
         return $forms;
     }
     
