@@ -841,6 +841,57 @@
     background: rgba(0, 0, 0, 0.85);
 }
 
+/* Per-file upload progress (rendered while XHR is in flight) */
+.modular-fileupload-progress-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+}
+.modular-fileupload-progress-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 140px auto;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--text-color-light, #64748b);
+}
+.modular-fileupload-progress-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.modular-fileupload-progress-bar {
+    position: relative;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border-color, #e2e8f0);
+    overflow: hidden;
+}
+.modular-fileupload-progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    background: var(--primary-color, #6366f1);
+    transition: width 120ms linear;
+}
+.modular-fileupload-progress-pct {
+    font-variant-numeric: tabular-nums;
+    min-width: 34px;
+    text-align: right;
+}
+.modular-fileupload-progress-row.is-error { color: #ef4444; }
+.modular-fileupload-progress-row.is-error .modular-fileupload-progress-fill { background: #ef4444; }
+
+/* Font Awesome icon sizing inside the compact Choose button
+   (primeicons fonts are missing in /admin/assets/vendor/primeicons/fonts/, so we use FA) */
+.modular-field-renderer-root .modular-fileupload .p-button .fas,
+.modular-field-renderer-root .modular-fileupload .p-button .fa {
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
 /* Modal from the right */
 .post-edit-modal-overlay {
     position: fixed;

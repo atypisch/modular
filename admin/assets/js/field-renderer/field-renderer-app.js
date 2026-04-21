@@ -195,6 +195,10 @@
                 }
             }, { immediate: true });
 
+            // Active FileUpload tasks for this field, keyed by taskId.
+            // Shape: { [taskId]: { name: string, percent: number, error?: string } }
+            var uploadProgress = ref({});
+
             return {
                 resolved: resolved,
                 localValue: localValue,
@@ -203,7 +207,8 @@
                 relationshipPostType: relationshipPostType,
                 isCollapsed: isCollapsed,
                 isEditingLabel: isEditingLabel,
-                labelDraft: labelDraft
+                labelDraft: labelDraft,
+                uploadProgress: uploadProgress
             };
         },
         render: function (ctx) {
@@ -406,51 +411,88 @@
                 };
             }
 
-            // FileUpload with customUpload needs custom handler
+            // FileUpload with customUpload: one XHR per file with live upload progress.
+            // Server-side upload-handler.php only returns JSON when X-Requested-With is set,
+            // so routing through customUpload also avoids the 302 that basic-mode triggers.
             if (tag === 'p-fileupload' && resolved.props.customUpload) {
                 bindProps.uploadHandler = function(options) {
-                    var files = options.files;
-                    if (!files || files.length === 0) return;
-                    var file = files[0];
-                    var formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('title', file.name);
+                    var files = (options && options.files) || [];
+                    if (!files.length) return;
                     var csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
-                    if (csrfToken) formData.append('csrf_token', csrfToken);
-                    var xhr = new XMLHttpRequest();
-                    xhr.open('POST', window.MODULAR_BASE_URL + '/admin/media/upload-handler.php', true);
-                    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-                    xhr.onload = function() {
-                        if (xhr.status === 200) {
-                            try {
-                                var response = JSON.parse(xhr.responseText);
-                                if (response.success) {
-                                    var freshUrl = buildMediaUrl(response);
-                                    if (response.media_id && freshUrl) {
-                                        mediaUrlCache[response.media_id] = freshUrl;
-                                    }
-                                    var currentValue = ctx.localValue;
-                                    if (resolved.props.multiple) {
-                                        if (!Array.isArray(currentValue)) currentValue = [];
-                                        currentValue.push(response.media_id);
-                                    } else {
-                                        currentValue = response.media_id;
-                                    }
-                                    ctx.localValue = currentValue;
-                                } else {
-                                    (window.ModularModal && window.ModularModal.alert('Upload mislukt: ' + (response.error || 'Onbekende fout')));
-                                }
-                            } catch (e) {
-                                (window.ModularModal && window.ModularModal.alert('Upload mislukt: ongeldig antwoord'));
-                            }
+                    var remaining = files.length;
+                    var appendId = function (id) {
+                        if (id === undefined || id === null) return;
+                        if (resolved.props.multiple) {
+                            var cur = Array.isArray(ctx.localValue) ? ctx.localValue.slice() : [];
+                            cur.push(id);
+                            ctx.localValue = cur;
                         } else {
-                            (window.ModularModal && window.ModularModal.alert('Upload mislukt: serverfout'));
+                            ctx.localValue = id;
                         }
                     };
-                    xhr.onerror = function() {
-                        (window.ModularModal && window.ModularModal.alert('Upload mislukt: netwerkfout'));
+                    var setTask = function (tid, patch) {
+                        var next = Object.assign({}, ctx.uploadProgress);
+                        next[tid] = Object.assign({}, next[tid] || {}, patch);
+                        ctx.uploadProgress = next;
                     };
-                    xhr.send(formData);
+                    var removeTask = function (tid) {
+                        var next = Object.assign({}, ctx.uploadProgress);
+                        delete next[tid];
+                        ctx.uploadProgress = next;
+                    };
+                    var finishOne = function () {
+                        remaining -= 1;
+                        if (remaining <= 0 && options && typeof options.clear === 'function') {
+                            try { options.clear(); } catch (_) { /* noop */ }
+                        }
+                    };
+                    Array.prototype.forEach.call(files, function (file) {
+                        var tid = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+                        setTask(tid, { name: file.name, percent: 0 });
+                        var formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('title', file.name);
+                        if (csrfToken) formData.append('csrf_token', csrfToken);
+                        var xhr = new XMLHttpRequest();
+                        xhr.open('POST', window.MODULAR_BASE_URL + '/admin/media/upload-handler.php', true);
+                        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                        xhr.setRequestHeader('Accept', 'application/json');
+                        if (xhr.upload) {
+                            xhr.upload.onprogress = function (e) {
+                                if (!e.lengthComputable) return;
+                                var pct = Math.max(0, Math.min(99, Math.round(e.loaded / e.total * 100)));
+                                setTask(tid, { percent: pct });
+                            };
+                        }
+                        var failWith = function (msg) {
+                            setTask(tid, { percent: 0, error: msg });
+                            setTimeout(function () { removeTask(tid); }, 3500);
+                            finishOne();
+                        };
+                        xhr.onload = function() {
+                            if (xhr.status !== 200) {
+                                failWith('Upload mislukt (' + xhr.status + ')');
+                                return;
+                            }
+                            var response;
+                            try { response = JSON.parse(xhr.responseText); }
+                            catch (e) { failWith('Ongeldig serverantwoord'); return; }
+                            if (!response || !response.success) {
+                                failWith((response && response.error) || 'Onbekende fout');
+                                return;
+                            }
+                            var freshUrl = buildMediaUrl(response);
+                            if (response.media_id && freshUrl) {
+                                mediaUrlCache[response.media_id] = freshUrl;
+                            }
+                            setTask(tid, { percent: 100 });
+                            appendId(response.media_id);
+                            removeTask(tid);
+                            finishOne();
+                        };
+                        xhr.onerror = function() { failWith('Netwerkfout'); };
+                        xhr.send(formData);
+                    });
                 };
             }
 
@@ -522,7 +564,28 @@
                 var previewEl = h('div', {
                     class: 'modular-fileupload-preview' + (isMulti ? ' is-multi' : '') + (thumbs.length === 0 ? ' is-empty' : ''),
                 }, thumbs);
-                inputEl = h('div', { class: 'modular-fileupload-wrap' }, [previewEl, inputEl]);
+                var progressMap = ctx.uploadProgress || {};
+                var progressIds = Object.keys(progressMap);
+                var progressEl = progressIds.length ? h('div', { class: 'modular-fileupload-progress-list' },
+                    progressIds.map(function (pid) {
+                        var p = progressMap[pid] || {};
+                        var pct = typeof p.percent === 'number' ? p.percent : 0;
+                        return h('div', {
+                            class: 'modular-fileupload-progress-row' + (p.error ? ' is-error' : ''),
+                            key: pid,
+                        }, [
+                            h('span', { class: 'modular-fileupload-progress-name', title: p.name || '' }, p.name || ''),
+                            h('div', { class: 'modular-fileupload-progress-bar' }, [
+                                h('div', {
+                                    class: 'modular-fileupload-progress-fill',
+                                    style: { width: pct + '%' },
+                                }),
+                            ]),
+                            h('span', { class: 'modular-fileupload-progress-pct' }, p.error ? (p.error || '!') : (pct + '%')),
+                        ]);
+                    })
+                ) : null;
+                inputEl = h('div', { class: 'modular-fileupload-wrap' }, [previewEl, inputEl, progressEl].filter(Boolean));
             }
 
             var helpEl = resolved.instructions ? h('div', { class: 'help-text' }, resolved.instructions) : null;

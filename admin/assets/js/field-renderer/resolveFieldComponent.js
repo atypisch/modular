@@ -349,11 +349,12 @@
                     accept: type === 'image' ? 'image/*' : (o.accept || '*/*'),
                     multiple: o.multiple || false,
                     chooseLabel: o.choose_label || (type === 'image' ? 'Kies afbeelding' : 'Kies bestand'),
-                    chooseIcon: 'pi pi-cloud-upload',
+                    chooseIcon: 'fas fa-cloud-upload-alt',
                     class: 'modular-fileupload modular-fileupload--compact',
                     uploadLabel: o.upload_label || 'Upload',
                     cancelLabel: o.cancel_label || 'Cancel',
                     auto: true,
+                    customUpload: true,
                 });
                 break;
 
@@ -365,11 +366,12 @@
                     accept: 'image/*',
                     multiple: true,
                     chooseLabel: o.choose_label || 'Voeg afbeeldingen toe',
-                    chooseIcon: 'pi pi-cloud-upload',
+                    chooseIcon: 'fas fa-cloud-upload-alt',
                     class: 'modular-fileupload modular-fileupload--compact',
                     uploadLabel: o.upload_label || 'Upload',
                     cancelLabel: o.cancel_label || 'Cancel',
                     auto: true,
+                    customUpload: true,
                 });
                 break;
 
@@ -397,9 +399,10 @@
                     accept: 'audio/*',
                     multiple: false,
                     chooseLabel: o.choose_label || 'Kies audio',
-                    chooseIcon: 'pi pi-cloud-upload',
+                    chooseIcon: 'fas fa-cloud-upload-alt',
                     class: 'modular-fileupload modular-fileupload--compact',
                     auto: true,
+                    customUpload: true,
                 });
                 break;
 
@@ -411,9 +414,10 @@
                     accept: 'video/*',
                     multiple: false,
                     chooseLabel: o.choose_label || 'Kies video',
-                    chooseIcon: 'pi pi-cloud-upload',
+                    chooseIcon: 'fas fa-cloud-upload-alt',
                     class: 'modular-fileupload modular-fileupload--compact',
                     auto: true,
+                    customUpload: true,
                 });
                 break;
 
