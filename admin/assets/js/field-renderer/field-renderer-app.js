@@ -78,6 +78,7 @@
     // image/file/gallery preview.
     var mediaUrlCache = reactive({});
     var MEDIA_PENDING = '__pending__';
+    var MEDIA_FAILED = '__failed__';
 
     function buildMediaUrl(m) {
         if (!m) return '';
@@ -110,6 +111,8 @@
     function resolveMediaUrl(id) {
         if (!id) return;
         if (mediaUrlCache[id] !== undefined) return;
+        // Seed PENDING so concurrent renders don't all refetch, and so we never fall
+        // back to undefined (which would retrigger render -> resolve -> render in a loop).
         mediaUrlCache[id] = MEDIA_PENDING;
         var apiBase = (window.MODULAR_BASE_URL || '') + '/admin/api/index.php';
         fetch(apiBase + '/api/v1/media/' + encodeURIComponent(id), {
@@ -118,14 +121,16 @@
         })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (m) {
-                var url = buildMediaUrl(m);
-                if (url) {
-                    mediaUrlCache[id] = url;
-                } else {
-                    delete mediaUrlCache[id];
+                // The API sometimes wraps the media record ({data: {...}}), unwrap it.
+                if (m && m.data && typeof m.data === 'object' && !m.file_path && !m.url) {
+                    m = m.data;
                 }
+                var url = buildMediaUrl(m);
+                // Mark both success and failure with a non-undefined sentinel so the
+                // render loop doesn't retry forever.
+                mediaUrlCache[id] = url || MEDIA_FAILED;
             })
-            .catch(function () { delete mediaUrlCache[id]; });
+            .catch(function () { mediaUrlCache[id] = MEDIA_FAILED; });
     }
 
     function getCachedMediaUrl(id) {
@@ -135,7 +140,7 @@
             resolveMediaUrl(id);
             return '';
         }
-        if (v === MEDIA_PENDING) return '';
+        if (v === MEDIA_PENDING || v === MEDIA_FAILED) return '';
         return v;
     }
 
