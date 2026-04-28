@@ -14,7 +14,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -73,7 +73,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1>Forms</h1>
-            <a href="/modular/admin/forms/builder.php" class="btn btn-primary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/forms/builder.php" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Create New Form
             </a>
         </div>
@@ -92,7 +92,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <?php endif; ?>
                 </div>
                 <div>
-                    <a href="/modular/admin/install.php" class="btn btn-primary" style="white-space: nowrap;">
+                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/install.php" class="btn btn-primary" style="white-space: nowrap;">
                         <i class="fas fa-database"></i> Install Database
                     </a>
                 </div>
@@ -118,7 +118,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                 <i class="fas fa-clipboard-list"></i>
                 <h3>No Forms Found</h3>
                 <p>Create your first form to get started.</p>
-                <a href="/modular/admin/forms/builder.php" class="btn btn-primary mt-4">
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/forms/builder.php" class="btn btn-primary mt-4">
                     <i class="fas fa-plus"></i> Create Form
                 </a>
             </div>
@@ -142,10 +142,10 @@ require_once ADMIN_PATH . '/templates/header.php';
                             <td><?php echo $form['created_at'] ? date('Y-m-d', strtotime($form['created_at'])) : 'N/A'; ?></td>
                             <td style="text-align: right;">
                                 <div class="flex gap-2 justify-end">
-                                    <a href="/modular/admin/forms/builder.php?id=<?php echo $form['id']; ?>" class="btn btn-sm btn-secondary">
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/forms/builder.php?id=<?php echo $form['id']; ?>" class="btn btn-sm btn-secondary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <a href="/modular/admin/forms/delete.php?id=<?php echo $form['id']; ?>" 
+                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/forms/delete.php?id=<?php echo $form['id']; ?>" 
                                        class="btn btn-sm btn-danger"
                                        data-confirm="Are you sure you want to delete this form?">
                                         <i class="fas fa-trash"></i> Delete

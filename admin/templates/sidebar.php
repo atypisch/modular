@@ -10,6 +10,7 @@ $users_active = $users_active ?? false;
 $settings_active = $settings_active ?? false;
 $forms_active = $forms_active ?? false;
 $actions_active = $actions_active ?? false;
+$export_import_active = $export_import_active ?? false;
 $modules_active = $modules_active ?? false;
 $profile_active = $profile_active ?? false;
 ?>
@@ -25,7 +26,8 @@ $profile_active = $profile_active ?? false;
                 $dashboard_sub_active = $dashboard_active;
                 ?>
                 <ul class="sub-nav <?php echo $dashboard_sub_active ? 'active' : ''; ?>">
-                    <li><a href="<?php echo ADMIN_URL; ?>/dashboard" class="<?php echo $dashboard_active && !str_contains($_SERVER['REQUEST_URI'], 'analytics') && !str_contains($_SERVER['REQUEST_URI'], 'reports') ? 'active' : ''; ?>">Overview</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/dashboard" class="<?php echo $dashboard_active && !str_contains($_SERVER['REQUEST_URI'], 'analytics') && !str_contains($_SERVER['REQUEST_URI'], 'reports') && !str_contains($_SERVER['REQUEST_URI'], 'updates') ? 'active' : ''; ?>">Overview</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/dashboard/updates" class="<?php echo check_active_path($adminBase . '/dashboard/updates') ? 'active' : ''; ?>">Updates</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/dashboard/analytics.php" class="<?php echo check_active_path($adminBase . '/dashboard/analytics.php') ? 'active' : ''; ?>">Analytics</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/dashboard/reports.php" class="<?php echo check_active_path($adminBase . '/dashboard/reports.php') ? 'active' : ''; ?>">Reports</a></li>
                 </ul>
@@ -216,6 +218,17 @@ $profile_active = $profile_active ?? false;
                 </a>
             </li>
             <li>
+                <a href="<?php echo ADMIN_URL; ?>/export-import" class="<?php echo $export_import_active ? 'active' : ''; ?>">
+                    <i class="fas fa-exchange-alt"></i>
+                    Export / Import
+                </a>
+                <ul class="sub-nav <?php echo $export_import_active ? 'active' : ''; ?>">
+                    <li><a href="<?php echo ADMIN_URL; ?>/export-import?tab=export" class="<?php echo $export_import_active && (!isset($_GET['tab']) || $_GET['tab']==='export') ? 'active' : ''; ?>">Export</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/export-import?tab=import" class="<?php echo $export_import_active && (($_GET['tab'] ?? '')==='import') ? 'active' : ''; ?>">Import</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/export-import?tab=history" class="<?php echo $export_import_active && (($_GET['tab'] ?? '')==='history') ? 'active' : ''; ?>">History</a></li>
+                </ul>
+            </li>
+            <li>
                 <a href="<?php echo ADMIN_URL; ?>/settings" class="<?php echo $settings_active ? 'active' : ''; ?>">
                     <i class="fas fa-cog"></i>
                     Settings
@@ -224,10 +237,12 @@ $profile_active = $profile_active ?? false;
                 $settings_sub_active = $settings_active;
                 ?>
                 <ul class="sub-nav <?php echo $settings_sub_active ? 'active' : ''; ?>">
-                    <li><a href="<?php echo ADMIN_URL; ?>/settings" class="<?php echo $settings_active && !check_active_path($adminBase . '/settings/appearance') && !check_active_path($adminBase . '/settings/security') ? 'active' : ''; ?>">General</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/settings" class="<?php echo $settings_active && !check_active_path($adminBase . '/settings/appearance') && !check_active_path($adminBase . '/settings/security') && !check_active_path($adminBase . '/settings/navigation') && !check_active_path($adminBase . '/settings/permalinks') ? 'active' : ''; ?>">General</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/appearance" class="<?php echo check_active_path($adminBase . '/settings/appearance') ? 'active' : ''; ?>">Appearance</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/security" class="<?php echo check_active_path($adminBase . '/settings/security') ? 'active' : ''; ?>">Security</a></li>
                     <li><a href="<?php echo ADMIN_URL; ?>/settings/media-images.php" class="<?php echo check_active_path($adminBase . '/settings/media-images.php') ? 'active' : ''; ?>">Media Images</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/settings/navigation.php" class="<?php echo check_active_path($adminBase . '/settings/navigation') ? 'active' : ''; ?>">Navigation</a></li>
+                    <li><a href="<?php echo ADMIN_URL; ?>/settings/permalinks" class="<?php echo check_active_path($adminBase . '/settings/permalinks') ? 'active' : ''; ?>">Permalinks</a></li>
                 </ul>
             </li>
         </ul>

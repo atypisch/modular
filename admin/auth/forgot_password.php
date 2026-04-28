@@ -12,7 +12,7 @@ $content = '
             <h2 class="auth-title">Reset Password</h2>
             ' . (isset($_SESSION['error']) ? '<div class="alert alert-error">' . $_SESSION['error'] . '</div>' : '') . '
             ' . (isset($_SESSION['success']) ? '<div class="alert alert-success">' . $_SESSION['success'] . '</div>' : '') . '
-            <form action="/modular/admin/auth/process_forgot_password.php" method="POST" class="auth-form">' . (function_exists('csrf_field') ? csrf_field() : '') . '
+            <form action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/auth/process_forgot_password.php" method="POST" class="auth-form">' . (function_exists('csrf_field') ? csrf_field() : '') . '
                 <div class="form-group">
                     <label for="email" class="form-label">Email</label>
                     <input type="email" id="email" name="email" class="form-input" required>
@@ -21,7 +21,7 @@ $content = '
                     <button type="submit" class="btn btn-primary w-full">Send Reset Link</button>
                 </div>
                 <div class="auth-links">
-                    <a href="/modular/admin/auth/login.php" class="text-blue-600 hover:text-blue-800">Back to Login</a>
+                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/auth/login.php" class="text-blue-600 hover:text-blue-800">Back to Login</a>
                 </div>
             </form>
         </div>

@@ -151,6 +151,7 @@ if (!function_exists('run_pending_migrations')) {
                 ob_start();
                 try {
                     require $file;
+                    $migration->recordMigration($version, $name);
                     $ran[] = $version . '_' . $name;
                 } finally {
                     ob_end_clean();
@@ -160,6 +161,160 @@ if (!function_exists('run_pending_migrations')) {
         } catch (\Throwable $e) {
             return ['ran' => $ran, 'error' => $e->getMessage()];
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// md_db() — Modular DB accessor. Returns the PDO instance.
+// Replace all $wpdb / global $wpdb usage with md_db()->...
+// ---------------------------------------------------------------------------
+if (!function_exists('md_db')) {
+    function md_db(): PDO {
+        if (!isset($GLOBALS['db']) || !($GLOBALS['db'] instanceof PDO)) {
+            throw new \RuntimeException('Modular: database connection not initialised.');
+        }
+        return $GLOBALS['db'];
+    }
+}
+
+if (!function_exists('md_db_query')) {
+    /**
+     * Execute a prepared SELECT and return all rows (associative arrays).
+     * @param string $sql  SQL with ? placeholders
+     * @param array  $params
+     * @return array
+     */
+    function md_db_query(string $sql, array $params = []): array {
+        try {
+            $stmt = md_db()->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            error_log('md_db_query error: ' . $e->getMessage());
+            return [];
+        }
+    }
+}
+
+if (!function_exists('md_db_row')) {
+    /**
+     * Execute a prepared SELECT and return the first row (associative array) or null.
+     */
+    function md_db_row(string $sql, array $params = []): ?array {
+        try {
+            $stmt = md_db()->prepare($sql);
+            $stmt->execute($params);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $row !== false ? $row : null;
+        } catch (\PDOException $e) {
+            error_log('md_db_row error: ' . $e->getMessage());
+            return null;
+        }
+    }
+}
+
+if (!function_exists('md_db_var')) {
+    /**
+     * Execute a prepared query and return the first column of the first row, or null.
+     */
+    function md_db_var(string $sql, array $params = []) {
+        try {
+            $stmt = md_db()->prepare($sql);
+            $stmt->execute($params);
+            $val = $stmt->fetchColumn();
+            return $val !== false ? $val : null;
+        } catch (\PDOException $e) {
+            error_log('md_db_var error: ' . $e->getMessage());
+            return null;
+        }
+    }
+}
+
+if (!function_exists('md_db_insert')) {
+    /**
+     * Insert a row. Returns the new insert ID, or false on failure.
+     * @param string $table  Table name (not escaped — caller must use trusted strings)
+     * @param array  $data   Associative [ column => value ]
+     * @return int|false
+     */
+    function md_db_insert(string $table, array $data) {
+        if (empty($data)) return false;
+        $cols   = implode(', ', array_keys($data));
+        $placeholders = implode(', ', array_fill(0, count($data), '?'));
+        $sql = "INSERT INTO `{$table}` ({$cols}) VALUES ({$placeholders})";
+        try {
+            $stmt = md_db()->prepare($sql);
+            $stmt->execute(array_values($data));
+            return (int) md_db()->lastInsertId();
+        } catch (\PDOException $e) {
+            error_log('md_db_insert error: ' . $e->getMessage());
+            return false;
+        }
+    }
+}
+
+if (!function_exists('md_db_update')) {
+    /**
+     * Update rows matching $where.
+     * @param string $table
+     * @param array  $data   [ column => value ] to SET
+     * @param array  $where  [ column => value ] conditions (AND-joined)
+     * @return int|false  Rows affected, or false on error.
+     */
+    function md_db_update(string $table, array $data, array $where) {
+        if (empty($data) || empty($where)) return false;
+        $set  = implode(', ', array_map(fn($c) => "`{$c}` = ?", array_keys($data)));
+        $cond = implode(' AND ', array_map(fn($c) => "`{$c}` = ?", array_keys($where)));
+        $sql  = "UPDATE `{$table}` SET {$set} WHERE {$cond}";
+        try {
+            $stmt = md_db()->prepare($sql);
+            $stmt->execute([...array_values($data), ...array_values($where)]);
+            return $stmt->rowCount();
+        } catch (\PDOException $e) {
+            error_log('md_db_update error: ' . $e->getMessage());
+            return false;
+        }
+    }
+}
+
+if (!function_exists('md_db_exec')) {
+    /**
+     * Execute a non-SELECT prepared statement (INSERT/UPDATE/DELETE with raw SQL).
+     * Returns affected row count or false on error.
+     */
+    function md_db_exec(string $sql, array $params = []) {
+        try {
+            $stmt = md_db()->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->rowCount();
+        } catch (\PDOException $e) {
+            error_log('md_db_exec error: ' . $e->getMessage());
+            return false;
+        }
+    }
+}
+
+if (!function_exists('md_db_delete')) {
+    /**
+     * Delete rows matching $where conditions (AND-joined).
+     * Returns affected row count or false on error.
+     */
+    function md_db_delete(string $table, array $where) {
+        if (empty($where)) return false;
+        $cond = implode(' AND ', array_map(fn($c) => "`{$c}` = ?", array_keys($where)));
+        $sql  = "DELETE FROM `{$table}` WHERE {$cond}";
+        try {
+            $stmt = md_db()->prepare($sql);
+            $stmt->execute(array_values($where));
+            return $stmt->rowCount();
+        } catch (\PDOException $e) {
+            error_log('md_db_delete error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    function md_db_esc_like(string $text): string {
+        return addcslashes($text, '_%\\');
     }
 }
 

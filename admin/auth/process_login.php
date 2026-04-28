@@ -111,7 +111,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         ]);
 
         // Redirect to intended page or dashboard
-        $redirect = $_SESSION['redirect_after_login'] ?? '/modular/admin/';
+        $redirect = $_SESSION['redirect_after_login'] ?? (function_exists('admin_url') ? admin_url('') : (defined('ADMIN_URL') ? ADMIN_URL . '/' : '/modular/admin/'));
         unset($_SESSION['redirect_after_login']);
         
         header('Location: ' . $redirect);

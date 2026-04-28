@@ -16,7 +16,7 @@ require_once CORE_PATH . '/classes/PostType.php';
 require_once CORE_PATH . '/classes/Taxonomy.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -51,7 +51,7 @@ if (isset($GLOBALS['db'])) {
 
 if (!$post_types_table_exists) {
     $_SESSION['error'] = 'The post_types table does not exist. Please install the database first.';
-    header('Location: /modular/admin/post-types');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types');
     exit;
 }
 
@@ -75,7 +75,7 @@ if (isset($_GET['id'])) {
         $postTypeData = $postType->getById($_GET['id']);
         if (!$postTypeData) {
             $_SESSION['error'] = 'Post type not found.';
-            header('Location: /modular/admin/post-types');
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types');
             exit;
         }
         $postTypeData['public'] = isset($postTypeData['public']) ? (int)$postTypeData['public'] : 1;
@@ -88,7 +88,7 @@ if (isset($_GET['id'])) {
         $linkedTaxonomyIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
     } catch (Exception $e) {
         $_SESSION['error'] = 'Error loading post type: ' . $e->getMessage();
-        header('Location: /modular/admin/post-types');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types');
         exit;
     }
 }
@@ -109,7 +109,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1><?php echo $page_title; ?></h1>
-            <a href="/modular/admin/post-types" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/post-types" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Post Types
             </a>
         </div>
@@ -128,7 +128,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <?php endif; ?>
 
     <div class="card">
-        <form action="/modular/admin/post-types/save.php" method="POST">
+        <form action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/post-types/save.php" method="POST">
             <?php echo csrf_field(); ?>
             <?php if (isset($_GET['id'])): ?>
             <input type="hidden" name="id" value="<?php echo htmlspecialchars($_GET['id']); ?>">
@@ -172,14 +172,22 @@ require_once ADMIN_PATH . '/templates/header.php';
                 </label>
             </div>
 
+            <div class="checkbox-group">
+                <input type="checkbox" name="hierarchical" id="hierarchical" value="1" <?php echo (!empty($postTypeData['hierarchical'])) ? 'checked' : ''; ?>>
+                <label for="hierarchical">
+                    <strong>Hierarchical (pages)</strong>
+                    <div class="help-text">Maakt dit post type hiërarchisch; items kunnen een parent hebben (zoals Pages in WordPress). Maximaal 3 niveaus.</div>
+                </label>
+            </div>
+
             <hr class="section-divider">
 
             <h3 style="margin-top: 0;">Taxonomies</h3>
-            <p class="help-text" style="margin-bottom: var(--spacing-md);">Select which taxonomies should be available for this post type. <a href="/modular/admin/taxonomies/edit.php" target="_blank">Create new taxonomy</a></p>
+            <p class="help-text" style="margin-bottom: var(--spacing-md);">Select which taxonomies should be available for this post type. <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/edit.php" target="_blank">Create new taxonomy</a></p>
             
             <?php if (empty($allTaxonomies)): ?>
                 <div class="alert alert-info">
-                    <p>No taxonomies available. <a href="/modular/admin/taxonomies/edit.php">Create a taxonomy first</a>.</p>
+                    <p>No taxonomies available. <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/edit.php">Create a taxonomy first</a>.</p>
                 </div>
             <?php else: ?>
                 <div class="checkbox-group" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); padding: var(--spacing-md); border-radius: var(--radius-md);">
@@ -212,7 +220,7 @@ require_once ADMIN_PATH . '/templates/header.php';
             <?php endif; ?>
 
             <div class="form-actions">
-                <a href="/modular/admin/post-types" class="btn btn-secondary">Cancel</a>
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/post-types" class="btn btn-secondary">Cancel</a>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save"></i> Save Post Type
                 </button>

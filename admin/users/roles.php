@@ -15,7 +15,7 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/functions/database.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -70,7 +70,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1>User Roles</h1>
-            <a href="/modular/admin/users" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Users
             </a>
         </div>
@@ -89,7 +89,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <?php endif; ?>
                 </div>
                 <div>
-                    <a href="/modular/admin/install.php" class="btn btn-primary" style="white-space: nowrap;">
+                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/install.php" class="btn btn-primary" style="white-space: nowrap;">
                         <i class="fas fa-database"></i> Install Database
                     </a>
                 </div>
@@ -154,7 +154,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                             <?php endif; ?>
                         </td>
                         <td style="text-align: right;">
-                            <a href="/modular/admin/users/roles/edit.php?id=<?php echo $role['id']; ?>" class="btn btn-sm btn-secondary">
+                            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users/roles/edit.php?id=<?php echo $role['id']; ?>" class="btn btn-sm btn-secondary">
                                 <i class="fas fa-edit"></i> Edit
                             </a>
                         </td>

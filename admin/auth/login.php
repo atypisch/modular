@@ -12,7 +12,7 @@ $content = '
             <h2 class="auth-title">Login</h2>
             ' . (isset($_SESSION['error']) ? '<div class="alert alert-error" style="margin-bottom: 1.5rem; padding: 0.75rem; background: #fee; border: 1px solid #fcc; border-radius: 6px; color: #c33; font-size: 13px;">' . htmlspecialchars($_SESSION['error']) . '</div>' : '') . '
             ' . (isset($_SESSION['success']) ? '<div class="alert alert-success" style="margin-bottom: 1.5rem; padding: 0.75rem; background: #efe; border: 1px solid #cfc; border-radius: 6px; color: #3c3; font-size: 13px;">' . htmlspecialchars($_SESSION['success']) . '</div>' : '') . '
-            <form action="' . (defined('ADMIN_URL') ? ADMIN_URL : '') . '/auth/process_login.php" method="POST" class="auth-form">
+            <form action="' . (function_exists('admin_url') ? admin_url('auth/process_login.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/process_login.php' : '/modular/admin/auth/process_login.php')) . '" method="POST" class="auth-form">
                 ' . csrf_field() . '
                 <div class="form-group">
                     <label for="email">Email</label>
@@ -27,8 +27,8 @@ $content = '
                 </div>
             </form>
             <div class="auth-links" style="clear: both;">
-                <a href="/modular/admin/auth/forgot_password.php">Forgot Password?</a>
-                <a href="/modular/admin/auth/register.php">Create an account</a>
+                <a href="' . (function_exists('admin_url') ? admin_url('auth/forgot_password.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/forgot_password.php' : '/modular/admin/auth/forgot_password.php')) . '">Forgot Password?</a>
+                <a href="' . (function_exists('admin_url') ? admin_url('auth/register.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/register.php' : '/modular/admin/auth/register.php')) . '">Create an account</a>
             </div>
         </div>
     </div>

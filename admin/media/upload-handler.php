@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['file'])) {
         exit;
     }
     $_SESSION['error'] = 'No file uploaded.';
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 if (!csrf_verify()) {
@@ -46,7 +46,7 @@ if (!csrf_verify()) {
             exit;
         }
         $_SESSION['error'] = 'Invalid request. Please try again.';
-        header('Location: /modular/admin/media/upload.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
         exit;
     }
 }
@@ -70,14 +70,17 @@ if ($file['error'] !== UPLOAD_ERR_OK) {
         exit;
     }
     $_SESSION['error'] = $errorMsg;
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 
-$allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+$allowedTypes = [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
+    'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm', 'audio/flac', 'audio/aac', 'audio/mp4',
+];
 if (!in_array($file['type'], $allowedTypes)) {
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-    $errorMsg = 'File type not allowed. Only images and PDFs are allowed.';
+    $errorMsg = 'File type not allowed. Allowed: images, PDF, and audio (MP3, WAV, OGG, WebM, FLAC, AAC).';
     if ($isAjax) {
         header('Content-Type: application/json');
         http_response_code(400);
@@ -85,7 +88,7 @@ if (!in_array($file['type'], $allowedTypes)) {
         exit;
     }
     $_SESSION['error'] = $errorMsg;
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 
@@ -103,14 +106,14 @@ $filePath = $uploadDir . '/' . $filename;
 // Move uploaded file
 if (!move_uploaded_file($file['tmp_name'], $filePath)) {
     $_SESSION['error'] = 'Failed to save file.';
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 
 // Get file info
 $fileSize = filesize($filePath);
 $mimeType = $file['type'];
-$fileType = strpos($mimeType, 'image/') === 0 ? 'image' : 'file';
+$fileType = strpos($mimeType, 'image/') === 0 ? 'image' : (strpos($mimeType, 'audio/') === 0 ? 'audio' : 'file');
 
 $width = null;
 $height = null;
@@ -167,7 +170,7 @@ try {
     }
     
     $_SESSION['success'] = 'Media uploaded successfully.';
-    header('Location: /modular/admin/media');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media');
     exit;
     
 } catch (Exception $e) {
@@ -190,7 +193,7 @@ try {
     }
     
     $_SESSION['error'] = $errorMsg;
-    header('Location: /modular/admin/media/upload.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/media/upload.php');
     exit;
 }
 

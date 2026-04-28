@@ -1,14 +1,19 @@
 <?php
 /**
- * MAMP (of andere lokale) override.
- * Kopieer naar config.local.php en pas aan.
- * config.local.php wordt niet gecommit (voeg toe aan .gitignore).
+ * Local config – single place for this installation.
+ * Copy to config.local.php and set your values. Never commit config.local.php.
+ *
+ * - Database: set DB_* for this environment.
+ * - BASE_PATH: required when the app is in a subfolder (e.g. simuze-mdlr).
+ *   Without it, theme/admin links may point to /modular instead of your folder.
  */
 
-// MAMP MySQL draait standaard op poort 8889
-define('DB_PORT', '8889');
+define('DB_HOST', '127.0.0.1');
+define('DB_PORT', '3306');   // MAMP: 8889
+define('DB_USER', 'root');
+define('DB_PASS', 'your_password');
+define('DB_NAME', 'modular'); // e.g. mdlr-simuze for a second install
 
-// Optioneel: als de app niet onder /modular draait, zet dan het juiste base path.
-// Voorbeeld: document root = htdocs/modular → BASE_PATH = '/modular'
-// Voorbeeld: vhost met document root = projectmap → BASE_PATH = ''
-// define('BASE_PATH', '/modular');
+// Required when copied to another folder (e.g. localhost/simuze-mdlr).
+// Omit or leave empty only when the app is at document root.
+define('BASE_PATH', '/simuze-mdlr');  // or '/modular' for default, or '' for root

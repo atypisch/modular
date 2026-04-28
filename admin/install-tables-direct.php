@@ -218,8 +218,8 @@ if (preg_match('/\$sql\s*=\s*["\']([^"\']+)["\']/s', $migrationContent, $matches
 ?>
     </pre>
     
-    <p><a href="/modular/admin/install.php">← Back to Install Page</a></p>
-    <p><a href="/modular/admin/test-all-pages.php">Run Tests →</a></p>
+    <p><a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/install.php">← Back to Install Page</a></p>
+    <p><a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/test-all-pages.php">Run Tests →</a></p>
 </body>
 </html>
 

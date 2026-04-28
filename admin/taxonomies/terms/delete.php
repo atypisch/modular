@@ -11,13 +11,13 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/classes/Taxonomy.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 if (!isset($_GET['id']) || !isset($_GET['taxonomy_id'])) {
     $_SESSION['error'] = 'No term ID or taxonomy ID provided for deletion.';
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
 }
 
@@ -34,7 +34,7 @@ try {
     $_SESSION['error'] = 'Error deleting term: ' . $e->getMessage();
 }
 
-header('Location: /modular/admin/taxonomies/terms.php?taxonomy_id=' . $taxonomy_id);
+header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies/terms.php?taxonomy_id=' . $taxonomy_id);
 exit;
 
 

@@ -15,14 +15,14 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/functions/subscription.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 // Feature gating: Actions/automations are Pro+ only (except for super admins)
 if (!subscription_has_feature('automations') && !(function_exists('is_admin') && is_admin())) {
     // Soft, informational warning instead of hard red error
     $_SESSION['warning'] = 'Actions & automation are available in Pro and Agency tiers.';
-    header('Location: /modular/admin/index.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/index.php');
     exit;
 }
 
@@ -242,6 +242,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 </style>
 
 <script>
+    const ADMIN_BASE = '<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>';
 document.getElementById('create-action-btn').addEventListener('click', function() {
     document.getElementById('action-modal').style.display = 'flex';
     document.getElementById('action-form').reset();
@@ -392,7 +393,7 @@ document.getElementById('action-form').addEventListener('submit', function(e) {
     formData.trigger_config = {};
     
     const actionId = document.getElementById('action-id').value;
-    const url = '/modular/admin/api/index.php/api/v1/actions' + (actionId ? '/' + actionId : '');
+    const url = ADMIN_BASE + '/api/index.php/api/v1/actions' + (actionId ? '/' + actionId : '');
     const method = actionId ? 'PUT' : 'POST';
     
     fetch(url, {
@@ -406,20 +407,20 @@ document.getElementById('action-form').addEventListener('submit', function(e) {
     .then(response => response.json())
     .then(result => {
         if (result.error) {
-            (window.ModularModal ? window.ModularModal.alert('Error: ' + result.error) : alert('Error: ' + result.error));
+            (window.ModularModal && window.ModularModal.alert('Error: ' + result.error));
         } else {
             closeModal();
             location.reload();
         }
     })
     .catch(error => {
-        alert('Error: ' + error.message);
+        (window.ModularModal && window.ModularModal.alert('Error: ' + error.message));
     });
 });
 
 function editAction(id) {
     // Load action and populate form
-    fetch('/modular/admin/api/index.php/api/v1/actions/' + id, {
+    fetch(ADMIN_BASE + '/api/index.php/api/v1/actions/' + id, {
         headers: {
             'Authorization': 'Bearer ' + getCookie('auth_token')
         }
@@ -445,7 +446,7 @@ function editAction(id) {
 }
 
 function toggleAction(id, enabled) {
-    fetch('/modular/admin/api/index.php/api/v1/actions/' + id, {
+    fetch(ADMIN_BASE + '/api/index.php/api/v1/actions/' + id, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -457,9 +458,9 @@ function toggleAction(id, enabled) {
 }
 
 function deleteAction(id) {
-    (window.ModularModal ? window.ModularModal.confirm('Are you sure you want to delete this action?') : Promise.resolve(confirm('Are you sure you want to delete this action?'))).then(function(ok) {
+    (window.ModularModal && window.ModularModal.confirm('Weet u zeker dat u deze actie wilt verwijderen?') || Promise.resolve(false)).then(function(ok) {
         if (!ok) return;
-    fetch('/modular/admin/api/index.php/api/v1/actions/' + id, {
+    fetch(ADMIN_BASE + '/api/index.php/api/v1/actions/' + id, {
         method: 'DELETE',
         headers: {
             'Authorization': 'Bearer ' + getCookie('auth_token')

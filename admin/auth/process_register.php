@@ -29,44 +29,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate input
     if (empty($name) || empty($email) || empty($password) || empty($confirm_password)) {
         $_SESSION['error'] = 'All fields are required';
-        header('Location: /modular/admin/auth/register.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
         exit;
     }
 
     if ($password !== $confirm_password) {
         $_SESSION['error'] = 'Passwords do not match';
-        header('Location: /modular/admin/auth/register.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
         exit;
     }
 
     // Validate password requirements
     if (strlen($password) < 8) {
         $_SESSION['error'] = 'Password must be at least 8 characters long';
-        header('Location: /modular/admin/auth/register.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
         exit;
     }
 
     if (!preg_match('/[A-Z]/', $password)) {
         $_SESSION['error'] = 'Password must contain at least one uppercase letter';
-        header('Location: /modular/admin/auth/register.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
         exit;
     }
 
     if (!preg_match('/[a-z]/', $password)) {
         $_SESSION['error'] = 'Password must contain at least one lowercase letter';
-        header('Location: /modular/admin/auth/register.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
         exit;
     }
 
     if (!preg_match('/[0-9]/', $password)) {
         $_SESSION['error'] = 'Password must contain at least one number';
-        header('Location: /modular/admin/auth/register.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
         exit;
     }
 
     if (!preg_match('/[^A-Za-z0-9]/', $password)) {
         $_SESSION['error'] = 'Password must contain at least one special character';
-        header('Location: /modular/admin/auth/register.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
         exit;
     }
 
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $existing = $userData->getUserByEmail($email);
         if ($existing) {
             $_SESSION['error'] = 'Email already registered';
-            header('Location: /modular/admin/auth/register.php');
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
             exit;
         }
 
@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($new_user_id) {
             error_log("User registration successful, ID: " . $new_user_id);
             $_SESSION['success'] = 'Registration successful! You can now login.';
-            header('Location: /modular/admin/auth/login.php');
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
             exit;
         } else {
             throw new Exception("Failed to create user");
@@ -122,10 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log("Registration error: " . $e->getMessage());
         error_log("Stack trace: " . $e->getTraceAsString());
         $_SESSION['error'] = 'An error occurred during registration. Please try again.';
-        header('Location: /modular/admin/auth/register.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
         exit;
     }
 } else {
-    header('Location: /modular/admin/auth/register.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/register.php');
     exit;
 } 

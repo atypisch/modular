@@ -413,6 +413,12 @@
                 result.slots = { default: label || instructions };
                 break;
 
+            case 'latest_posts':
+                result.component = 'Message';
+                result.props = { severity: 'info' };
+                result.slots = { default: 'Post type(s) and amount are set per post below.' };
+                break;
+
             case 'accordion':
                 result.component = 'Accordion';
                 result.props = { multiple: !!o.multiple };

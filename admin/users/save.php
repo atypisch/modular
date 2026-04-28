@@ -15,17 +15,17 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once ADMIN_PATH . '/data/userdata.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /modular/admin/users');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
     exit;
 }
 if (!csrf_verify()) {
     $_SESSION['error'] = 'Invalid request. Please try again.';
-    header('Location: /modular/admin/users/edit.php' . (isset($_POST['id']) ? '?id=' . (int)$_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/edit.php' . (isset($_POST['id']) ? '?id=' . (int)$_POST['id'] : ''));
     exit;
 }
 
@@ -42,7 +42,7 @@ $update_data = [
 // Validate required fields
 if (empty($update_data['username']) || empty($update_data['email'])) {
     $_SESSION['error'] = 'Username and email are required.';
-    header('Location: /modular/admin/users/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
     exit;
 }
 
@@ -50,7 +50,7 @@ if (empty($update_data['username']) || empty($update_data['email'])) {
 if (!empty($_POST['password'])) {
     if (strlen($_POST['password']) < 8) {
         $_SESSION['error'] = 'Password must be at least 8 characters.';
-        header('Location: /modular/admin/users/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
         exit;
     }
     $update_data['password'] = password_hash($_POST['password'], PASSWORD_DEFAULT);
@@ -61,7 +61,7 @@ try {
         // Update existing user
         if ($userData->updateUser($_POST['id'], $update_data)) {
             $_SESSION['success'] = 'User updated successfully.';
-            header('Location: /modular/admin/users');
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
             exit;
         } else {
             $_SESSION['error'] = 'Failed to update user.';
@@ -74,7 +74,7 @@ try {
             $new_id = $userData->createUser($update_data);
             if ($new_id) {
                 $_SESSION['success'] = 'User created successfully.';
-                header('Location: /modular/admin/users');
+                header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users');
                 exit;
             } else {
                 $_SESSION['error'] = 'Failed to create user.';
@@ -86,5 +86,5 @@ try {
     error_log("User save error: " . $e->getMessage());
 }
 
-header('Location: /modular/admin/users/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
 exit;

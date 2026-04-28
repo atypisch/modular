@@ -14,17 +14,17 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/functions/database.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /modular/admin/users/roles.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/roles.php');
     exit;
 }
 if (!csrf_verify()) {
     $_SESSION['error'] = 'Invalid request. Please try again.';
-    header('Location: /modular/admin/users/roles/edit.php' . (isset($_POST['id']) ? '?id=' . (int)$_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/roles/edit.php' . (isset($_POST['id']) ? '?id=' . (int)$_POST['id'] : ''));
     exit;
 }
 
@@ -36,7 +36,7 @@ $capabilities = isset($_POST['capabilities']) && is_array($_POST['capabilities']
 
 if ($id <= 0 || $display_name === '') {
     $_SESSION['error'] = 'Invalid role or missing display name.';
-    header('Location: /modular/admin/users/roles.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/roles.php');
     exit;
 }
 
@@ -47,7 +47,7 @@ try {
     $stmt->execute([$id]);
     if (!$stmt->fetch()) {
         $_SESSION['error'] = 'Role not found.';
-        header('Location: /modular/admin/users/roles.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/roles.php');
         exit;
     }
 
@@ -71,5 +71,5 @@ try {
     $_SESSION['error'] = 'Failed to save role.';
 }
 
-header('Location: /modular/admin/users/roles/edit.php?id=' . $id);
+header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/roles/edit.php?id=' . $id);
 exit;

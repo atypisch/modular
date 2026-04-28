@@ -15,7 +15,7 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once ADMIN_PATH . '/data/userdata.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -27,7 +27,7 @@ $user = $userData->getUserById($_SESSION['user_id']);
 
 if (!$user) {
     $_SESSION['error'] = 'User not found.';
-    header('Location: /modular/admin/dashboard');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/dashboard');
     exit;
 }
 
@@ -100,10 +100,10 @@ require_once ADMIN_PATH . '/templates/header.php';
         <hr class="section-divider">
         
         <div class="flex gap-2">
-            <a href="/modular/admin/users/edit.php?id=<?php echo $user['id']; ?>" class="btn btn-primary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users/edit.php?id=<?php echo $user['id']; ?>" class="btn btn-primary">
                 <i class="fas fa-edit"></i> Edit Profile
             </a>
-            <a href="/modular/admin/auth/logout.php" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/auth/logout.php" class="btn btn-secondary">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </a>
         </div>

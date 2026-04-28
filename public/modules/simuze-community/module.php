@@ -20,12 +20,12 @@ define('SIMUZE_COMMUNITY_VERSION', '1.0.0');
 define('SIMUZE_COMMUNITY_PATH', __DIR__);
 define('SIMUZE_DB_PREFIX', 'simuze_');
 
-// Activation: run migrations (groups, messages, etc.)
+// Activation: DB tables are installed automatically by Module::activate() from
+// migrations/ (e.g. 001_simuze_community_schema.sql). No manual SQL step needed.
 add_action('module_activate', function ($slug) {
     if ($slug !== 'simuze-community') {
         return;
     }
-    // Migrations run automatically by Module::activate() from migrations/
 });
 
 add_action('module_deactivate', function ($slug) {
@@ -55,6 +55,7 @@ add_action('init', function () {
                 ['label' => 'Reviews', 'url' => $base . 'reviews'],
                 ['label' => 'Reports', 'url' => $base . 'reports'],
                 ['label' => 'Messages', 'url' => $base . 'messages'],
+                ['label' => 'Activity', 'url' => $base . 'activity'],
                 ['label' => 'Settings', 'url' => $base . 'settings'],
             ],
         ];

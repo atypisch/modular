@@ -9,10 +9,10 @@ if (!isset($current_user)) {
 <div class="toolbar">
     <div class="toolbar-content">
         <div class="toolbar-left">
-            <a href="<?php echo SITE_URL; ?>/public/" class="toolbar-favicon" title="Modular front page" aria-label="Modular front page">
+            <a href="<?php echo SITE_URL; ?>/" class="toolbar-favicon" title="Modular front page" aria-label="Modular front page">
                 <img src="<?php echo ADMIN_URL; ?>/assets/images/favicon_modular.svg" alt="" width="24" height="24">
             </a>
-            <a href="<?php echo SITE_URL; ?>/public/" class="toolbar-link">
+            <a href="<?php echo SITE_URL; ?>/" class="toolbar-link">
                 <i class="fas fa-home"></i>
                 <span>Frontpage</span>
             </a>

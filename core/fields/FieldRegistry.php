@@ -16,6 +16,7 @@ class FieldRegistry
     public const CATEGORY_DATE_TIME = 'date_time';
     public const CATEGORY_LAYOUT = 'layout';
     public const CATEGORY_UTILITY = 'utility';
+    public const CATEGORY_EVENT = 'event';
 
     /** @var array<string, FieldInterface> */
     private static $fields = [];
@@ -65,6 +66,7 @@ class FieldRegistry
             self::CATEGORY_MEDIA,
             self::CATEGORY_DATE_TIME,
             self::CATEGORY_LAYOUT,
+            self::CATEGORY_EVENT,
             self::CATEGORY_UTILITY,
         ];
         $grouped = [];
@@ -152,7 +154,7 @@ class FieldRegistry
     private static function loadAllFieldClasses(): void
     {
         $dir = __DIR__;
-        $base = ['FieldInterface', 'LayoutFieldInterface', 'FieldContractInterface', 'FieldContractAdapter', 'TextField', 'TextareaField', 'NumberField', 'EmailField', 'URLField', 'PasswordField', 'RangeField', 'SearchField', 'HiddenField', 'WysiwygField', 'CodeField', 'MarkdownField', 'SelectField', 'CheckboxField', 'RadioField', 'ButtonGroupField', 'TrueFalseField', 'PostObjectField', 'RelationField', 'TaxonomyField', 'UserField', 'ImageField', 'FileField', 'GalleryField', 'AudioField', 'VideoField', 'EmbedField', 'DatePickerField', 'TimePickerField', 'DateTimePickerField', 'GroupField', 'RepeaterField', 'FlexibleContentField', 'MessageField', 'AccordionField', 'TabField', 'DividerField'];
+        $base = ['FieldInterface', 'LayoutFieldInterface', 'FieldContractInterface', 'FieldContractAdapter', 'TextField', 'TextareaField', 'NumberField', 'EmailField', 'URLField', 'PasswordField', 'RangeField', 'SearchField', 'HiddenField', 'WysiwygField', 'CodeField', 'MarkdownField', 'SelectField', 'CheckboxField', 'RadioField', 'ButtonGroupField', 'TrueFalseField', 'PostObjectField', 'RelationField', 'TaxonomyField', 'UserField', 'ImageField', 'FileField', 'GalleryField', 'AudioField', 'VideoField', 'EmbedField', 'DatePickerField', 'TimePickerField', 'DateTimePickerField', 'GroupField', 'RepeaterField', 'FlexibleContentField', 'MessageField', 'AccordionField', 'TabField', 'DividerField', 'LatestPostsField'];
         foreach ($base as $name) {
             $path = $dir . '/' . $name . '.php';
             if (is_file($path)) {
@@ -225,5 +227,8 @@ class FieldRegistry
         self::register('accordion', new AccordionField());
         self::register('tab', new TabField());
         self::register('divider', new DividerField());
+
+        // Event
+        self::register('latest_posts', new LatestPostsField());
     }
 }

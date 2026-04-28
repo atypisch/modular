@@ -36,3 +36,27 @@ if (!function_exists('csrf_verify')) {
         return $expected !== '' && hash_equals($expected, $token);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Modular-native CSRF aliases (md_ prefix). Use these in new code instead of
+// wp_create_nonce / wp_verify_nonce / wp_nonce_field.
+// ---------------------------------------------------------------------------
+if (!function_exists('md_csrf_token')) {
+    function md_csrf_token(): string {
+        return csrf_token();
+    }
+}
+
+if (!function_exists('md_csrf_field')) {
+    /** Render hidden input for use in HTML forms. */
+    function md_csrf_field(): string {
+        return csrf_field();
+    }
+}
+
+if (!function_exists('md_verify_csrf')) {
+    /** Returns true when the submitted CSRF token is valid. */
+    function md_verify_csrf(): bool {
+        return csrf_verify();
+    }
+}

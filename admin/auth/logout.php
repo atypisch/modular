@@ -17,5 +17,5 @@ session_destroy();
 // Redirect to login page with success message
 // Removed this line because session is already destroyed
 // $_SESSION['success'] = 'You have been successfully logged out.';
-header('Location: /modular/admin/auth/login.php');
+header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
 exit;

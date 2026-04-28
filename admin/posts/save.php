@@ -15,17 +15,17 @@ require_once dirname(__DIR__) . '/data/init.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /modular/admin/posts');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts');
     exit;
 }
 if (!csrf_verify()) {
     $_SESSION['error'] = 'Invalid request. Please try again.';
-    header('Location: /modular/admin/posts');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts');
     exit;
 }
 
@@ -50,11 +50,43 @@ if ($postId && array_key_exists('excerpt', $_POST)) {
     $excerpt = filter_input(INPUT_POST, 'excerpt', FILTER_SANITIZE_STRING) ?? '';
 }
 $status = filter_input(INPUT_POST, 'status', FILTER_SANITIZE_STRING) ?? 'draft';
+$template = isset($_POST['template']) ? trim((string) $_POST['template']) : null;
+$publishedAtRaw = isset($_POST['published_at']) ? trim((string) $_POST['published_at']) : '';
+$visibility = in_array($_POST['visibility'] ?? '', ['public', 'private', 'password'], true) ? $_POST['visibility'] : 'public';
+$postPassword = isset($_POST['post_password']) ? trim((string) $_POST['post_password']) : null;
+
+// Publication date: accept datetime-local (YYYY-MM-DDTHH:MM) or empty
+$publishedAt = null;
+if ($publishedAtRaw !== '') {
+    $ts = strtotime($publishedAtRaw);
+    if ($ts !== false) {
+        $publishedAt = date('Y-m-d H:i:s', $ts);
+    }
+}
+// If user chose Published but set a future date, treat as scheduled
+if ($status === 'published' && $publishedAt !== null && strtotime($publishedAt) > time()) {
+    $status = 'scheduled';
+}
+// When saving as draft/archived with no date submitted, preserve existing published_at
+if ($status !== 'published' && $status !== 'scheduled' && $publishedAt === null && $postId) {
+    try {
+        $stmt = $db->prepare("SELECT published_at FROM posts WHERE id = ?");
+        $stmt->execute([$postId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if ($row && !empty($row['published_at'])) {
+            $publishedAt = $row['published_at'];
+        }
+    } catch (\Throwable $e) { /* ignore */ }
+}
+if ($status === 'published' && $publishedAt === null) {
+    $publishedAt = date('Y-m-d H:i:s');
+}
+$passwordCol = ($visibility === 'password') ? $postPassword : null;
 
 // Validate required
 if (empty($title) || empty($postTypeId)) {
     $_SESSION['error'] = 'Title and Post Type are required.';
-    header('Location: /modular/admin/posts/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
     exit;
 }
 
@@ -68,6 +100,76 @@ if (empty($slug)) {
 $dataJson = null;
 $layoutJson = null;
 $componentData = '[]';
+
+// Parent/hiërarchie validatie voor hiërarchische post types
+$parentId = isset($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
+if ($parentId !== null && $parentId <= 0) {
+    $parentId = null;
+}
+$postTypeRow = null;
+try {
+    $stmtPt = $db->prepare("SELECT id, hierarchical FROM post_types WHERE id = ? AND deleted_at IS NULL");
+    $stmtPt->execute([$postTypeId]);
+    $postTypeRow = $stmtPt->fetch(\PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {
+    $postTypeRow = null;
+}
+if (!$postTypeRow) {
+    $_SESSION['error'] = 'Post type not found.';
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
+    exit;
+}
+$isHierarchical = !empty($postTypeRow['hierarchical']);
+if (!$isHierarchical) {
+    $parentId = null;
+} elseif ($parentId !== null) {
+    // Parent moet bestaan en zelfde post_type_id hebben
+    try {
+        $stmtParent = $db->prepare("SELECT id, post_type_id, parent_id FROM posts WHERE id = ? AND deleted_at IS NULL");
+        $stmtParent->execute([$parentId]);
+        $parentRow = $stmtParent->fetch(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $parentRow = false;
+    }
+    if (!$parentRow || (int)$parentRow['post_type_id'] !== (int)$postTypeId) {
+        $_SESSION['error'] = 'Invalid parent selected.';
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
+        exit;
+    }
+    // Maximaal 3 niveaus diep
+    $depth = 1;
+    $cursorParentId = $parentRow['parent_id'] !== null ? (int)$parentRow['parent_id'] : null;
+    while ($cursorParentId !== null) {
+        $depth++;
+        if ($depth > 3) {
+            break;
+        }
+        $stmtDepth = $db->prepare("SELECT parent_id FROM posts WHERE id = ? AND deleted_at IS NULL");
+        $stmtDepth->execute([$cursorParentId]);
+        $rowDepth = $stmtDepth->fetch(\PDO::FETCH_ASSOC);
+        $cursorParentId = $rowDepth && $rowDepth['parent_id'] !== null ? (int)$rowDepth['parent_id'] : null;
+    }
+    if ($depth >= 3) {
+        $_SESSION['error'] = 'Maximum hiërarchische diepte (3 niveaus) overschreden.';
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
+        exit;
+    }
+    // Cirkels voorkomen bij update: parent mag geen descendant zijn
+    if ($postId) {
+        $checkId = $parentId;
+        while ($checkId !== null) {
+            if ((int)$checkId === (int)$postId) {
+                $_SESSION['error'] = 'Een bericht kan geen child van zichzelf (of eigen subpagina) zijn.';
+                header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . (int)$postId);
+                exit;
+            }
+            $stmtChain = $db->prepare("SELECT parent_id FROM posts WHERE id = ? AND deleted_at IS NULL");
+            $stmtChain->execute([$checkId]);
+            $rowChain = $stmtChain->fetch(\PDO::FETCH_ASSOC);
+            $checkId = $rowChain && $rowChain['parent_id'] !== null ? (int)$rowChain['parent_id'] : null;
+        }
+    }
+}
 
 if ($useSchemaForm) {
     require_once CORE_PATH . '/fields/FieldInterface.php';
@@ -116,7 +218,7 @@ require_once CORE_PATH . '/fields/HiddenField.php';
     $ptRow = $stmt->fetch(\PDO::FETCH_ASSOC);
     if (!$ptRow || empty($ptRow['schema'])) {
         $_SESSION['error'] = 'Post type schema not found. Save without schema form or configure fields first.';
-        header('Location: /modular/admin/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
         exit;
     }
     $schema = is_string($ptRow['schema']) ? json_decode($ptRow['schema'], true) : $ptRow['schema'];
@@ -248,20 +350,13 @@ require_once CORE_PATH . '/fields/HiddenField.php';
     $decoded = json_decode($rawComponent, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
         $_SESSION['error'] = 'Invalid JSON in component data.';
-        header('Location: /modular/admin/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : ''));
         exit;
     }
     $componentData = json_encode($decoded);
 }
 
 try {
-    // Check if post type exists
-    $stmt = $db->prepare("SELECT id FROM post_types WHERE id = ? AND deleted_at IS NULL");
-    $stmt->execute([$postTypeId]);
-    if (!$stmt->fetch()) {
-        throw new Exception("Post type not found");
-    }
-
     // Check slug uniqueness
     $checkStmt = $db->prepare("SELECT id FROM posts WHERE slug = ? AND post_type_id = ?" . ($postId ? " AND id != ?" : ""));
     $checkParams = [$slug, $postTypeId];
@@ -273,42 +368,42 @@ try {
         throw new Exception("A post with this slug already exists for this post type");
     }
 
-    $publishedAt = ($status === 'published') ? date('Y-m-d H:i:s') : null;
-
     if ($postId) {
         $stmt = $db->prepare("
             UPDATE posts 
-            SET post_type_id = ?, slug = ?, title = ?, excerpt = ?, status = ?, 
-                component_data = ?, data = ?, layout = ?, published_at = ?, updated_by = ?, updated_at = NOW()
+            SET post_type_id = ?, parent_id = ?, slug = ?, title = ?, excerpt = ?, status = ?, 
+                component_data = ?, data = ?, layout = ?, published_at = ?, template = ?, visibility = ?, password = ?,
+                updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
         $stmt->execute([
-            $postTypeId, $slug, $title, $excerpt, $status,
-            $componentData, $dataJson, $layoutJson, $publishedAt, $userId, $postId
+            $postTypeId, $parentId, $slug, $title, $excerpt, $status,
+            $componentData, $dataJson, $layoutJson, $publishedAt, $template, $visibility, $passwordCol,
+            $userId, $postId
         ]);
         $_SESSION['success'] = 'Post updated successfully.';
-        header('Location: /modular/admin/posts/edit.php?id=' . (int)$postId);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . (int)$postId);
         exit;
     } else {
         $stmt = $db->prepare("
             INSERT INTO posts 
-            (post_type_id, slug, title, excerpt, status, component_data, data, layout,
-             author_id, created_by, updated_by, published_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            (post_type_id, parent_id, slug, title, excerpt, status, component_data, data, layout,
+             author_id, created_by, updated_by, published_at, template, visibility, password, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         $stmt->execute([
-            $postTypeId, $slug, $title, $excerpt, $status, $componentData, $dataJson, $layoutJson,
-            $userId, $userId, $userId, $publishedAt
+            $postTypeId, $parentId, $slug, $title, $excerpt, $status, $componentData, $dataJson, $layoutJson,
+            $userId, $userId, $userId, $publishedAt, $template, $visibility, $passwordCol
         ]);
         $newId = (int)$db->lastInsertId();
         $_SESSION['success'] = 'Post created successfully.';
-        header('Location: /modular/admin/posts/edit.php?id=' . $newId);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . $newId);
         exit;
     }
 
 } catch (Exception $e) {
     $_SESSION['error'] = 'An error occurred: ' . $e->getMessage();
     error_log("Post save error: " . $e->getMessage());
-    header('Location: /modular/admin/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php' . ($postId ? '?id=' . $postId : '?post_type_id=' . $postTypeId));
     exit;
 }

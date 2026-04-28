@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -38,7 +38,7 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $_SESSION['error'] = 'Invalid request. Please try again.';
-        header('Location: /modular/admin/settings/security.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/settings/security.php');
         exit;
     }
     $enable2FA = isset($_POST['enable_2fa']) ? 1 : 0;
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateStmt->execute(['lockout_duration', $lockoutDuration, $lockoutDuration]);
         
         $_SESSION['success'] = 'Security settings saved successfully.';
-        header('Location: /modular/admin/settings/security.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/settings/security.php');
         exit;
     } catch (Exception $e) {
         $_SESSION['error'] = 'Error saving settings: ' . $e->getMessage();

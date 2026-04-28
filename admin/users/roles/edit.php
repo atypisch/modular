@@ -14,7 +14,7 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/functions/database.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -24,7 +24,7 @@ $users_active = true;
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 if ($id <= 0) {
     $_SESSION['error'] = 'Invalid role.';
-    header('Location: /modular/admin/users/roles.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/roles.php');
     exit;
 }
 
@@ -55,7 +55,7 @@ if ($tableCheck['all_exist'] && !in_array('roles', $tableCheck['missing'])) {
 
 if (!$role) {
     $_SESSION['error'] = 'Role not found.';
-    header('Location: /modular/admin/users/roles.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/users/roles.php');
     exit;
 }
 
@@ -66,7 +66,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1>Edit Role: <?php echo htmlspecialchars($role['display_name'] ?? $role['name']); ?></h1>
-            <a href="/modular/admin/users/roles.php" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users/roles.php" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Roles
             </a>
         </div>
@@ -79,7 +79,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <?php endif; ?>
 
     <div class="card">
-        <form action="/modular/admin/users/roles/save.php" method="POST">
+        <form action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users/roles/save.php" method="POST">
             <?php echo csrf_field(); ?>
             <input type="hidden" name="id" value="<?php echo (int) $role['id']; ?>">
 
@@ -120,7 +120,7 @@ require_once ADMIN_PATH . '/templates/header.php';
             <?php endif; ?>
 
             <div class="form-actions">
-                <a href="/modular/admin/users/roles.php" class="btn btn-secondary">Cancel</a>
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/users/roles.php" class="btn btn-secondary">Cancel</a>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save"></i> Save Role
                 </button>

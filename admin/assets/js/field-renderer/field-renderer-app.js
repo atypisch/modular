@@ -81,6 +81,7 @@
         var def = field.default_value ?? field.default;
         if (def !== undefined && def !== null) return def;
         if (resolved.props.multiple || type === 'relationship' || type === 'relation' || type === 'chips') return [];
+        if (type === 'latest_posts') return { post_type: [], limit: 5 };
         if (type === 'checkbox' || type === 'true_false') return false;
         if (type === 'number' || type === 'range' || type === 'rating') return null;
         if (type === 'gallery' || type === 'carousel' || type === 'chart') return type === 'chart' ? {} : [];
@@ -156,6 +157,69 @@
             var resolved = ctx.resolved;
             var type = (field.type || 'text').toLowerCase();
             var isRelationship = type === 'relationship' || type === 'relation';
+
+            if (type === 'latest_posts') {
+                var allowed = (field.post_type || []).slice();
+                var current = ctx.localValue && typeof ctx.localValue === 'object' ? ctx.localValue : {};
+                var selectedList = Array.isArray(current.post_type) ? current.post_type : [];
+                var limitVal = typeof current.limit === 'number' ? current.limit : 5;
+                var children = [
+                    h('label', { class: 'block margin-bottom', style: 'font-weight:600;' }, resolved.label || 'Latest posts'),
+                ];
+                if (resolved.instructions) {
+                    children.push(h('p', { class: 'help-text', style: 'margin-bottom:0.5rem;' }, resolved.instructions));
+                }
+                if (allowed.length === 0) {
+                    children.push(h('p', { class: 'help-text text-warning' }, 'Select at least one post type in Field Builder (Event \u2192 Latest posts settings).'));
+                } else {
+                    var checkboxWrap = h('div', { class: 'latest-posts-post-types', style: 'margin-bottom:0.75rem;' }, [
+                        h('span', { class: 'block', style: 'font-size:0.875rem;margin-bottom:0.35rem;' }, 'Post type(s):'),
+                        h('div', { style: 'display:flex;flex-wrap:wrap;gap:0.5rem 1rem;' }, allowed.map(function (slug) {
+                            var checked = selectedList.indexOf(slug) >= 0 || (allowed.length === 1);
+                            return h('label', { class: 'checkbox-label', style: 'display:flex;align-items:center;gap:0.35rem;font-weight:normal;cursor:pointer;' }, [
+                                h('input', {
+                                    type: 'checkbox',
+                                    checked: checked,
+                                    onChange: function (e) {
+                                        var next = (ctx.localValue && typeof ctx.localValue === 'object') ? Object.assign({}, ctx.localValue) : { post_type: [], limit: 5 };
+                                        if (!Array.isArray(next.post_type)) next.post_type = [];
+                                        var idx = next.post_type.indexOf(slug);
+                                        if (e.target.checked) {
+                                            if (idx < 0) next.post_type = next.post_type.concat([slug]);
+                                        } else {
+                                            if (idx >= 0) next.post_type = next.post_type.slice(0, idx).concat(next.post_type.slice(idx + 1));
+                                        }
+                                        next.limit = typeof next.limit === 'number' ? next.limit : 5;
+                                        ctx.localValue = next;
+                                    },
+                                }),
+                                slug,
+                            ]);
+                        })),
+                    ]);
+                    children.push(checkboxWrap);
+                    children.push(h('div', { class: 'latest-posts-limit' }, [
+                        h('label', { style: 'font-size:0.875rem;margin-right:0.5rem;' }, 'Amount:'),
+                        h('input', {
+                            type: 'number',
+                            min: 1,
+                            max: 100,
+                            value: limitVal,
+                            class: 'form-control',
+                            style: 'width:5rem;display:inline-block;',
+                            onInput: function (e) {
+                                var num = parseInt(e.target.value, 10);
+                                if (isNaN(num) || num < 1) num = 1;
+                                if (num > 100) num = 100;
+                                var next = (ctx.localValue && typeof ctx.localValue === 'object') ? Object.assign({}, ctx.localValue) : { post_type: selectedList.length ? selectedList : (allowed.length === 1 ? allowed.slice() : []), limit: 5 };
+                                next.limit = num;
+                                ctx.localValue = next;
+                            },
+                        }),
+                    ]));
+                }
+                return h('div', { class: 'form-group form-group-latest-posts' }, children);
+            }
 
             if (resolved.isUtility) {
                 if (type === 'message') {
@@ -312,17 +376,17 @@
                                     }
                                     ctx.localValue = currentValue;
                                 } else {
-                                    alert('Upload failed: ' + (response.error || 'Unknown error'));
+                                    (window.ModularModal && window.ModularModal.alert('Upload mislukt: ' + (response.error || 'Onbekende fout')));
                                 }
                             } catch (e) {
-                                alert('Upload failed: Invalid response');
+                                (window.ModularModal && window.ModularModal.alert('Upload mislukt: ongeldig antwoord'));
                             }
                         } else {
-                            alert('Upload failed: Server error');
+                            (window.ModularModal && window.ModularModal.alert('Upload mislukt: serverfout'));
                         }
                     };
                     xhr.onerror = function() {
-                        alert('Upload failed: Network error');
+                        (window.ModularModal && window.ModularModal.alert('Upload mislukt: netwerkfout'));
                     };
                     xhr.send(formData);
                 };
@@ -1261,14 +1325,25 @@
             var inst = window.ModularFieldRendererApp._instance;
             if (!inst || !inst.layoutBlocks) return null;
             var blocks = inst.layoutBlocks.value || [];
-            if (blockIndex < 0 || blockIndex >= blocks.length) return null;
-            var block = blocks[blockIndex];
+            if (!blocks.length) return null;
+            // blockIndex coming from drag/drop is the visual index (in layoutOrder, excluding 'top').
+            // Map that to the actual block in layoutBlocks by id so reordering keeps indices aligned.
+            var order = (inst.layoutOrder && inst.layoutOrder.value) || [];
+            var orderedBlockIds = order.filter(function (id) { return id !== 'top'; });
+            if (blockIndex < 0 || blockIndex >= orderedBlockIds.length) return null;
+            var targetId = orderedBlockIds[blockIndex];
+            var realIndex = blocks.findIndex(function (b) { return b && b.id === targetId; });
+            if (realIndex === -1) {
+                // Fallback: assume order and blocks are aligned
+                realIndex = blockIndex < blocks.length ? blockIndex : 0;
+            }
+            var block = blocks[realIndex];
             var numCols = block.numCols === 2 || block.numCols === 3 ? block.numCols : 1;
             if (columnIndex < 0 || columnIndex >= numCols) return null;
             var newId = 'fi-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
             var newInst = { id: newId, name: fieldName };
             inst.layoutBlocks.value = blocks.map(function (b, i) {
-                if (i !== blockIndex) return b;
+                if (i !== realIndex) return b;
                 var cols = (b.columns || [ [], [], [] ]).map(function (c) { return c.slice(); });
                 if (!cols[columnIndex]) cols[columnIndex] = [];
                 if (insertIndex >= 0 && insertIndex <= cols[columnIndex].length) {

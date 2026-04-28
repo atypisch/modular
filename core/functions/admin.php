@@ -3,6 +3,13 @@
  * Helper functions for the admin interface
  */
 
+if (!function_exists('admin_base_url')) {
+    /** Return admin base URL (no trailing slash). Use for links and redirects. */
+    function admin_base_url() {
+        return defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin';
+    }
+}
+
 if (!function_exists('check_active_path')) {
     /**
      * Check if the current page matches a given path
@@ -24,8 +31,8 @@ if (!function_exists('is_post_types_page')) {
     function is_post_types_page() {
         $uri = $_SERVER['REQUEST_URI'];
         // Check if we're on a post-types page, but NOT on a posts page
-        $isPostTypes = strpos($uri, '/modular/admin/post-types') !== false;
-        $isPosts = strpos($uri, '/modular/admin/posts') !== false;
+        $isPostTypes = strpos($uri, '/admin/post-types') !== false;
+        $isPosts = strpos($uri, '/admin/posts') !== false;
         return $isPostTypes && !$isPosts;
     }
 }
@@ -35,7 +42,7 @@ if (!function_exists('is_media_page')) {
      * Check if we're on a media admin page
      */
     function is_media_page() {
-        return strpos($_SERVER['REQUEST_URI'], '/modular/admin/media') !== false;
+        return strpos($_SERVER['REQUEST_URI'], '/admin/media') !== false;
     }
 }
 
@@ -44,7 +51,7 @@ if (!function_exists('is_users_page')) {
      * Check if we're on a users admin page
      */
     function is_users_page() {
-        return strpos($_SERVER['REQUEST_URI'], '/modular/admin/users') !== false;
+        return strpos($_SERVER['REQUEST_URI'], '/admin/users') !== false;
     }
 }
 
@@ -53,7 +60,7 @@ if (!function_exists('is_settings_page')) {
      * Check if we're on a settings admin page
      */
     function is_settings_page() {
-        return strpos($_SERVER['REQUEST_URI'], '/modular/admin/settings') !== false;
+        return strpos($_SERVER['REQUEST_URI'], '/admin/settings') !== false;
     }
 }
 
@@ -62,7 +69,7 @@ if (!function_exists('is_profile_page')) {
      * Check if we're on a profile admin page
      */
     function is_profile_page() {
-        return strpos($_SERVER['REQUEST_URI'], '/modular/admin/profile') !== false;
+        return strpos($_SERVER['REQUEST_URI'], '/admin/profile') !== false;
     }
 }
 
@@ -71,7 +78,7 @@ if (!function_exists('is_forms_page')) {
      * Check if we're on a forms admin page
      */
     function is_forms_page() {
-        return strpos($_SERVER['REQUEST_URI'], '/modular/admin/forms') !== false;
+        return strpos($_SERVER['REQUEST_URI'], '/admin/forms') !== false;
     }
 }
 
@@ -80,7 +87,7 @@ if (!function_exists('is_actions_page')) {
      * Check if we're on an actions admin page
      */
     function is_actions_page() {
-        return strpos($_SERVER['REQUEST_URI'], '/modular/admin/actions') !== false;
+        return strpos($_SERVER['REQUEST_URI'], '/admin/actions') !== false;
     }
 }
 
@@ -89,7 +96,7 @@ if (!function_exists('is_modules_page')) {
      * Check if we're on a modules admin page
      */
     function is_modules_page() {
-        return strpos($_SERVER['REQUEST_URI'], '/modular/admin/modules') !== false;
+        return strpos($_SERVER['REQUEST_URI'], '/admin/modules') !== false;
     }
 }
 
@@ -111,8 +118,8 @@ if (!function_exists('is_posts_page')) {
     function is_posts_page() {
         $uri = $_SERVER['REQUEST_URI'];
         // Check if we're on a posts page, but NOT on a post-types page
-        $isPosts = strpos($uri, '/modular/admin/posts') !== false;
-        $isPostTypes = strpos($uri, '/modular/admin/post-types') !== false;
+        $isPosts = strpos($uri, '/admin/posts') !== false;
+        $isPostTypes = strpos($uri, '/admin/post-types') !== false;
         return $isPosts && !$isPostTypes;
     }
 }

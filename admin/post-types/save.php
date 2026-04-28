@@ -16,18 +16,18 @@ require_once CORE_PATH . '/classes/Taxonomy.php';
 
 // Check authentication
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 // Check if this is a POST request
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /modular/admin/post-types');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types');
     exit;
 }
 if (!csrf_verify()) {
     $_SESSION['error'] = 'Invalid request. Please try again.';
-    header('Location: /modular/admin/post-types' . (isset($_POST['id']) ? '/edit.php?id=' . (int)$_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types' . (isset($_POST['id']) ? '/edit.php?id=' . (int)$_POST['id'] : ''));
     exit;
 }
 
@@ -37,7 +37,8 @@ $post_type = [
     'slug' => filter_input(INPUT_POST, 'slug', FILTER_SANITIZE_STRING) ?? '',
     'description' => filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING) ?? '',
     'public' => isset($_POST['public']) ? 1 : 0,
-    'show_in_menu' => isset($_POST['show_in_menu']) ? 1 : 0
+    'show_in_menu' => isset($_POST['show_in_menu']) ? 1 : 0,
+    'hierarchical' => isset($_POST['hierarchical']) ? 1 : 0,
 ];
 
 // Default mode for new post types is 'fixed'; only allow 'modular' when feature is enabled.
@@ -52,7 +53,7 @@ if ($requestedMode === 'modular' && !subscription_has_feature('modular_post_type
 // Validate required fields
 if (empty($post_type['name'])) {
     $_SESSION['error'] = 'Name is required.';
-    header('Location: /modular/admin/post-types/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
     exit;
 }
 
@@ -107,11 +108,11 @@ try {
         exit;
     }
     // For updates, go back to the post types list
-    header('Location: /modular/admin/post-types');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types');
     exit;
     
 } catch (Exception $e) {
     $_SESSION['error'] = 'An error occurred: ' . $e->getMessage();
-    header('Location: /modular/admin/post-types/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types/edit.php' . (isset($_POST['id']) ? '?id=' . $_POST['id'] : ''));
     exit;
 }

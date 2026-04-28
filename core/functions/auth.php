@@ -22,14 +22,14 @@ if (!function_exists('require_auth')) {
     function require_auth() {
         if (!isset($_SESSION['user_id'])) {
             $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-            header('Location: /modular/admin/auth/login.php');
+            header('Location: ' . (function_exists('admin_url') ? admin_url('auth/login.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/login.php' : '/modular/admin/auth/login.php')));
             exit;
         }
         
         // For admin-only pages
         if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
             $_SESSION['error'] = 'You do not have permission to access this page.';
-            header('Location: /modular/admin/index.php');
+            header('Location: ' . (function_exists('admin_url') ? admin_url('index.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/index.php' : '/modular/admin/index.php')));
             exit;
         }
     }

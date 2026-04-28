@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -38,7 +38,7 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $_SESSION['error'] = 'Invalid request. Please try again.';
-        header('Location: /modular/admin/settings/appearance.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/settings/appearance.php');
         exit;
     }
     $activeTheme = filter_input(INPUT_POST, 'active_theme', FILTER_SANITIZE_STRING) ?? 'default';
@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateStmt->execute(['headless_mode', $headlessMode, $headlessMode]);
         
         $_SESSION['success'] = 'Appearance settings saved successfully.';
-        header('Location: /modular/admin/settings/appearance.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/settings/appearance.php');
         exit;
     } catch (Exception $e) {
         $_SESSION['error'] = 'Error saving settings: ' . $e->getMessage();

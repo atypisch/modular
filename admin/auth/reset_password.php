@@ -16,7 +16,7 @@ error_log("Token received: " . $token);
 // Check if token exists
 if (empty($token)) {
     $_SESSION['error'] = 'Invalid or expired reset link';
-    header('Location: /modular/admin/auth/forgot_password.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
     exit;
 }
 
@@ -41,7 +41,7 @@ try {
 
     if (!$user) {
         $_SESSION['error'] = 'Invalid or expired reset link';
-        header('Location: /modular/admin/auth/forgot_password.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
         exit;
     }
 
@@ -49,7 +49,7 @@ try {
     if (strtotime($user['reset_expires']) < time()) {
         error_log("Token expired at: " . $user['reset_expires']);
         $_SESSION['error'] = 'Reset link has expired';
-        header('Location: /modular/admin/auth/forgot_password.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
         exit;
     }
 
@@ -150,7 +150,7 @@ try {
 } catch(PDOException $e) {
     error_log("Reset password error: " . $e->getMessage());
     $_SESSION['error'] = 'An error occurred. Please try again.';
-    header('Location: /modular/admin/auth/forgot_password.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
     exit;
 }
 

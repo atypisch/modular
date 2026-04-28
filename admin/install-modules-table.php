@@ -94,10 +94,10 @@ header('Content-Type: text/html; charset=utf-8');
         echo '<p class="success">✓ All required tables exist!</p>';
     } else {
         echo '<p class="error">✗ Missing tables: ' . implode(', ', $missingTables) . '</p>';
-        echo '<p><a href="/modular/admin/install.php">Install Missing Tables</a></p>';
+        echo '<p><a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/install.php">Install Missing Tables</a></p>';
     }
     
-    echo '<p><a href="/modular/admin/modules">Go to Modules Page</a></p>';
+    echo '<p><a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/modules">Go to Modules Page</a></p>';
     ?>
 </body>
 </html>

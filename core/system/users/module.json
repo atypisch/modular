@@ -1,0 +1,10 @@
+{
+    "name": "Users",
+    "slug": "users",
+    "type": "system",
+    "version": "1.0.0",
+    "description": "Core user management: authentication, roles, and profile handling.",
+    "autoload": true,
+    "author": "Modular CMS",
+    "github_repo": ""
+}

@@ -13,12 +13,13 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 $page_title = 'Upload Media';
 $media_active = true;
+$folder_path = isset($_GET['folder_path']) ? trim((string) $_GET['folder_path']) : '';
 
 require_once ADMIN_PATH . '/templates/header.php';
 ?>
@@ -27,14 +28,14 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1>Upload Media</h1>
-            <a href="/modular/admin/media" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Media Library
             </a>
         </div>
     </div>
 
     <div class="card">
-        <form id="upload-form" enctype="multipart/form-data" action="/modular/admin/media/upload-handler.php" method="POST">
+        <form id="upload-form" enctype="multipart/form-data" action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media/upload-handler.php" method="POST">
             <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label for="file">Select File <span style="color: var(--error-text);">*</span></label>
@@ -50,7 +51,7 @@ require_once ADMIN_PATH . '/templates/header.php';
 
             <div class="form-group">
                 <label for="folder_path">Folder</label>
-                <input type="text" id="folder_path" name="folder_path" class="form-control" placeholder="e.g. blog/2025 or assets/icons">
+                <input type="text" id="folder_path" name="folder_path" class="form-control" placeholder="e.g. blog/2025 or assets/icons" value="<?php echo htmlspecialchars($folder_path); ?>">
                 <div class="help-text">Optional folder path to organise your media (stored in <code>folder_path</code>).</div>
             </div>
 
@@ -61,7 +62,7 @@ require_once ADMIN_PATH . '/templates/header.php';
             </div>
             
             <div class="form-actions">
-                <a href="/modular/admin/media" class="btn btn-secondary">Cancel</a>
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/media" class="btn btn-secondary">Cancel</a>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-upload"></i> Upload
                 </button>

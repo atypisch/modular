@@ -15,7 +15,7 @@ require_once CORE_PATH . '/functions/auth.php';
 require_once CORE_PATH . '/classes/Taxonomy.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -23,7 +23,7 @@ $id = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 
 if (!$id) {
     $_SESSION['error'] = 'Invalid taxonomy ID.';
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
 }
 
@@ -36,7 +36,7 @@ try {
     error_log("Error deleting taxonomy: " . $e->getMessage());
 }
 
-header('Location: /modular/admin/taxonomies');
+header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
 exit;
 
 

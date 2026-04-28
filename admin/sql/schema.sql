@@ -328,3 +328,17 @@ CREATE TABLE IF NOT EXISTS `activity_log` (
     KEY `model_type_model_id` (`model_type`, `model_id`),
     CONSTRAINT `activity_log_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Import log (audit trail for content imports via /admin/export-import)
+CREATE TABLE IF NOT EXISTS `import_log` (
+    `id` int NOT NULL AUTO_INCREMENT,
+    `imported_by` int NOT NULL,
+    `source_url` varchar(500) DEFAULT NULL,
+    `bundle_filename` varchar(255) DEFAULT NULL,
+    `mode` enum('skip','overwrite','dryrun') NOT NULL,
+    `summary` json NOT NULL,
+    `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_imported_by` (`imported_by`),
+    KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -11,7 +11,7 @@
     }
 
     var TAB_KEYS = {
-        general: ['label', 'name', 'key', 'instructions', 'default_value', 'sub_fields', 'layouts', 'button_label'],
+        general: ['label', 'name', 'key', 'instructions', 'post_type', 'limit', 'default_value', 'sub_fields', 'layouts', 'button_label'],
         validation: ['required', 'min', 'max', 'step', 'maxlength', 'pattern', 'allow_null', 'multiple'],
         display: ['placeholder', 'prepend', 'append', 'rows', 'wrapper_class', 'input_class', 'ui', 'return_format', 'choices', 'layout', 'toolbar', 'media_upload', 'tabs', 'delay'],
         logic: ['conditional_logic']
@@ -115,8 +115,12 @@
                     var inputType = type === 'boolean' ? 'boolean' : type === 'integer' || type === 'number' ? 'number' : 'text';
                     if (key === 'choices') inputType = 'choices';
                     else if (key === 'sub_fields' || key === 'layouts' || key === 'conditional_logic') inputType = 'json';
-                    else if (key === 'post_type' && (field.type === 'post_object' || field.type === 'relationship')) inputType = 'post_type';
+                    else if (key === 'post_type' && (field.type === 'post_object' || field.type === 'relationship' || field.type === 'latest_posts')) inputType = 'post_type';
                     else if (key === 'taxonomy' && (field.type === 'post_object' || field.type === 'relationship')) inputType = 'taxonomy';
+                    else if (key === 'return_format' && field.type === 'latest_posts') {
+                        inputType = 'select';
+                        meta.options = [{ value: 'array', label: 'Array' }, { value: 'id', label: 'ID' }, { value: 'json', label: 'JSON' }];
+                    }
                     else if (key === 'return_format') {
                         inputType = 'select';
                         meta.options = [{ value: 'id', label: 'Post ID(s)' }, { value: 'object', label: 'Post object(s)' }];
@@ -274,7 +278,26 @@
                         if (def.config_schema[k].default !== undefined) newField[k] = def.config_schema[k].default;
                     });
                 }
-                var idx = this.libraryInsertIndex;
+                // Recalculate insert index at drop time based on actual mouse position,
+                // so the new field is inserted exactly where the user drops it.
+                var idx = 0;
+                var listEl = this.$refs.canvasListRef;
+                if (listEl) {
+                    var rows = listEl.querySelectorAll('li');
+                    if (rows.length === 0) {
+                        idx = 0;
+                    } else {
+                        var y = e.clientY;
+                        for (var i = 0; i < rows.length; i++) {
+                            var r = rows[i].getBoundingClientRect();
+                            if (y < r.top + r.height / 2) {
+                                idx = i;
+                                break;
+                            }
+                            idx = i + 1;
+                        }
+                    }
+                }
                 this.activeFields.splice(idx, 0, newField);
                 this.selectedIndex = idx;
                 this.settingsTab = 'general';
@@ -349,14 +372,14 @@
                     .then(function (data) {
                         self.saving = false;
                         if (data && data.error) {
-                            (window.ModularModal && window.ModularModal.alert ? window.ModularModal.alert('Error: ' + data.error) : alert('Error: ' + data.error));
+                            (window.ModularModal && window.ModularModal.alert('Error: ' + data.error));
                         } else {
-                            (window.ModularModal && window.ModularModal.alert ? window.ModularModal.alert('Schema saved.') : alert('Schema saved.'));
+                            (window.ModularModal && window.ModularModal.alert('Schema opgeslagen.'));
                         }
                     })
                     .catch(function (err) {
                         self.saving = false;
-                        (window.ModularModal && window.ModularModal.alert ? window.ModularModal.alert('Request failed: ' + (err && err.message ? err.message : 'Check console.')) : alert('Request failed: ' + (err && err.message ? err.message : 'Check console.')));
+                        (window.ModularModal && window.ModularModal.alert('Request mislukt: ' + (err && err.message ? err.message : 'Controleer de console.')));
                     });
             },
             reinitSortable: function () {

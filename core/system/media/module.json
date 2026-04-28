@@ -1,0 +1,10 @@
+{
+    "name": "Media",
+    "slug": "media",
+    "type": "system",
+    "version": "1.0.0",
+    "description": "Core media library: file uploads, image processing, and asset management.",
+    "autoload": true,
+    "author": "Modular CMS",
+    "github_repo": ""
+}

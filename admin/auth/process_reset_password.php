@@ -8,7 +8,7 @@ require_once dirname(dirname(__FILE__)) . '/bootstrap.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (function_exists('csrf_verify') && !csrf_verify()) {
         $_SESSION['error'] = 'Invalid request. Please try again.';
-        header('Location: /modular/admin/auth/reset_password.php?token=' . urlencode($_POST['token'] ?? ''));
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/reset_password.php?token=' . urlencode($_POST['token'] ?? ''));
         exit;
     }
     $token = $_POST['token'] ?? '';
@@ -18,13 +18,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate input
     if (empty($token) || empty($password) || empty($confirm_password)) {
         $_SESSION['error'] = 'All fields are required';
-        header('Location: /modular/admin/auth/reset_password.php?token=' . $token);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/reset_password.php?token=' . $token);
         exit;
     }
 
     if ($password !== $confirm_password) {
         $_SESSION['error'] = 'Passwords do not match';
-        header('Location: /modular/admin/auth/reset_password.php?token=' . $token);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/reset_password.php?token=' . $token);
         exit;
     }
 
@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$user) {
             error_log("No user found with token: " . $token);
             $_SESSION['error'] = 'Invalid or expired reset link';
-            header('Location: /modular/admin/auth/forgot_password.php');
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
             exit;
         }
 
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($user['reset_expires'] < $now) {
             error_log("Token expired. Expires: " . $user['reset_expires'] . ", Now: " . $now);
             $_SESSION['error'] = 'Invalid or expired reset link';
-            header('Location: /modular/admin/auth/forgot_password.php');
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
             exit;
         }
 
@@ -76,17 +76,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $_SESSION['success'] = 'Your password has been reset successfully. You can now login with your new password.';
-        header('Location: /modular/admin/auth/login.php');
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
         exit;
 
     } catch(PDOException $e) {
         // Log the error for debugging
         error_log("Password reset error: " . $e->getMessage());
         $_SESSION['error'] = 'An error occurred. Please try again later.';
-        header('Location: /modular/admin/auth/reset_password.php?token=' . $token);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/reset_password.php?token=' . $token);
         exit;
     }
 } else {
-    header('Location: /modular/admin/auth/forgot_password.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
     exit;
 } 

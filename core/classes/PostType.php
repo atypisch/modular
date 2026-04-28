@@ -37,9 +37,14 @@ class PostType {
                 throw new Exception("name is required");
             }
             
-            // Determine slug - use slug if provided, otherwise use nicename or generate from name
-            $slug = $data['slug'] ?? $data['nicename'] ?? $this->sanitizeSlug($data['name']);
-            $slug = $this->sanitizeSlug($slug);
+            // Determine slug - prefer explicit slug, then nicename.
+            // If those are missing or effectively only a single character (buggy auto-fill),
+            // fall back to generating a slug from the full name so we always use the full title.
+            $slugSource = $data['slug'] ?? $data['nicename'] ?? null;
+            if ($slugSource === null || strlen(trim((string)$slugSource)) < 2) {
+                $slugSource = $data['name'];
+            }
+            $slug = $this->sanitizeSlug($slugSource);
 
             // Check if post type already exists
             if ($this->getBySlug($slug)) {
@@ -73,10 +78,10 @@ class PostType {
             }
 
             $sql = "INSERT INTO {$this->table} (
-                name, slug, description, public, show_in_menu, supports, mode,
+                name, slug, description, public, show_in_menu, supports, mode, hierarchical,
                 created_by, updated_by, created_at, updated_at
             ) VALUES (
-                :name, :slug, :description, :public, :show_in_menu, :supports, :mode,
+                :name, :slug, :description, :public, :show_in_menu, :supports, :mode, :hierarchical,
                 :created_by, :updated_by, NOW(), NOW()
             )";
 
@@ -90,6 +95,7 @@ class PostType {
                 ':show_in_menu' => isset($data['show_in_menu']) ? (int)$data['show_in_menu'] : 1,
                 ':supports' => json_encode($supports),
                 ':mode' => $mode,
+                ':hierarchical' => isset($data['hierarchical']) ? (int)$data['hierarchical'] : 0,
                 ':created_by' => $user_id,
                 ':updated_by' => $user_id
             ]);
@@ -262,6 +268,7 @@ class PostType {
                 show_in_menu = :show_in_menu,
                 supports = :supports,
                 mode = :mode,
+                hierarchical = :hierarchical,
                 updated_by = :updated_by,
                 updated_at = NOW()
                 WHERE id = :id";
@@ -277,6 +284,7 @@ class PostType {
                 ':show_in_menu' => isset($data['show_in_menu']) ? (int)$data['show_in_menu'] : (int)($existing['show_in_menu'] ?? 1),
                 ':supports' => json_encode($supports),
                 ':mode' => $mode,
+                ':hierarchical' => isset($data['hierarchical']) ? (int)$data['hierarchical'] : (int)($existing['hierarchical'] ?? 0),
                 ':updated_by' => $user_id
             ]);
         } catch (\PDOException $e) {

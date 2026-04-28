@@ -10,13 +10,13 @@ require_once __DIR__ . '/data/init.php';       // Finally load initialization
 // Require authentication (but don't require admin for dashboard)
 if (!is_logged_in()) {
     $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (function_exists('admin_url') ? admin_url('auth/login.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/login.php' : '/modular/admin/auth/login.php')));
     exit;
 }
 
-// Get the requested page from URL
+// Get the requested page from URL (uses BASE_PATH from config / config.local.php)
 $request_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$base_admin_path = '/modular/admin'; // Adjust if your base path is different
+$base_admin_path = (defined('BASE_PATH') ? rtrim(BASE_PATH, '/') : '') . '/admin';
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);

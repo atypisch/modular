@@ -9,6 +9,10 @@ if (!defined('CORE_PATH')) {
     define('CORE_PATH', MODULAR_PATH . '/core');
 }
 
+if (is_file(CORE_PATH . '/config/update.php')) {
+    require_once CORE_PATH . '/config/update.php';
+}
+
 // Include core files
 require_once CORE_PATH . '/config-check.php';
 require_once CORE_PATH . '/functions/auth.php';
@@ -16,11 +20,22 @@ require_once CORE_PATH . '/functions/csrf.php';
 require_once CORE_PATH . '/functions/cache.php';
 require_once CORE_PATH . '/functions/admin.php';
 require_once CORE_PATH . '/functions/hooks.php';
+require_once CORE_PATH . '/functions/common.php';
+require_once CORE_PATH . '/functions/template-helpers.php';
 
 // Load core classes
 require_once CORE_PATH . '/classes/Hooks.php';
 require_once CORE_PATH . '/classes/Module.php';
 require_once CORE_PATH . '/classes/ModuleManager.php';
+
+// Export/Import registry — register all core tables BEFORE modules load so
+// modules can md_export_register() their own tables in their init hook.
+if (is_file(CORE_PATH . '/functions/export.php')) {
+    require_once CORE_PATH . '/functions/export.php';
+    if (function_exists('md_export_register_core')) {
+        md_export_register_core();
+    }
+}
 
 // Initialize module manager and load active modules
 // Only if modules table exists to prevent errors

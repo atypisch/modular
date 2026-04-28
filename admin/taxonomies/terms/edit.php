@@ -16,7 +16,7 @@ require_once CORE_PATH . '/functions/database.php';
 require_once CORE_PATH . '/classes/Taxonomy.php';
 
 if (!is_logged_in()) {
-    header('Location: /modular/admin/auth/login.php');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
@@ -28,14 +28,14 @@ $term_id = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 
 if (!$taxonomy_id) {
     $_SESSION['error'] = 'No taxonomy ID provided.';
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
 }
 
 $taxonomy = $taxonomyObj->getById($taxonomy_id);
 if (!$taxonomy) {
     $_SESSION['error'] = 'Taxonomy not found.';
-    header('Location: /modular/admin/taxonomies');
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies');
     exit;
 }
 
@@ -52,12 +52,12 @@ if ($term_id) {
         $termData = $taxonomyObj->getTermById($term_id);
         if (!$termData || $termData['taxonomy_id'] != $taxonomy_id) {
             $_SESSION['error'] = 'Term not found.';
-            header('Location: /modular/admin/taxonomies/terms.php?taxonomy_id=' . $taxonomy_id);
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies/terms.php?taxonomy_id=' . $taxonomy_id);
             exit;
         }
     } catch (Exception $e) {
         $_SESSION['error'] = 'Error loading term: ' . $e->getMessage();
-        header('Location: /modular/admin/taxonomies/terms.php?taxonomy_id=' . $taxonomy_id);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/taxonomies/terms.php?taxonomy_id=' . $taxonomy_id);
         exit;
     }
 }
@@ -87,7 +87,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <div class="page-header">
         <div class="flex justify-between items-center">
             <h1><?php echo $page_title; ?> - <?php echo htmlspecialchars($taxonomy['name']); ?></h1>
-            <a href="/modular/admin/taxonomies/terms.php?taxonomy_id=<?php echo $taxonomy_id; ?>" class="btn btn-secondary">
+            <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/terms.php?taxonomy_id=<?php echo $taxonomy_id; ?>" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Terms
             </a>
         </div>
@@ -106,7 +106,7 @@ require_once ADMIN_PATH . '/templates/header.php';
     <?php endif; ?>
 
     <div class="card">
-        <form action="/modular/admin/taxonomies/terms/save.php" method="POST">
+        <form action="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/terms/save.php" method="POST">
             <?php echo csrf_field(); ?>
             <input type="hidden" name="taxonomy_id" value="<?php echo $taxonomy_id; ?>">
             <?php if ($term_id): ?>
@@ -147,7 +147,7 @@ require_once ADMIN_PATH . '/templates/header.php';
             <?php endif; ?>
 
             <div class="form-actions">
-                <a href="/modular/admin/taxonomies/terms.php?taxonomy_id=<?php echo $taxonomy_id; ?>" class="btn btn-secondary">Cancel</a>
+                <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/taxonomies/terms.php?taxonomy_id=<?php echo $taxonomy_id; ?>" class="btn btn-secondary">Cancel</a>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save"></i> Save Term
                 </button>
