@@ -30,10 +30,10 @@ if (!md_verify_csrf()) {
     exit;
 }
 
-$mode    = $_POST['mode']   ?? 'skip';
-$dryrun  = !empty($_POST['dryrun']);
-if ($dryrun) $mode = 'dryrun';
-if (!in_array($mode, ['skip', 'overwrite', 'dryrun'], true)) $mode = 'skip';
+$postedMode = $_POST['mode'] ?? 'skip';
+if (!in_array($postedMode, ['skip', 'overwrite'], true)) $postedMode = 'skip';
+$duplicatePolicy = $postedMode === 'overwrite' ? 'overwrite' : 'skip';
+$dryrun         = !empty($_POST['dryrun']);
 
 if (empty($_FILES['bundle']) || $_FILES['bundle']['error'] !== UPLOAD_ERR_OK) {
     $_SESSION['_export_import_flash'] = [
@@ -66,15 +66,42 @@ $err      = null;
 $manifest = null;
 
 try {
+    $uid      = (int) ($_SESSION['user_id'] ?? 0);
     $importer = new \Modular\Importer($dest);
     $manifest = $importer->validate();
-    $preview  = $importer->preview();
-    $report   = $importer->run($mode, (int) ($_SESSION['user_id'] ?? 0));
+
+    if ($dryrun) {
+        $report  = $importer->run('dryrun', $uid, $duplicatePolicy);
+        $preview = \Modular\Importer::drySummaryToPreviewArray($manifest, $report);
+    } else {
+        // Preview must NOT consume the same ZipArchive / PDO transaction path as the real import.
+        // Running dry-run then import on one Importer caused empty DB on some hosts (second pass never persisted).
+        $preview = null;
+        $probePath = sys_get_temp_dir() . '/modular-import-probe-' . bin2hex(random_bytes(8)) . '.zip';
+        if (@copy($dest, $probePath)) {
+            $probe = null;
+            try {
+                $probe      = new \Modular\Importer($probePath);
+                $probe->validate();
+                $previewDry = $probe->run('dryrun', null, $duplicatePolicy);
+                $preview    = \Modular\Importer::drySummaryToPreviewArray($manifest, $previewDry);
+            } catch (\Throwable $eProbe) {
+                error_log('Import preview dry-run failed: ' . $eProbe->getMessage());
+            } finally {
+                $probe = null;
+                @unlink($probePath);
+            }
+        }
+
+        $report = $importer->run($postedMode === 'overwrite' ? 'overwrite' : 'skip', $uid, $duplicatePolicy);
+    }
 } catch (\Throwable $e) {
     $err = $e->getMessage();
 }
 
 @unlink($dest);
+
+$displayMode = $dryrun ? 'dryrun' : $postedMode;
 
 $page_title           = 'Import report';
 $export_import_active = true;
@@ -90,20 +117,35 @@ require_once ADMIN_PATH . '/templates/header.php';
 .eim-pill.eim-create { background:#dcfce7; color:#166534; }
 .eim-pill.eim-update { background:#fef3c7; color:#92400e; }
 .eim-flash-error { background:#fef2f2; border:1px solid #ef4444; color:#991b1b; padding:0.75rem 1rem; border-radius:6px; margin-bottom:1rem; }
+.eim-flash-commit { background:#ecfdf5; border:1px solid #10b981; color:#065f46; padding:0.75rem 1rem; border-radius:6px; margin-bottom:1rem; }
+.eim-flash-warn-dry { background:#fffbeb; border:1px solid #f59e0b; color:#92400e; padding:0.75rem 1rem; border-radius:6px; margin-bottom:1rem; }
 </style>
 <div class="container">
     <div class="page-header">
         <h1>Import report
-            <?php if ($mode === 'dryrun'): ?><span class="eim-pill" style="background:#fef3c7; color:#92400e;">DRY RUN</span><?php endif; ?>
+            <?php if ($dryrun): ?><span class="eim-pill" style="background:#fef3c7; color:#92400e;">DRY RUN</span><?php endif; ?>
         </h1>
         <p style="color:#64748b; margin-top:0.25rem;">
             Bundle: <code><?php echo htmlspecialchars($origName); ?></code>
-            &middot; Mode: <strong><?php echo htmlspecialchars($mode); ?></strong>
+            &middot; Mode: <strong><?php echo htmlspecialchars($displayMode); ?></strong>
+            <?php if ($dryrun && $duplicatePolicy === 'overwrite'): ?>
+                &middot; Duplicates: <strong>overwrite</strong>
+            <?php elseif ($dryrun): ?>
+                &middot; Duplicates: <strong>skip</strong>
+            <?php endif; ?>
         </p>
     </div>
 
     <?php if ($err): ?>
         <div class="eim-flash-error"><strong>Import failed.</strong> <?php echo htmlspecialchars($err); ?></div>
+    <?php endif; ?>
+
+    <?php if ($report && !$err): ?>
+        <?php if ($dryrun): ?>
+            <div class="eim-flash-warn-dry"><strong>Dry run.</strong> No changes were written to the database (transaction rolled back).</div>
+        <?php elseif (empty($report['_aborted'])): ?>
+            <div class="eim-flash-commit"><strong>Import completed.</strong> Changes were committed to the database.</div>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if ($manifest): ?>
@@ -157,7 +199,7 @@ require_once ADMIN_PATH . '/templates/header.php';
         <div class="eim-card">
             <h3 style="margin-top:0;">Pre-import preview (matched against your DB before running)</h3>
             <table class="eim-table">
-                <thead><tr><th>Table</th><th>Bundle rows</th><th>New here</th><th>Conflicts (matched)</th></tr></thead>
+                <thead><tr><th>Table</th><th>Bundle rows</th><th>New here</th><th>Conflicts (matched)</th><th>FK unresolved</th></tr></thead>
                 <tbody>
                 <?php foreach ($preview as $p): ?>
                     <tr>
@@ -165,6 +207,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                         <td><?php echo (int) $p['rows']; ?></td>
                         <td><?php echo (int) $p['new']; ?></td>
                         <td><?php echo !empty($p['no_dedup']) ? '<em style="color:#94a3b8;">insert-only</em>' : (int) $p['conflicts']; ?></td>
+                        <td><?php echo isset($p['skipped_fk']) ? (int) $p['skipped_fk'] : '—'; ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

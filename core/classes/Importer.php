@@ -6,8 +6,9 @@ namespace Modular;
  *
  *   $imp = new Modular\Importer($zipPath);
  *   $imp->validate();           // throws on bad bundle
- *   $preview = $imp->preview(); // counts only, no writes
- *   $report  = $imp->run('skip' | 'overwrite' | 'dryrun');
+ *   $preview = Importer::drySummaryToPreviewArray($manifest,
+ *       $imp->run('dryrun', null, 'skip')); // FK-aware counts (same logic as run)
+ *   $report  = $imp->run('skip', userId); // or 'overwrite', 'dryrun', plus duplicatePolicy for dryrun
  */
 class Importer
 {
@@ -62,60 +63,88 @@ class Importer
     }
 
     /**
-     * Read-only count of new vs. conflicting rows per table (uses natural keys).
+     * Turn a dry-run import summary into the same shape as the legacy preview panel.
+     * Uses manifest row counts and per-table registry metadata for insert-only tables.
      *
-     * @return array<int, array{name: string, rows: int, new: int, conflicts: int, no_dedup?: bool}>
+     * @param array<string, mixed> $manifest
+     * @param array<string, mixed> $drySummary return value of run('dryrun', ...)
+     * @return array<int, array{name: string, rows: int, new: int, conflicts: int, no_dedup?: bool, skipped_fk?: int}>
      */
-    public function preview(): array
+    public static function drySummaryToPreviewArray(array $manifest, array $drySummary): array
     {
-        if (empty($this->manifest)) $this->validate();
-
         $registry = function_exists('md_export_registry') ? md_export_registry() : [];
         $report   = [];
 
-        foreach ($this->manifest['tables'] as $t) {
-            $name = $t['name'];
-            $cfg  = $registry[$name] ?? null;
-            $rows = $this->readJson('data/' . $name . '.json');
-            $entry = [
-                'name'      => $name,
-                'rows'      => count($rows),
-                'new'       => 0,
-                'conflicts' => 0,
-            ];
-
-            $natural = $cfg['natural_key'] ?? null;
-            if (!$natural) {
-                $entry['no_dedup'] = true;
-                $entry['new']      = count($rows);
-                $report[] = $entry;
+        foreach ($manifest['tables'] ?? [] as $t) {
+            $name = $t['name'] ?? '';
+            if ($name === '') {
                 continue;
             }
-            $table = $cfg['table'];
-            foreach ($rows as $row) {
-                $where = [];
-                foreach ($natural as $col) {
-                    $where[$col] = $row[$col] ?? null;
-                }
-                $existing = $this->findByNaturalKey($table, $where);
-                if ($existing !== null) $entry['conflicts']++;
-                else                    $entry['new']++;
+            $bundleRows = (int) ($t['rows'] ?? 0);
+            $cfg          = $registry[$name] ?? null;
+            if ($cfg === null) {
+                $natural = false;
+            } else {
+                $natural = $cfg['natural_key'] ?? null;
+            }
+
+            $dr = $drySummary[$name] ?? null;
+            if (!is_array($dr)) {
+                $report[] = [
+                    'name'      => $name,
+                    'rows'      => $bundleRows,
+                    'new'       => 0,
+                    'conflicts' => 0,
+                ];
+                continue;
+            }
+
+            $created    = (int) ($dr['created'] ?? 0);
+            $updated    = (int) ($dr['updated'] ?? 0);
+            $skippedFk  = (int) ($dr['skipped_fk'] ?? 0);
+            $skippedDup = (int) ($dr['skipped_duplicate'] ?? 0);
+            if (!isset($dr['skipped_fk']) && !isset($dr['skipped_duplicate'])) {
+                $skippedDup = (int) ($dr['skipped'] ?? 0);
+            }
+
+            $entry = [
+                'name'      => $name,
+                'rows'      => $bundleRows,
+                'new'       => $created,
+                'conflicts' => $skippedDup + $updated,
+            ];
+            if ($natural === false) {
+                // bundle table with no md_export_register() on this install — keep dry-run counts as-is
+            } elseif (!$natural) {
+                $entry['no_dedup'] = true;
+                $entry['new']       = $created;
+                $entry['conflicts'] = 0;
+            }
+            if ($skippedFk > 0) {
+                $entry['skipped_fk'] = $skippedFk;
             }
             $report[] = $entry;
         }
+
         return $report;
     }
 
     /**
      * Run the import. $mode is 'skip' (default), 'overwrite', or 'dryrun'.
+     * When $mode is 'dryrun', $duplicatePolicy selects skip vs overwrite for rows that match a natural key.
      * Returns a per-table summary with created/updated/skipped/errors counts.
      */
-    public function run(string $mode = 'skip', ?int $importedByUserId = null): array
+    public function run(string $mode = 'skip', ?int $importedByUserId = null, string $duplicatePolicy = 'skip'): array
     {
         if (!in_array($mode, ['skip', 'overwrite', 'dryrun'], true)) {
             throw new \RuntimeException('Invalid mode: ' . $mode);
         }
         if (empty($this->manifest)) $this->validate();
+
+        @$this->zip->close();
+        if ($this->zip->open($this->zipPath) !== true) {
+            throw new \RuntimeException('Could not reopen bundle: ' . $this->zipPath);
+        }
 
         $registry = function_exists('md_export_registry') ? md_export_registry() : [];
         $db       = md_db();
@@ -128,7 +157,7 @@ class Importer
             foreach ($registry as $name => $cfg) {
                 if (!$this->bundleHasTable($name)) continue; // table not in this export
                 $rows = $this->readJson('data/' . $name . '.json');
-                $summary[$name] = $this->importTable($name, $cfg, $rows, $mode, $errors);
+                $summary[$name] = $this->importTable($name, $cfg, $rows, $mode, $errors, $duplicatePolicy);
             }
 
             // Media files
@@ -160,16 +189,19 @@ class Importer
     }
 
     private function importTable(string $name, array $cfg, array $rows, string $mode,
-                                  array &$errors): array
+                                  array &$errors, string $duplicatePolicy = 'skip'): array
     {
         $table   = $cfg['table'];
         $natural = $cfg['natural_key'] ?? null;
         $fkMap   = $cfg['fk_map']      ?? [];
-        $created = $updated = $skipped = 0;
-        $deferredSelfFks = []; // [ ['id' => newId, 'sets' => [col => oldVal]] ]
+        $created = $updated = $skippedDup = $skippedFk = 0;
+        $deferredSelfFks = [];
         $this->idMap[$name] = [];
 
-        // Detect self-FKs (same registry references itself) so we can defer them
+        $effectiveDup = $mode === 'overwrite'
+            ? 'overwrite'
+            : (($mode === 'dryrun' && $duplicatePolicy === 'overwrite') ? 'overwrite' : 'skip');
+
         $selfFkCols = [];
         foreach ($fkMap as $col => $targetReg) {
             if ($targetReg === $name) $selfFkCols[$col] = true;
@@ -177,45 +209,44 @@ class Importer
 
         if (!$this->tableExists($table)) {
             $errors[] = "Table '{$table}' does not exist in destination — skipping {$name}";
-            return ['created' => 0, 'updated' => 0, 'skipped' => count($rows), 'missing_table' => true];
+            return [
+                'created' => 0, 'updated' => 0, 'skipped' => count($rows),
+                'skipped_duplicate' => 0, 'skipped_fk' => 0, 'missing_table' => true,
+            ];
         }
 
         foreach ($rows as $row) {
             try {
                 $exportId = $row['_export_id'] ?? null;
                 unset($row['_export_id']);
-                if (array_key_exists('id', $row)) unset($row['id']); // let DB assign
+                if (array_key_exists('id', $row)) unset($row['id']);
 
-                // Resolve FKs (defer self-references; skip row if a non-null FK can't be remapped)
                 $deferred       = [];
                 $fkUnresolvable = false;
                 foreach ($fkMap as $col => $target) {
                     if (!array_key_exists($col, $row)) continue;
                     $oldVal = $row[$col];
-                    if ($oldVal === null || $oldVal === '') continue;
+                    if ($oldVal === null || $oldVal === '' || $oldVal === 0 || $oldVal === '0') continue;
                     if (isset($selfFkCols[$col])) {
                         $deferred[$col] = $oldVal;
                         $row[$col]      = null;
                         continue;
                     }
-                    $newVal = $this->idMap[$target][$oldVal] ?? null;
+                    $newVal = $this->idMapLookup($target, $oldVal);
                     if ($newVal === null) {
-                        // Source had a value but the referenced row didn't make it
-                        // into the destination — orphan. Skip without raising an error.
                         $fkUnresolvable = true;
                         break;
                     }
                     $row[$col] = $newVal;
                 }
                 if ($fkUnresolvable) {
-                    $skipped++;
+                    $skippedFk++;
                     continue;
                 }
 
-                // Filter only columns the destination table actually has
                 $row = $this->filterRowToTable($table, $row);
+                $row = $this->normalizeRowForDb($table, $row);
 
-                // Find existing by natural key
                 $existingId = null;
                 if ($natural) {
                     $where = [];
@@ -226,24 +257,26 @@ class Importer
                 }
 
                 if ($existingId !== null) {
-                    if ($mode === 'overwrite') {
+                    if ($effectiveDup === 'overwrite') {
                         md_db_update($table, $row, ['id' => $existingId]);
                         $updated++;
                     } else {
-                        $skipped++;
+                        $skippedDup++;
                     }
                     $newId = $existingId;
                 } else {
                     $newId = md_db_insert($table, $row);
                     if ($newId === false) {
-                        $errors[] = "Insert failed in {$table} for export_id={$exportId}";
+                        $detail = function_exists('md_db_last_error') ? md_db_last_error() : null;
+                        $errors[] = "Insert failed in {$table} for export_id={$exportId}"
+                            . (($detail !== null && $detail !== '') ? ": {$detail}" : '');
                         continue;
                     }
                     $created++;
                 }
 
                 if ($exportId !== null) {
-                    $this->idMap[$name][$exportId] = $newId;
+                    $this->rememberIdMap($name, $exportId, $newId);
                 }
                 if (!empty($deferred)) {
                     $deferredSelfFks[] = ['id' => $newId, 'sets' => $deferred];
@@ -253,11 +286,10 @@ class Importer
             }
         }
 
-        // 2nd pass: resolve self-FKs now that all rows of this table have IDs
         foreach ($deferredSelfFks as $rec) {
             $update = [];
             foreach ($rec['sets'] as $col => $oldVal) {
-                $newVal = $this->idMap[$name][$oldVal] ?? null;
+                $newVal = $this->idMapLookup($name, $oldVal);
                 if ($newVal !== null) $update[$col] = $newVal;
             }
             if ($update) {
@@ -265,7 +297,68 @@ class Importer
             }
         }
 
-        return ['created' => $created, 'updated' => $updated, 'skipped' => $skipped];
+        return [
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skippedDup + $skippedFk,
+            'skipped_duplicate' => $skippedDup,
+            'skipped_fk' => $skippedFk,
+        ];
+    }
+
+    /**
+     * JSON columns must receive SQL strings; bundled nested JSON becomes PHP arrays after json_decode.
+     */
+    private function normalizeRowForDb(string $table, array $row): array
+    {
+        foreach ($row as $k => $v) {
+            if (is_array($v)) {
+                $row[$k] = json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+        }
+        if ($table === 'post_types') {
+            if (!isset($row['supports']) || $row['supports'] === null || $row['supports'] === '') {
+                $row['supports'] = '["title","editor"]';
+            }
+            if (!isset($row['mode']) || $row['mode'] === null || $row['mode'] === '') {
+                $row['mode'] = 'fixed';
+            }
+        }
+        return $row;
+    }
+
+    private function idMapLookup(string $registryName, $oldPk): ?int
+    {
+        $map = $this->idMap[$registryName] ?? [];
+        if ($map === [] || $oldPk === null || $oldPk === '') {
+            return null;
+        }
+        if (array_key_exists($oldPk, $map)) {
+            return (int) $map[$oldPk];
+        }
+        if (is_string($oldPk) && ctype_digit($oldPk)) {
+            $ik = (int) $oldPk;
+            if (array_key_exists($ik, $map)) {
+                return (int) $map[$ik];
+            }
+        }
+        if (is_int($oldPk)) {
+            $sk = (string) $oldPk;
+            if (array_key_exists($sk, $map)) {
+                return (int) $map[$sk];
+            }
+        }
+        return null;
+    }
+
+    private function rememberIdMap(string $name, $exportId, $newId): void
+    {
+        $this->idMap[$name][$exportId] = $newId;
+        if (is_string($exportId) && ctype_digit((string) $exportId)) {
+            $this->idMap[$name][(int) $exportId] = $newId;
+        } elseif (is_int($exportId)) {
+            $this->idMap[$name][(string) $exportId] = $newId;
+        }
     }
 
     private function importMedia(string $mode): ?array
