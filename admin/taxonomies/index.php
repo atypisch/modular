@@ -49,6 +49,7 @@ if (!$tableCheck['all_exist'] || in_array('taxonomies', $tableCheck['missing']))
             $stmt->execute([$tax['id']]);
             $tax['post_types'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
+        unset($tax);
     } catch (PDOException $e) {
         if (strpos($e->getMessage(), "doesn't exist") !== false || strpos($e->getMessage(), "Base table or view not found") !== false) {
             $message = "The database tables have not been created yet. Please install the database to continue.";

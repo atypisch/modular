@@ -24,6 +24,20 @@ $posts_active = true;
 $db = $GLOBALS['db'];
 $postTypeId = $_GET['post_type_id'] ?? null;
 
+// 'show' post type is managed via simuze_events — redirect to dedicated admin
+if ($postTypeId) {
+    try {
+        $stmtSlug = $db->prepare("SELECT slug FROM post_types WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $stmtSlug->execute([$postTypeId]);
+        $ptSlugRow = $stmtSlug->fetch(\PDO::FETCH_ASSOC);
+        if ($ptSlugRow && ($ptSlugRow['slug'] ?? '') === 'show') {
+            $showsAdminUrl = (defined('ADMIN_URL') ? ADMIN_URL : '') . '/module-page.php?module=simuze-community&page=shows';
+            header('Location: ' . $showsAdminUrl);
+            exit;
+        }
+    } catch (\Throwable $e) { /* ignore, continue normally */ }
+}
+
 // Get post types for filter
 $postTypes = [];
 // Map index voor hiërarchie-informatie

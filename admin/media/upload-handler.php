@@ -133,7 +133,14 @@ if ($fileType === 'image') {
 
 // Save to database
 try {
-    $relativePath = (defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') . '/' : '/public/uploads/') . $filename;
+    // Store file_path as a path RELATIVE to the uploads directory so downstream
+    // URL resolvers can prepend UPLOADS_WEB_PATH without producing a doubled
+    // prefix (e.g. /modular/public/uploads/modular/public/uploads/...).
+    $relativePath = $filename;
+    $uploadsWebBase = defined('UPLOADS_WEB_PATH')
+        ? rtrim(UPLOADS_WEB_PATH, '/')
+        : (defined('BASE_PATH') ? rtrim(BASE_PATH, '/') . '/public/uploads' : '/public/uploads');
+    $webUrl = $uploadsWebBase . '/' . ltrim($relativePath, '/');
     
     $stmt = $db->prepare("
         INSERT INTO media 
@@ -164,7 +171,7 @@ try {
             'file_path' => $relativePath,
             'file_type' => $fileType,
             'mime_type' => $mimeType,
-            'url' => (defined('SITE_URL') ? SITE_URL : '') . $relativePath
+            'url' => $webUrl,
         ]);
         exit;
     }

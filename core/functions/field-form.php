@@ -338,6 +338,12 @@ if (!function_exists('render_field_form')) {
             case 'video':
                 echo '<input type="text" name="' . $inputName . '" id="' . $id . '" class="form-control" value="' . htmlspecialchars(is_array($val) && isset($val['url']) ? $val['url'] : (string)$val) . '" placeholder="URL">';
                 break;
+            case 'accordion':
+                $rows = isset($schema['rows']) ? (int) $schema['rows'] : 12;
+                $placeholder = 'FAQ items JSON: [{"label":"Question?","content":"Answer text","open":false}]';
+                $current = is_array($val) ? json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : (string) $val;
+                echo '<textarea name="' . $inputName . '" id="' . $id . '" class="form-control" rows="' . (int)$rows . '" placeholder="' . htmlspecialchars($placeholder) . '">' . htmlspecialchars($current) . '</textarea>';
+                break;
             default:
                 echo '<input type="text" name="' . $inputName . '" id="' . $id . '" class="form-control" value="' . htmlspecialchars((string)$val) . '">';
         }

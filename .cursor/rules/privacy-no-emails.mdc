@@ -1,0 +1,16 @@
+---
+description: User email addresses must never be exposed in any UI, API response, or JavaScript context.
+globs: **/*.php, **/*.js, **/*.html, **/*.twig
+---
+
+# Privacy: Never Expose User Email Addresses
+
+1. **Never display a user's email address** in templates, API responses, JavaScript variables, or any other output visible to end users or the browser.
+
+2. **Always use `username` or `display_name`** as the public-facing identifier. If `display_name` is empty or looks like an email address (passes `filter_var($value, FILTER_VALIDATE_EMAIL)`), fall back to `username`.
+
+3. **Guard at the data layer**: Any function that returns user display names (e.g. `simuze_resolve_playlist_tracks`, `get_userdata`, JWT payload mapping) must strip email values from display fields before returning.
+
+4. **Auth fallback chain**: When mapping external auth data (JWT, OAuth) to local user records, `display_name` must never fall back to `email`. Use: `display_name ?? username ?? null`.
+
+5. **Email is internal-only**: The `email` field is for authentication, notifications, and admin purposes. It must not appear in HTML output, JSON API responses consumed by the frontend, or `window.*` JavaScript objects.

@@ -38,7 +38,7 @@
             }
 
             function isUtility(type) {
-                return ['message', 'accordion', 'tab', 'divider'].indexOf(type) >= 0;
+                return ['message', 'tab', 'divider'].indexOf(type) >= 0;
             }
 
             function isLayout(type) {

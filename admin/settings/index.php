@@ -48,6 +48,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $timezone = filter_input(INPUT_POST, 'timezone', FILTER_SANITIZE_STRING) ?? 'UTC';
     $language = filter_input(INPUT_POST, 'language', FILTER_SANITIZE_STRING) ?? 'en_US';
 
+    // Front page
+    $frontPageType = filter_input(INPUT_POST, 'front_page_type', FILTER_SANITIZE_STRING) ?? 'index';
+    $frontPageId = isset($_POST['front_page_id']) ? (int) $_POST['front_page_id'] : 0;
+
     // Mail & templates
     $mailFromName = filter_input(INPUT_POST, 'mail_from_name', FILTER_SANITIZE_STRING) ?? '';
     $mailFromAddress = filter_input(INPUT_POST, 'mail_from_address', FILTER_SANITIZE_EMAIL) ?? '';
@@ -72,6 +76,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateStmt->execute(['site_url', $siteUrl, $siteUrl]);
         $updateStmt->execute(['timezone', $timezone, $timezone]);
         $updateStmt->execute(['language', $language, $language]);
+
+        // Front page settings (autoload)
+        $frontPageType = in_array($frontPageType, ['index', 'page'], true) ? $frontPageType : 'index';
+        $frontPageId = $frontPageType === 'page' && $frontPageId > 0 ? $frontPageId : 0;
+        $updateStmt->execute(['front_page_type', $frontPageType, $frontPageType]);
+        $updateStmt->execute(['front_page_id', (string) $frontPageId, (string) $frontPageId]);
 
         // Mail settings
         $updateStmt->execute(['mail_from_name', $mailFromName, $mailFromName]);
@@ -156,6 +166,63 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <option value="ja_JP" <?php echo ($settings['language'] ?? '') === 'ja_JP' ? 'selected' : ''; ?>>日本語</option>
                 </select>
                 <div class="help-text">The default language for your site.</div>
+            </div>
+
+            <hr class="section-divider">
+
+            <h2 style="margin-top: var(--spacing-md);">Homepage</h2>
+
+            <?php
+            $frontPageType = $settings['front_page_type'] ?? 'index';
+            $frontPageId = isset($settings['front_page_id']) ? (int) $settings['front_page_id'] : 0;
+            // Load all published posts from public post types so Simuze pages can be used as homepage.
+            $pages = [];
+            try {
+                $stmt = $db->query("
+                    SELECT p.id, p.title, p.slug, pt.slug AS type_slug
+                    FROM posts p
+                    INNER JOIN post_types pt ON p.post_type_id = pt.id
+                    WHERE p.deleted_at IS NULL
+                      AND p.status = 'published'
+                      AND pt.public = 1
+                    ORDER BY pt.slug, p.title
+                ");
+                $pages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {
+                $pages = [];
+            }
+            ?>
+
+            <div class="form-group">
+                <label>Homepage displays</label>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="front_page_type" value="index" <?php echo $frontPageType !== 'page' ? 'checked' : ''; ?>>
+                        Default Modular home
+                    </label>
+                    <label>
+                        <input type="radio" name="front_page_type" value="page" <?php echo $frontPageType === 'page' ? 'checked' : ''; ?>>
+                        A static page
+                    </label>
+                </div>
+                <div class="help-text">Choose what visitors see on <code><?php echo htmlspecialchars(SITE_URL ?? ''); ?></code>.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="front_page_id">Homepage</label>
+                <select name="front_page_id" id="front_page_id" class="form-control">
+                    <option value="0">— Select a page —</option>
+                    <?php foreach ($pages as $p): ?>
+                        <option value="<?php echo (int) $p['id']; ?>" <?php echo $frontPageId === (int) $p['id'] ? 'selected' : ''; ?>>
+                            <?php
+                            $label = $p['title'] ?? '';
+                            $typeLabel = $p['type_slug'] ?? '';
+                            echo htmlspecialchars($label . ($typeLabel ? ' (' . $typeLabel . ')' : ''));
+                            ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="help-text">Used when "A static page" is selected above.</div>
             </div>
 
             <hr class="section-divider">

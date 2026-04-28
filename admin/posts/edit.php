@@ -46,6 +46,33 @@ $db = $GLOBALS['db'];
 $postId = $_GET['id'] ?? null;
 $postTypeId = $_GET['post_type_id'] ?? null;
 
+// 'show' post type is managed via simuze_events — redirect to dedicated admin
+$_checkTypeId = $postTypeId;
+if (!$_checkTypeId && $postId) {
+    try {
+        $stmtPT = $db->prepare("SELECT pt.slug FROM posts p INNER JOIN post_types pt ON pt.id = p.post_type_id WHERE p.id = ? LIMIT 1");
+        $stmtPT->execute([$postId]);
+        $ptSlugCheck = $stmtPT->fetchColumn();
+        if ($ptSlugCheck === 'show') {
+            $showsAdminUrl = (defined('ADMIN_URL') ? ADMIN_URL : '') . '/module-page.php?module=simuze-community&page=shows';
+            header('Location: ' . $showsAdminUrl);
+            exit;
+        }
+    } catch (\Throwable $e) { /* ignore */ }
+}
+if ($_checkTypeId) {
+    try {
+        $stmtSlug2 = $db->prepare("SELECT slug FROM post_types WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $stmtSlug2->execute([$_checkTypeId]);
+        $ptSlugRow2 = $stmtSlug2->fetch(\PDO::FETCH_ASSOC);
+        if ($ptSlugRow2 && ($ptSlugRow2['slug'] ?? '') === 'show') {
+            $showsAdminUrl = (defined('ADMIN_URL') ? ADMIN_URL : '') . '/module-page.php?module=simuze-community&page=shows&action=new';
+            header('Location: ' . $showsAdminUrl);
+            exit;
+        }
+    } catch (\Throwable $e) { /* ignore */ }
+}
+
 // Post type slug/name for URL preview and heading (loaded when we have postTypeId)
 $postTypeSlug = '';
 $postTypeName = '';

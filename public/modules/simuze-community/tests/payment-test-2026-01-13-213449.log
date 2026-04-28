@@ -1,0 +1,12 @@
+[2026-01-13 21:34:49] === PAYMENT FLOW TEST - €0.01 TRANSACTION ===
+[2026-01-13 21:34:49] Test started at: 2026-01-13 21:34:49
+[2026-01-13 21:34:49] 
+--- STEP 1: User Setup ---
+[2026-01-13 21:34:49] User authenticated: ID=2, Email=marten@atypisch.nl
+[2026-01-13 21:34:49] 
+--- STEP 2: Product Setup ---
+[2026-01-13 21:34:49] Test product created: ID=851
+[2026-01-13 21:34:49] NOTE: Price (€0.01) needs to be set via product settings or custom pricing table
+[2026-01-13 21:34:49] 
+--- STEP 3: Order Creation ---
+[2026-01-13 21:34:49] ERROR: Failed to create order: No valid items in cart

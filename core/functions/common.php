@@ -314,6 +314,60 @@ if (!function_exists('wp_oembed_get')) {
 }
 
 // ---------------------------------------------------------------------------
+// Platform group helpers
+// ---------------------------------------------------------------------------
+
+if (!function_exists('simuze_default_group_id')) {
+    /**
+     * Return the ID of the platform group 'simuze', creating it if it doesn't exist.
+     * Result is cached in a static for the lifetime of the request.
+     */
+    function simuze_default_group_id(): ?int {
+        static $cached = null;
+        if ($cached !== null) return $cached ?: null;
+
+        if (!function_exists('md_db_var') || !function_exists('md_db_insert')) {
+            return null;
+        }
+
+        $id = md_db_var("SELECT id FROM simuze_groups WHERE slug = 'simuze' AND deleted_at IS NULL LIMIT 1");
+        if ($id) {
+            $cached = (int) $id;
+            return $cached;
+        }
+
+        $type_id = md_db_var("SELECT id FROM simuze_group_types WHERE slug = 'artist' AND deleted_at IS NULL LIMIT 1");
+        if (!$type_id) {
+            return null;
+        }
+
+        $admin_id = defined('SIMUZE_SUPER_ADMIN_ID') ? (int) SIMUZE_SUPER_ADMIN_ID : 2;
+        $now = date('Y-m-d H:i:s');
+
+        $new_id = md_db_insert('simuze_groups', [
+            'name'          => 'Simuze',
+            'slug'          => 'simuze',
+            'unique_name'   => 'simuze',
+            'unique_handle' => 'simuze',
+            'description'   => 'The Simuze community board',
+            'group_type_id' => (int) $type_id,
+            'creator_id'    => $admin_id,
+            'owner_id'      => $admin_id,
+            'status'        => 'public',
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
+
+        if ($new_id) {
+            $cached = (int) $new_id;
+            return $cached;
+        }
+
+        return null;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Route / query context
 // ---------------------------------------------------------------------------
 

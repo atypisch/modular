@@ -5,6 +5,20 @@
 if (!isset($current_user)) {
     $current_user = get_current_user();
 }
+
+$toolbar_user_label = 'User';
+if ($current_user) {
+    if (is_object($current_user)) {
+        $toolbar_user_label = $current_user->display_name ?? $current_user->username ?? 'User';
+    } elseif (is_array($current_user)) {
+        $toolbar_user_label = $current_user['name'] ?? $current_user['username'] ?? 'User';
+    }
+    if (filter_var($toolbar_user_label, FILTER_VALIDATE_EMAIL)) {
+        $toolbar_user_label = is_object($current_user)
+            ? ($current_user->username ?? 'User')
+            : ($current_user['username'] ?? 'User');
+    }
+}
 ?>
 <div class="toolbar">
     <div class="toolbar-content">
@@ -32,7 +46,7 @@ if (!isset($current_user)) {
             <?php if ($current_user): ?>
                 <a href="<?php echo ADMIN_URL; ?>/profile" class="toolbar-link">
                     <i class="fas fa-user"></i>
-                    <span><?php echo htmlspecialchars($current_user['name'] ?? $current_user['username'] ?? $current_user['email'] ?? 'User'); ?></span>
+                    <span><?php echo htmlspecialchars($toolbar_user_label); ?></span>
                 </a>
                 <a href="<?php echo ADMIN_URL; ?>/auth/logout.php" class="toolbar-link">
                     <i class="fas fa-sign-out-alt"></i>

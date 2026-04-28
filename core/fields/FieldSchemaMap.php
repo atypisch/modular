@@ -194,9 +194,18 @@ final class FieldSchemaMap
                 'output' => ['php' => null, 'json' => null],
             ],
             'accordion' => [
-                'ui' => ['component' => 'Accordion', 'props' => []],
-                'storage' => ['format' => null, 'column' => null],
-                'output' => ['php' => null, 'json' => null],
+                // FAQ accordion is stored in post.data as an array of items.
+                'ui' => [
+                    'component' => 'Textarea',
+                    'props' => [
+                        'rows' => 12,
+                        'placeholder' => '[{"label":"Question?","content":"Answer text","open":false}]',
+                    ],
+                ],
+                // Admin editor uses a JSON textarea (single string), so we keep schema storage.format as string.
+                // AccordionField::sanitize() parses JSON into the final items array for storage/rendering.
+                'storage' => ['format' => 'string', 'column' => ''],
+                'output' => ['php' => '', 'json' => ''],
             ],
             'tab' => [
                 'ui' => ['component' => 'Tabs', 'props' => []],

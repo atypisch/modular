@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(brew list:*)",
+      "Bash(brew install:*)",
+      "Bash(/dev/null:*)",
+      "Bash(wait)",
+      "Bash(python3 -m json.tool)",
+      "Bash(/Applications/MAMP/bin/php/php8.3.9/bin/php -r \"echo function_exists\\(''curl_init''\\) ? ''cURL available'' : ''cURL NOT available'';\")",
+      "Bash(/Applications/MAMP/bin/php/php8.3.14/bin/php -r \"echo function_exists\\(''curl_init''\\) ? ''cURL available'' : ''cURL NOT available'';\")",
+      "Bash(/Applications/MAMP/bin/php/php8.3.14/bin/php -r \":*)",
+      "Bash(/Applications/MAMP/bin/php/php8.3.1/bin/php -l /Users/martentiman/Sites/simuze-mdlr/public/themes/simuze/template_network.php)",
+      "Read(//Users/martentiman/Sites/simuze-mdlr/**)",
+      "Bash(sed \"s/''''\\).*$//\")",
+      "Bash(find /Users/martentiman/Sites/simuze-mdlr/public/themes/simuze -type f \\\\\\(-name *.php -o -name *.js \\\\\\))",
+      "Bash(MYSQL=\"/Applications/MAMP/Library/bin/mysql80/bin/mysql\")",
+      "Bash(MYSQL=/Applications/MAMP/Library/bin/mysql80/bin/mysql echo \"USE \\\\`mdlr-simuze\\\\`; SELECT pt.playlist_id, pt.upload_id, u.song_name, u.file_url, u.status FROM md_music_playlist_tracks pt LEFT JOIN md_music_uploads u ON u.id = pt.upload_id LIMIT 10;\")",
+      "Bash(JWT=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjIsImlkIjoyLCJlbWFpbCI6Im1hcnRlbkBhdHlwaXNjaC5ubCIsInVzZXJuYW1lIjoibWFydGVuIiwiaWF0IjoxNzc0Mzg2NzYzLCJleHAiOjE3NzQ0NzMxNjN9.wO2eE-N90r7LSaapm7dNyg8ebd6ncyBI6FJ3Y2ewQBc\")",
+      "Bash(NONCE=\"183d5f80419ea1fe35c0c5498b19eddc32f02a41e9bf30e876fe033b4838373b\")",
+      "Bash(__NEW_LINE_356065ace9351f2f__ echo:*)",
+      "Bash(MYSQL=/Applications/MAMP/Library/bin/mysql80/bin/mysql __NEW_LINE_2ccb23090bcc18e5__ echo '=== 13. Unauthenticated /dashboard/shows/10 ===' curl -s -o /dev/null -w 'HTTP %{http_code}' http://localhost/simuze-mdlr/dashboard/shows/10 echo __NEW_LINE_2ccb23090bcc18e5__ echo '=== 14. Attendance count on show page ===' curl -s http://localhost/simuze-mdlr/show/boyle-music-festival-2026-2026)",
+      "Read(//^CREATE TABLE.*simuze_users/,/**)",
+      "Bash(2)",
+      "Read(//Users/martentiman/**)",
+      "Read(//Users/martentiman/.claude/**)",
+      "Bash(cd /Users/martentiman/Sites/simuze-mdlr __NEW_LINE_e50927ac96379653__ grep -nE '\\\\bselected\\\\\\(|\\\\bchecked\\\\\\(' public/themes/simuze/template-parts/track-edit-form.php)",
+      "Bash(perl -i -pe 's/\\\\bsanitize_text_field\\\\\\(/md_sanitize_text\\(/g' /Users/martentiman/Sites/simuze-mdlr/public/modules/simuze-community/includes/ajax-music-upload.php echo \"Done ajax-music-upload.php\" __NEW_LINE_35f4c2ca4ff7664b__ grep -nE '\\\\besc_attr\\\\\\(|\\\\besc_html\\\\\\(|\\\\besc_url\\\\\\(|\\\\b_e\\\\\\(|\\\\b__\\\\\\(|\\\\besc_js\\\\\\(' /Users/martentiman/Sites/simuze-mdlr/public/modules/simuze-community/templates/group-music.php)",
+      "Bash(head -20 grep -n '^label\\\\|^a {' /Users/martentiman/Sites/simuze-mdlr/public/themes/simuze/css/components.css)"
+    ],
+    "additionalDirectories": [
+      "/tmp",
+      "/Users/martentiman/Sites/modular/core/functions",
+      "/Users/martentiman/Sites/modular/admin"
+    ]
+  }
+}

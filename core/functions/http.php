@@ -151,6 +151,7 @@ function _md_http_request(string $method, string $url, array $args = []) {
             }
         }
 
+        // Capture response headers to extract status code
         $responseHeaders = [];
         curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($ch, $header) use (&$responseHeaders) {
             $responseHeaders[] = rtrim($header);

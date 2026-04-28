@@ -27,6 +27,7 @@ if (!defined('ADMIN_PATH')) define('ADMIN_PATH', MODULAR_PATH . '/admin');
 if (!defined('CORE_PATH')) define('CORE_PATH', MODULAR_PATH . '/core');
 if (!defined('PUBLIC_PATH')) define('PUBLIC_PATH', MODULAR_PATH . '/public');
 if (!defined('THEMES_PATH')) define('THEMES_PATH', MODULAR_PATH . '/public/themes');
+if (!defined('MODULES_PATH')) define('MODULES_PATH', MODULAR_PATH . '/public/modules');
 if (!defined('DEFAULT_THEME')) define('DEFAULT_THEME', 'default');
 
 // Setup helpers (isInstalled, directory checks)
@@ -80,7 +81,23 @@ if (isset($GLOBALS['db']) && $isAdminRequest && !$isSetupRequest) {
 if (!defined('BASE_PATH')) {
     $script = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '';
     $pos = strpos($script, '/admin');
-    define('BASE_PATH', $pos !== false ? rtrim(substr($script, 0, $pos), '/') : '/modular');
+    if ($pos !== false) {
+        $base = rtrim(substr($script, 0, $pos), '/');
+    } else {
+        $base = dirname($script);
+        if ($base === '/' || $base === '\\' || $base === '.') {
+            $base = '';
+        }
+        $base = rtrim($base, '/');
+        // If we're in /public (e.g. script is /simuze-mdlr/public/index.php), use parent as app base
+        if (substr($base, -7) === '/public') {
+            $base = substr($base, 0, -7) ?: '/modular';
+        }
+        if ($base === '') {
+            $base = '/modular';
+        }
+    }
+    define('BASE_PATH', $base);
 }
 $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
@@ -110,7 +127,7 @@ $additional_styles = '
 // Helper for admin URLs (use this instead of hardcoding /modular/admin so copy-installs work)
 if (!function_exists('admin_url')) {
     function admin_url($path = '') {
-        $base = defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin';
+        $base = defined('ADMIN_URL') ? ADMIN_URL : (defined('BASE_PATH') ? rtrim(BASE_PATH, '/') . '/admin' : '/admin');
         $path = ltrim((string) $path, '/');
         return $base . ($path !== '' ? '/' . $path : '');
     }
