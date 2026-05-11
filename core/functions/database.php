@@ -233,13 +233,15 @@ if (!function_exists('md_db_var')) {
 if (!function_exists('md_db_insert')) {
     /**
      * Insert a row. Returns the new insert ID, or false on failure.
+     * On failure, call md_db_last_error() for the PDO message (MySQL duplicate key, constraint, JSON, etc.).
      * @param string $table  Table name (not escaped — caller must use trusted strings)
      * @param array  $data   Associative [ column => value ]
      * @return int|false
      */
     function md_db_insert(string $table, array $data) {
         if (empty($data)) return false;
-        $cols   = implode(', ', array_keys($data));
+        $GLOBALS['md_db_last_sql_error'] = null;
+        $cols   = implode(', ', array_map(fn($c) => "`{$c}`", array_keys($data)));
         $placeholders = implode(', ', array_fill(0, count($data), '?'));
         $sql = "INSERT INTO `{$table}` ({$cols}) VALUES ({$placeholders})";
         try {
@@ -247,9 +249,17 @@ if (!function_exists('md_db_insert')) {
             $stmt->execute(array_values($data));
             return (int) md_db()->lastInsertId();
         } catch (\PDOException $e) {
+            $GLOBALS['md_db_last_sql_error'] = $e->getMessage();
             error_log('md_db_insert error: ' . $e->getMessage());
             return false;
         }
+    }
+}
+
+if (!function_exists('md_db_last_error')) {
+    /** Last PDO error message from md_db_insert / md_db_update / md_db_exec, or null. */
+    function md_db_last_error(): ?string {
+        return isset($GLOBALS['md_db_last_sql_error']) ? (string) $GLOBALS['md_db_last_sql_error'] : null;
     }
 }
 
@@ -263,6 +273,7 @@ if (!function_exists('md_db_update')) {
      */
     function md_db_update(string $table, array $data, array $where) {
         if (empty($data) || empty($where)) return false;
+        $GLOBALS['md_db_last_sql_error'] = null;
         $set  = implode(', ', array_map(fn($c) => "`{$c}` = ?", array_keys($data)));
         $cond = implode(' AND ', array_map(fn($c) => "`{$c}` = ?", array_keys($where)));
         $sql  = "UPDATE `{$table}` SET {$set} WHERE {$cond}";
@@ -271,6 +282,7 @@ if (!function_exists('md_db_update')) {
             $stmt->execute([...array_values($data), ...array_values($where)]);
             return $stmt->rowCount();
         } catch (\PDOException $e) {
+            $GLOBALS['md_db_last_sql_error'] = $e->getMessage();
             error_log('md_db_update error: ' . $e->getMessage());
             return false;
         }
