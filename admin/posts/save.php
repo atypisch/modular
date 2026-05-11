@@ -370,8 +370,8 @@ try {
 
     if ($postId) {
         $stmt = $db->prepare("
-            UPDATE posts 
-            SET post_type_id = ?, parent_id = ?, slug = ?, title = ?, excerpt = ?, status = ?, 
+            UPDATE posts
+            SET post_type_id = ?, parent_id = ?, slug = ?, title = ?, excerpt = ?, status = ?,
                 component_data = ?, data = ?, layout = ?, published_at = ?, template = ?, visibility = ?, password = ?,
                 updated_by = ?, updated_at = NOW()
             WHERE id = ?
@@ -381,12 +381,10 @@ try {
             $componentData, $dataJson, $layoutJson, $publishedAt, $template, $visibility, $passwordCol,
             $userId, $postId
         ]);
-        $_SESSION['success'] = 'Post updated successfully.';
-        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . (int)$postId);
-        exit;
+        $savedPostId = (int) $postId;
     } else {
         $stmt = $db->prepare("
-            INSERT INTO posts 
+            INSERT INTO posts
             (post_type_id, parent_id, slug, title, excerpt, status, component_data, data, layout,
              author_id, created_by, updated_by, published_at, template, visibility, password, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
@@ -395,9 +393,20 @@ try {
             $postTypeId, $parentId, $slug, $title, $excerpt, $status, $componentData, $dataJson, $layoutJson,
             $userId, $userId, $userId, $publishedAt, $template, $visibility, $passwordCol
         ]);
-        $newId = (int)$db->lastInsertId();
+        $savedPostId = (int) $db->lastInsertId();
+    }
+
+    if (function_exists('do_action')) {
+        do_action('post_saved', $savedPostId, $slug, $_POST);
+    }
+
+    if ($postId) {
+        $_SESSION['success'] = 'Post updated successfully.';
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . (int)$postId);
+        exit;
+    } else {
         $_SESSION['success'] = 'Post created successfully.';
-        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . $newId);
+        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts/edit.php?id=' . $savedPostId);
         exit;
     }
 

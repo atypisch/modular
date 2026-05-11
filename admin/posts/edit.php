@@ -569,6 +569,8 @@ if ($postTypeId && $isHierarchicalPostType) {
                     <?php endif; ?>
                 </div>
             </div>
+
+            <?php if (function_exists('do_action')) { do_action('post_edit_sidebar', $postId, (int)$postTypeId); } ?>
         </aside>
         </div>
         </form>

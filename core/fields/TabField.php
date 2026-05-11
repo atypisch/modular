@@ -11,7 +11,7 @@ class TabField implements FieldInterface
     {
         return [
             'category' => FieldRegistry::CATEGORY_UTILITY,
-            'label' => 'Tab',
+            'label' => 'Field Group',
             'icon' => 'fa-folder',
         ];
     }
@@ -20,7 +20,7 @@ class TabField implements FieldInterface
     {
         return [
             'type' => 'tab',
-            'label' => $schema['label'] ?? 'Tab',
+            'label' => $schema['label'] ?? 'Field Group',
             'icon' => 'fa-folder',
             'config_schema' => [
                 'label' => ['type' => 'string', 'required' => true],

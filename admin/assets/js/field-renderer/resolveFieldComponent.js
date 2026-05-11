@@ -137,6 +137,9 @@
                 result.props = Object.assign({}, base, {
                     placeholder: o.placeholder || 'Write content...',
                     editorMode: (o.toolbar === 'basic' || o.editor_type === 'basic') ? 'basic' : 'full',
+                    media_upload: o.media_upload !== false,
+                    tabs: o.tabs || 'all',
+                    delay: !!o.delay,
                 });
                 if (o.readonly != null) result.props.readonly = !!o.readonly;
                 if (o.disabled != null) result.props.disabled = !!o.disabled;
