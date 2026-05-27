@@ -341,7 +341,12 @@ require_once ADMIN_PATH . '/templates/header.php';
 .nav-list-settings a { font-weight: 500; }
 .form-inline { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
 .form-inline input[type="text"] { min-width: 160px; }
-/* Grid is a direct child of .container (no .card wrapper) so sticky inside engages against .main-content. */
+/* On this layout the document/window is the real scroll container — .main-content
+   declares overflow:auto but never actually scrolls (its height equals scrollHeight),
+   which traps position:sticky descendants. For this page only, let sticky walk up
+   to the window by removing the formal scroll containers above us. */
+.main-content,
+.main-body { overflow: visible !important; }
 .nav-editor {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -354,8 +359,9 @@ require_once ADMIN_PATH . '/templates/header.php';
     min-width: 0;
     align-self: start;
     position: sticky;
-    top: 0.75rem;
-    max-height: calc(100vh - var(--toolbar-height) - 2.5rem);
+    /* top must clear the fixed .toolbar (var(--toolbar-height)) plus a small gap */
+    top: calc(var(--toolbar-height) + 0.75rem);
+    max-height: calc(100vh - var(--toolbar-height) - 1.5rem);
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
