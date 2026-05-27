@@ -110,6 +110,24 @@ if ($edit_slug !== null && $edit_slug !== '') {
     }
 }
 
+// Max nesting depth in the menu (0 = top level, MAX_MENU_DEPTH = deepest level).
+// Three layers total = 0,1,2.
+$MAX_MENU_DEPTH = 2;
+
+// Flatten the nested menu tree into an ordered list of [item, depth] entries so the
+// dropzone can render as a flat <ul> with data-depth markers (the JS reorder logic
+// stays simple; nesting is reconstructed on serialize/save).
+$menu_items_flat = [];
+$walkMenu = function (array $items, int $depth) use (&$walkMenu, &$menu_items_flat, $MAX_MENU_DEPTH) {
+    foreach ($items as $it) {
+        $menu_items_flat[] = ['item' => $it, 'depth' => $depth];
+        if ($depth < $MAX_MENU_DEPTH && !empty($it['children']) && is_array($it['children'])) {
+            $walkMenu($it['children'], $depth + 1);
+        }
+    }
+};
+$walkMenu(is_array($menu_items) ? $menu_items : [], 0);
+
 // Save menu items (edit view)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $edit_slug !== null && isset($_POST['action']) && $_POST['action'] === 'save_menu') {
     if (!function_exists('csrf_verify') || !csrf_verify()) {
@@ -118,20 +136,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $edit_slug !== null && isset($_POST
         $raw = $_POST['menu_items'] ?? '[]';
         $items = json_decode($raw, true);
         if (!is_array($items)) $items = [];
-        $normalized = [];
-        foreach ($items as $it) {
-            $label = isset($it['label']) ? trim($it['label']) : '';
-            $url = isset($it['url']) ? trim($it['url']) : '#';
-            $children = isset($it['children']) && is_array($it['children']) ? $it['children'] : [];
-            $entry = ['label' => $label, 'url' => $url, 'children' => $children];
+
+        // Recursively normalize so nested children (sub-pages, sub-sub-pages)
+        // also carry their type/post_id/url. Hard-cap nesting at depth 2 (3 levels).
+        $MAX_DEPTH_SAVE = 2;
+        $normalize_item = function ($it, $depth) use (&$normalize_item, $MAX_DEPTH_SAVE) {
+            $entry = [
+                'label' => isset($it['label']) ? trim((string) $it['label']) : '',
+                'url' => isset($it['url']) ? trim((string) $it['url']) : '#',
+                'children' => [],
+            ];
             if (!empty($it['type']) && $it['type'] === 'post' && !empty($it['post_id'])) {
                 $entry['type'] = 'post';
                 $entry['post_id'] = (int) $it['post_id'];
-                $entry['post_type'] = isset($it['post_type']) ? trim($it['post_type']) : '';
+                $entry['post_type'] = isset($it['post_type']) ? trim((string) $it['post_type']) : '';
             } else {
                 $entry['type'] = 'custom';
             }
-            $normalized[] = $entry;
+            if ($depth < $MAX_DEPTH_SAVE && !empty($it['children']) && is_array($it['children'])) {
+                foreach ($it['children'] as $child) {
+                    $entry['children'][] = $normalize_item($child, $depth + 1);
+                }
+            }
+            return $entry;
+        };
+
+        $normalized = [];
+        foreach ($items as $it) {
+            $normalized[] = $normalize_item($it, 0);
         }
         $stmt = $db->prepare("INSERT INTO settings (option_name, option_value, autoload, created_at, updated_at) VALUES (?, ?, 0, NOW(), NOW()) ON DUPLICATE KEY UPDATE option_value = ?, updated_at = NOW()");
         $stmt->execute(['site_menu_' . $edit_slug, json_encode($normalized), json_encode($normalized)]);
@@ -303,23 +335,27 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <?php echo function_exists('csrf_field') ? csrf_field() : ''; ?>
                     <input type="hidden" name="action" value="save_menu">
                     <input type="hidden" name="menu_items" id="menu_items_input" value="<?php echo htmlspecialchars(json_encode($menu_items)); ?>">
-                    <div class="nav-dropzone" id="nav-dropzone">
+                    <div class="nav-dropzone" id="nav-dropzone" data-max-depth="<?php echo $MAX_MENU_DEPTH; ?>">
                         <ul class="nav-menu-list" id="nav-menu-list">
-                            <?php foreach ($menu_items as $item): ?>
+                            <?php foreach ($menu_items_flat as $entry): ?>
                                 <?php
+                                $item = $entry['item'];
+                                $depth = (int) $entry['depth'];
                                 $isPost = isset($item['type']) && $item['type'] === 'post' && !empty($item['post_id']);
                                 $dataType = $isPost ? 'post' : 'custom';
                                 $dataPostId = $isPost ? (int)$item['post_id'] : '';
                                 $dataPostType = $isPost ? ($item['post_type'] ?? '') : '';
+                                $prefix = $depth > 0 ? str_repeat('-', $depth) . ' ' : '';
                                 ?>
-                                <li class="nav-menu-item" data-type="<?php echo htmlspecialchars($dataType); ?>" data-post-id="<?php echo $dataPostId; ?>" data-post-type="<?php echo htmlspecialchars($dataPostType); ?>" data-label="<?php echo htmlspecialchars($item['label'] ?? ''); ?>" data-url="<?php echo htmlspecialchars($item['url'] ?? '#'); ?>">
+                                <li class="nav-menu-item" draggable="true" data-depth="<?php echo $depth; ?>" data-type="<?php echo htmlspecialchars($dataType); ?>" data-post-id="<?php echo $dataPostId; ?>" data-post-type="<?php echo htmlspecialchars($dataPostType); ?>" data-label="<?php echo htmlspecialchars($item['label'] ?? ''); ?>" data-url="<?php echo htmlspecialchars($item['url'] ?? '#'); ?>">
+                                    <span class="nav-item-prefix" aria-hidden="true"><?php echo htmlspecialchars($prefix); ?></span>
                                     <span class="nav-item-label"><?php echo htmlspecialchars($item['label'] ?? ''); ?></span>
                                     <span class="nav-item-url text-muted"><?php echo htmlspecialchars($item['url'] ?? '#'); ?></span>
                                     <button type="button" class="nav-remove" aria-label="Remove">×</button>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
-                        <p class="nav-dropzone-placeholder" id="nav-dropzone-placeholder"<?php echo !empty($menu_items) ? ' style="display:none"' : ''; ?>>Drag items here or add a custom link below</p>
+                        <p class="nav-dropzone-placeholder" id="nav-dropzone-placeholder"<?php echo !empty($menu_items_flat) ? ' style="display:none"' : ''; ?>>Drag items here or add a custom link below. Drag right to nest (max 3 levels).</p>
                     </div>
                     <div class="nav-custom">
                         <input type="text" id="custom_label" placeholder="Label">
@@ -424,10 +460,16 @@ require_once ADMIN_PATH . '/templates/header.php';
 .nav-dropzone.drag-over { background: #f1f5f9; border-color: #2563eb; }
 .nav-dropzone-placeholder { margin: 1.5rem 0; text-align: center; color: #64748b; font-size: 0.9rem; }
 .nav-menu-list { list-style: none; padding: 0; margin: 0; min-height: 44px; }
-.nav-menu-item { background: #fff; border: 1px solid #e2e8f0; cursor: grab; }
+.nav-menu-item { background: #fff; border: 1px solid #e2e8f0; cursor: grab; transition: padding-left 0.1s ease, background 0.15s; }
 .nav-menu-item:active { cursor: grabbing; }
+.nav-menu-item.dragging { opacity: 0.5; background: #eef2ff; border-color: #c7d2fe; }
 .nav-menu-item .nav-item-label { flex: 1; }
 .nav-menu-item .nav-item-url { font-size: 0.85em; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+/* Nesting indent + prefix (mirrors the - / -- treatment in the Available items column). */
+.nav-menu-item[data-depth="1"] { margin-left: 1.5rem; }
+.nav-menu-item[data-depth="2"] { margin-left: 3rem; }
+.nav-item-prefix { color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; }
+.nav-menu-item[data-depth="0"] .nav-item-prefix { display: none; }
 .nav-remove { background: none; border: none; cursor: pointer; font-size: 1.2rem; line-height: 1; color: #64748b; padding: 0 4px; }
 .nav-remove:hover { color: #dc2626; }
 .nav-custom { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
@@ -443,9 +485,42 @@ require_once ADMIN_PATH . '/templates/header.php';
     var placeholder = document.getElementById('nav-dropzone-placeholder');
     if (!list || !input) return;
 
-    function serialize() {
-        var items = [];
+    var MAX_DEPTH = dropzone && dropzone.getAttribute('data-max-depth') ? parseInt(dropzone.getAttribute('data-max-depth'), 10) : 2;
+    var INDENT_PX = 30; // cursor moves this many px right per nesting level (WP-style)
+
+    function getDepth(li) {
+        return parseInt(li.getAttribute('data-depth') || '0', 10);
+    }
+    function setDepth(li, depth) {
+        depth = Math.max(0, Math.min(MAX_DEPTH, depth | 0));
+        li.setAttribute('data-depth', String(depth));
+        var prefix = li.querySelector('.nav-item-prefix');
+        if (prefix) {
+            var s = '';
+            for (var i = 0; i < depth; i++) s += '-';
+            prefix.textContent = depth > 0 ? s + ' ' : '';
+        }
+    }
+    // Walk the flat list top-to-bottom and clamp each item's depth so depth never
+    // jumps by more than 1 over its previous sibling (a depth-2 item can't follow a
+    // depth-0 item with nothing in between).
+    function fixUpDepths() {
+        var maxAllowed = 0; // first item can only be at depth 0
         list.querySelectorAll('.nav-menu-item').forEach(function(li) {
+            var current = getDepth(li);
+            var clamped = Math.min(current, maxAllowed);
+            if (clamped !== current) setDepth(li, clamped);
+            maxAllowed = Math.min(MAX_DEPTH, clamped + 1);
+        });
+    }
+
+    // Flat list with data-depth -> nested children tree (matches the PHP shape).
+    function serialize() {
+        fixUpDepths();
+        var roots = [];
+        var stack = [{ children: roots }]; // index by depth+1; depth 0 pushes to stack[0].children
+        list.querySelectorAll('.nav-menu-item').forEach(function(li) {
+            var depth = getDepth(li);
             var type = li.getAttribute('data-type') || 'custom';
             var o = {
                 label: li.getAttribute('data-label') || '',
@@ -459,9 +534,12 @@ require_once ADMIN_PATH . '/templates/header.php';
             } else {
                 o.type = 'custom';
             }
-            items.push(o);
+            // Truncate stack so depth + 1 entries remain (drop deeper levels).
+            stack.length = depth + 1;
+            stack[depth].children.push(o);
+            stack.push(o); // its children become the next level
         });
-        input.value = JSON.stringify(items);
+        input.value = JSON.stringify(roots);
         if (placeholder) placeholder.style.display = list.querySelectorAll('.nav-menu-item').length ? 'none' : 'block';
     }
 
@@ -471,6 +549,7 @@ require_once ADMIN_PATH . '/templates/header.php';
         var type = opts.type || 'custom';
         var postId = opts.post_id ? String(opts.post_id) : '';
         var postType = opts.post_type || '';
+        var depth = typeof opts.depth === 'number' ? opts.depth : 0;
         var li = document.createElement('li');
         li.className = 'nav-menu-item';
         li.setAttribute('data-type', type);
@@ -479,44 +558,72 @@ require_once ADMIN_PATH . '/templates/header.php';
         li.setAttribute('data-label', label);
         li.setAttribute('data-url', url);
         li.draggable = true;
-        li.innerHTML = '<span class="nav-item-label">' + escapeHtml(label) + '</span><span class="nav-item-url text-muted">' + escapeHtml(url) + '</span><button type="button" class="nav-remove" aria-label="Remove">×</button>';
+        li.innerHTML = '<span class="nav-item-prefix" aria-hidden="true"></span><span class="nav-item-label">' + escapeHtml(label) + '</span><span class="nav-item-url text-muted">' + escapeHtml(url) + '</span><button type="button" class="nav-remove" aria-label="Remove">×</button>';
         list.appendChild(li);
+        setDepth(li, depth);
         bindItem(li);
         serialize();
     }
 
     list.addEventListener('dragstart', function(e) {
-        if (e.target.classList.contains('nav-menu-item')) {
+        if (e.target.classList && e.target.classList.contains('nav-menu-item')) {
             e.target.classList.add('dragging');
+            // Remember where the drag started horizontally so we can compute
+            // a depth delta relative to that point (WordPress-style).
+            e.target.setAttribute('data-drag-start-x', String(e.clientX));
+            e.target.setAttribute('data-drag-start-depth', String(getDepth(e.target)));
             e.dataTransfer.setData('text/plain', 'reorder');
             e.dataTransfer.effectAllowed = 'move';
         }
     });
     list.addEventListener('dragend', function(e) {
-        if (e.target.classList) e.target.classList.remove('dragging');
+        if (e.target.classList) {
+            e.target.classList.remove('dragging');
+            e.target.removeAttribute('data-drag-start-x');
+            e.target.removeAttribute('data-drag-start-depth');
+        }
+        fixUpDepths();
+        serialize();
     });
     list.addEventListener('dragover', function(e) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         if (dropzone) dropzone.classList.add('drag-over');
-        var after = getDragAfter(list, e.clientY);
         var dragging = list.querySelector('.dragging');
-        if (dragging && after !== dragging) {
+        if (!dragging) return;
+
+        var after = getDragAfter(list, e.clientY);
+        if (after !== dragging) {
             if (after == null) list.appendChild(dragging);
             else list.insertBefore(dragging, after);
         }
+
+        // Depth from horizontal drag delta. The previous sibling's depth + 1 is the
+        // hard ceiling so we never skip nesting levels.
+        var startX = parseFloat(dragging.getAttribute('data-drag-start-x') || '0');
+        var startDepth = parseInt(dragging.getAttribute('data-drag-start-depth') || '0', 10);
+        var deltaLevels = Math.round((e.clientX - startX) / INDENT_PX);
+        var prev = dragging.previousElementSibling;
+        var ceiling = prev && prev.classList.contains('nav-menu-item') ? getDepth(prev) + 1 : 0;
+        var target = Math.max(0, Math.min(MAX_DEPTH, ceiling, startDepth + deltaLevels));
+        if (getDepth(dragging) !== target) setDepth(dragging, target);
     });
     list.addEventListener('drop', function(e) {
         e.preventDefault();
         if (dropzone) dropzone.classList.remove('drag-over');
+        // Reorder of existing items is already handled by dragover; only treat as
+        // "add new" if the dataTransfer payload comes from the available list.
         var label = e.dataTransfer.getData('label');
         var url = e.dataTransfer.getData('url');
+        if (!label && !url) {
+            fixUpDepths();
+            serialize();
+            return;
+        }
         var type = e.dataTransfer.getData('type') || 'custom';
         var postId = e.dataTransfer.getData('post_id') || '';
         var postType = e.dataTransfer.getData('post_type') || '';
-        if (label !== undefined && url !== undefined) {
-            addItem({ label: label, url: url, type: type, post_id: postId ? parseInt(postId, 10) : null, post_type: postType });
-        }
+        addItem({ label: label, url: url, type: type, post_id: postId ? parseInt(postId, 10) : null, post_type: postType });
     });
 
     if (dropzone) {
