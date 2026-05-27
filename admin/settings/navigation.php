@@ -247,7 +247,7 @@ require_once ADMIN_PATH . '/templates/header.php';
             }
         }
         ?>
-        <div class="card">
+        <div class="card nav-editor-card">
             <p><a href="<?php echo ADMIN_URL; ?>/settings/navigation.php">&larr; Back to navigations</a></p>
             <h2><?php echo htmlspecialchars($current_name); ?></h2>
             <p class="text-muted">Drag items from the left into the menu on the right. Reorder by dragging. Add custom links below.</p>
@@ -341,6 +341,8 @@ require_once ADMIN_PATH . '/templates/header.php';
 .nav-list-settings a { font-weight: 500; }
 .form-inline { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
 .form-inline input[type="text"] { min-width: 160px; }
+/* Card needs overflow:visible so sticky inside it can pin to the scrolling .main-content. */
+.nav-editor-card { overflow: visible; }
 .nav-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem; align-items: start; }
 @media (max-width: 768px) {
     .nav-editor { grid-template-columns: 1fr; }
