@@ -112,12 +112,12 @@ if ($postId) {
             $postTypeSlug = $post['post_type_slug'] ?? '';
         } else {
             $_SESSION['error'] = 'Post not found.';
-            header('Location: ' . admin_url('posts'));
+            header('Location: ' . admin_posts_index_url(admin_posts_resolve_post_type_id(null, $_GET['post_type_id'] ?? null)));
             exit;
         }
     } catch (Exception $e) {
         $_SESSION['error'] = 'Error loading post: ' . $e->getMessage();
-        header('Location: ' . admin_url('posts'));
+        header('Location: ' . admin_posts_index_url(admin_posts_resolve_post_type_id(null, $_GET['post_type_id'] ?? null)));
         exit;
     }
 }
@@ -125,8 +125,12 @@ if ($postId) {
 // When adding new, post type must be in URL
 if (!$postId && !$postTypeId) {
     $_SESSION['error'] = 'Post type is required.';
-    header('Location: ' . admin_url('posts'));
+    header('Location: ' . admin_posts_index_url());
     exit;
+}
+
+if ($postTypeId) {
+    admin_posts_filter_remember((int) $postTypeId);
 }
 
 // Load current post type schema (for selected post type) to decide schema form vs legacy JSON
@@ -890,7 +894,7 @@ if ($postTypeId && $isHierarchicalPostType) {
                         <i class="fas fa-save"></i> Save post
                     </button>
                     <?php if (!empty($postId)): ?>
-                    <a href="<?php echo admin_url('posts/delete.php?id=' . (int) $postId); ?>" class="btn btn-secondary post-edit-remove-btn" data-confirm="Weet u zeker dat u dit bericht wilt verwijderen?">
+                    <a href="<?php echo admin_url('posts/delete.php?id=' . (int) $postId . ($postTypeId ? '&post_type_id=' . (int) $postTypeId : '')); ?>" class="btn btn-secondary post-edit-remove-btn" data-confirm="Move this post to trash?">
                         <i class="fas fa-trash-alt"></i> Remove post
                     </a>
                     <?php endif; ?>

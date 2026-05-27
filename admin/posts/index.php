@@ -22,7 +22,26 @@ $page_title = 'Posts';
 $posts_active = true;
 
 $db = $GLOBALS['db'];
-$postTypeId = $_GET['post_type_id'] ?? null;
+
+$postTypeId = null;
+if (isset($_GET['post_type_id'])) {
+    $rawPt = $_GET['post_type_id'];
+    if ($rawPt === '' || $rawPt === 'all' || $rawPt === '0') {
+        admin_posts_filter_remember(null);
+    } else {
+        $postTypeId = (int) $rawPt;
+        if ($postTypeId > 0) {
+            admin_posts_filter_remember($postTypeId);
+        } else {
+            $postTypeId = null;
+            admin_posts_filter_remember(null);
+        }
+    }
+}
+
+$listStatus = admin_posts_list_status_from_request(isset($_GET['status']) ? (string) $_GET['status'] : null);
+$isTrashView = $listStatus === 'trash';
+$isFilteredView = $listStatus !== '';
 
 // 'show' post type is managed via simuze_events — redirect to dedicated admin
 if ($postTypeId) {
@@ -52,10 +71,21 @@ try {
     error_log("Error loading post types: " . $e->getMessage());
 }
 
-// Get posts
+// Get posts (active or trash)
 $posts = [];
 $message = '';
 $isHierarchicalListing = false;
+$trashCount = 0;
+$draftCount = 0;
+$scheduledCount = 0;
+
+try {
+    $trashCount = admin_posts_list_count($db, $postTypeId, 'trash');
+    $draftCount = admin_posts_list_count($db, $postTypeId, 'draft');
+    $scheduledCount = admin_posts_list_count($db, $postTypeId, 'scheduled');
+} catch (Exception $e) {
+    error_log('Error loading post list counts: ' . $e->getMessage());
+}
 
 try {
     $sql = "
@@ -64,19 +94,28 @@ try {
         FROM posts p
         INNER JOIN post_types pt ON p.post_type_id = pt.id
         LEFT JOIN users u ON p.author_id = u.id
-        WHERE p.deleted_at IS NULL
+        WHERE p.deleted_at " . ($isTrashView ? 'IS NOT NULL' : 'IS NULL') . "
     ";
     
     $params = [];
     if ($postTypeId) {
         $sql .= " AND p.post_type_id = ?";
         $params[] = $postTypeId;
-        if (isset($postTypesById[(int)$postTypeId]) && !empty($postTypesById[(int)$postTypeId]['hierarchical'])) {
-            $isHierarchicalListing = true;
-        }
+    }
+    if (!$isTrashView && $listStatus === 'draft') {
+        $sql .= " AND p.status = 'draft'";
+    } elseif (!$isTrashView && $listStatus === 'scheduled') {
+        $sql .= " AND p.status = 'scheduled'";
+    }
+    if ($postTypeId && !$isFilteredView && isset($postTypesById[(int)$postTypeId]) && !empty($postTypesById[(int)$postTypeId]['hierarchical'])) {
+        $isHierarchicalListing = true;
     }
     
-    if ($isHierarchicalListing) {
+    if ($isTrashView) {
+        $sql .= " ORDER BY p.deleted_at DESC";
+    } elseif ($listStatus === 'scheduled') {
+        $sql .= " ORDER BY p.published_at ASC, p.created_at DESC";
+    } elseif ($isHierarchicalListing) {
         $sql .= " ORDER BY p.`order`, p.title";
     } else {
         $sql .= " ORDER BY p.created_at DESC";
@@ -102,7 +141,7 @@ try {
             FROM posts p
             INNER JOIN post_types pt ON p.post_type_id = pt.id
             LEFT JOIN users u ON p.author_id = u.id
-            WHERE p.deleted_at IS NULL
+            WHERE p.deleted_at " . ($isTrashView ? 'IS NOT NULL' : 'IS NULL') . "
         ";
         
         $params = [];
@@ -110,8 +149,13 @@ try {
             $sql .= " AND p.post_type_id = ?";
             $params[] = $postTypeId;
         }
+        if (!$isTrashView && $listStatus === 'draft') {
+            $sql .= " AND p.status = 'draft'";
+        } elseif (!$isTrashView && $listStatus === 'scheduled') {
+            $sql .= " AND p.status = 'scheduled'";
+        }
         
-        $sql .= " ORDER BY p.created_at DESC LIMIT 100";
+        $sql .= $isTrashView ? " ORDER BY p.deleted_at DESC LIMIT 100" : " ORDER BY p.created_at DESC LIMIT 100";
         
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
@@ -149,16 +193,36 @@ if ($isHierarchicalListing && !empty($posts)) {
 }
 
 require_once ADMIN_PATH . '/templates/header.php';
+
+$postsListAllUrl = admin_posts_index_url($postTypeId);
+$postsListDraftUrl = admin_posts_index_url($postTypeId, 'draft');
+$postsListScheduledUrl = admin_posts_index_url($postTypeId, 'scheduled');
+$postsListTrashUrl = admin_posts_index_url($postTypeId, 'trash');
+
+$listPageTitles = [
+    '' => 'Posts',
+    'draft' => 'Drafts',
+    'scheduled' => 'Scheduled',
+    'trash' => 'Trash',
+];
+$pageHeading = $listPageTitles[$listStatus] ?? 'Posts';
 ?>
+
+<style>
+.posts-status-nav { display:flex; gap:0.5rem; margin:0 0 1rem; padding:0; list-style:none; border-bottom:1px solid var(--border-color,#dee2e6); }
+.posts-status-nav a { display:inline-block; padding:0.5rem 0.75rem; text-decoration:none; color:var(--text-muted,#64748b); border-bottom:2px solid transparent; margin-bottom:-1px; }
+.posts-status-nav a.is-active { color:var(--text-primary,#0f172a); border-bottom-color:var(--primary-color,#0ea5e9); font-weight:600; }
+.posts-status-nav .posts-view-count { font-size:0.75rem; opacity:0.85; margin-left:0.15rem; }
+</style>
 
 <div class="container">
     <div class="page-header">
         <div class="flex justify-between items-center">
-            <h1>Posts</h1>
+            <h1><?php echo htmlspecialchars($pageHeading); ?></h1>
             <div class="flex gap-2">
                 <?php if (!empty($postTypes)): ?>
                     <select id="post-type-filter" class="form-control" style="width: auto; min-width: 200px;" onchange="filterByPostType(this.value)">
-                        <option value="">All Post Types</option>
+                        <option value="" <?php echo !$postTypeId ? 'selected' : ''; ?>>All Post Types</option>
                         <?php foreach ($postTypes as $pt): ?>
                             <option value="<?php echo $pt['id']; ?>" <?php echo $postTypeId == $pt['id'] ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($pt['name']); ?>
@@ -166,12 +230,21 @@ require_once ADMIN_PATH . '/templates/header.php';
                         <?php endforeach; ?>
                     </select>
                 <?php endif; ?>
+                <?php if (!$isTrashView): ?>
                 <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/edit.php<?php echo $postTypeId ? '?post_type_id=' . $postTypeId : ''; ?>" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Add New Post
                 </a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
+
+    <ul class="posts-status-nav" aria-label="Post list views">
+        <li><a href="<?php echo htmlspecialchars($postsListAllUrl, ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $listStatus === '' ? 'is-active' : ''; ?>">All</a></li>
+        <li><a href="<?php echo htmlspecialchars($postsListDraftUrl, ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $listStatus === 'draft' ? 'is-active' : ''; ?>">Draft<?php if ($draftCount > 0): ?><span class="posts-view-count">(<?php echo (int) $draftCount; ?>)</span><?php endif; ?></a></li>
+        <li><a href="<?php echo htmlspecialchars($postsListScheduledUrl, ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $listStatus === 'scheduled' ? 'is-active' : ''; ?>">Scheduled<?php if ($scheduledCount > 0): ?><span class="posts-view-count">(<?php echo (int) $scheduledCount; ?>)</span><?php endif; ?></a></li>
+        <li><a href="<?php echo htmlspecialchars($postsListTrashUrl, ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $listStatus === 'trash' ? 'is-active' : ''; ?>">Trash<?php if ($trashCount > 0): ?><span class="posts-view-count">(<?php echo (int) $trashCount; ?>)</span><?php endif; ?></a></li>
+    </ul>
 
     <?php if ($message): ?>
         <div class="alert alert-error">
@@ -191,32 +264,59 @@ require_once ADMIN_PATH . '/templates/header.php';
         </div>
     <?php endif; ?>
 
-    <div class="card" id="posts-admin-page" data-posts-base-url="<?php echo htmlspecialchars(admin_url('posts'), ENT_QUOTES, 'UTF-8'); ?>">
+    <div class="card" id="posts-admin-page" data-posts-base-url="<?php echo htmlspecialchars(admin_url('posts'), ENT_QUOTES, 'UTF-8'); ?>" data-list-status="<?php echo htmlspecialchars($listStatus, ENT_QUOTES, 'UTF-8'); ?>">
         <?php if (empty($posts)): ?>
             <div class="empty-state">
-                <i class="fas fa-file-alt"></i>
-                <h3>No Posts Found</h3>
-                <p>Create your first post to get started.</p>
+                <i class="fas fa-<?php echo $isTrashView ? 'trash' : ($listStatus === 'scheduled' ? 'clock' : 'file-alt'); ?>"></i>
+                <h3><?php
+                    if ($isTrashView) {
+                        echo 'Trash is empty';
+                    } elseif ($listStatus === 'draft') {
+                        echo 'No drafts found';
+                    } elseif ($listStatus === 'scheduled') {
+                        echo 'No scheduled posts found';
+                    } else {
+                        echo 'No Posts Found';
+                    }
+                ?></h3>
+                <p><?php
+                    if ($isTrashView) {
+                        echo 'Trashed items from all post types appear here.';
+                    } elseif ($listStatus === 'draft') {
+                        echo 'Draft posts from all post types appear here when filtered.';
+                    } elseif ($listStatus === 'scheduled') {
+                        echo 'Scheduled posts from all post types appear here when filtered.';
+                    } else {
+                        echo 'Create your first post to get started.';
+                    }
+                ?></p>
+                <?php if (!$isTrashView): ?>
                 <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/edit.php<?php echo $postTypeId ? '?post_type_id=' . $postTypeId : ''; ?>" class="btn btn-primary mt-4">
                     <i class="fas fa-plus"></i> Create Post
                 </a>
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <?php
-            $postsTableColspan = 6 + 1 + ($isHierarchicalListing ? 1 : 0);
+            $postsTableColspan = 6 + ($isTrashView ? 0 : 1) + ($isHierarchicalListing ? 1 : 0);
             ?>
             <form id="posts-bulk-form" class="posts-bulk-form" method="post" action="<?php echo htmlspecialchars(admin_url('posts/bulk-actions.php'), ENT_QUOTES, 'UTF-8'); ?>">
                 <?php echo function_exists('csrf_field') ? csrf_field() : ''; ?>
                 <input type="hidden" name="redirect_post_type_id" value="<?php echo htmlspecialchars((string) ($postTypeId ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="hidden" name="redirect_status" value="<?php echo htmlspecialchars($listStatus, ENT_QUOTES, 'UTF-8'); ?>">
                 <div class="posts-bulk-toolbar flex flex-wrap items-center gap-2" style="padding:0.75rem 1rem;border-bottom:1px solid var(--border-color,#dee2e6);">
                     <label class="flex items-center gap-2" style="margin:0;">
                         <span class="text-muted" style="font-size:0.875rem;">Bulk actions</span>
                         <select name="bulk_action" id="posts-bulk-action" class="form-control" style="width:auto;min-width:12rem;">
                             <option value="">Choose action…</option>
+                            <?php if ($isTrashView): ?>
+                            <option value="delete_forever">Delete permanently</option>
+                            <?php else: ?>
                             <option value="trash">Move to trash</option>
                             <option value="draft">Set status to Draft</option>
                             <option value="published">Set status to Published</option>
                             <option value="archived">Set status to Archived</option>
+                            <?php endif; ?>
                         </select>
                     </label>
                     <button type="submit" class="btn btn-secondary" id="posts-bulk-apply">Apply</button>
@@ -233,8 +333,12 @@ require_once ADMIN_PATH . '/templates/header.php';
                         <th>Title</th>
                         <th>Post Type</th>
                         <th>Author</th>
+                        <?php if ($isTrashView): ?>
+                        <th>Trashed</th>
+                        <?php else: ?>
                         <th>Status</th>
                         <th>Created</th>
+                        <?php endif; ?>
                         <th style="text-align: right;">Actions</th>
                     </tr>
                 </thead>
@@ -282,6 +386,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                                 <strong class="post-title-label" style="display: inline-block; padding-left: <?php echo $depth * 14; ?>px;">
                                     <?php echo htmlspecialchars($titlePrefix . ($post['title'] ?? 'Untitled')); ?>
                                 </strong>
+                                <?php if (!$isTrashView): ?>
                                 <div class="post-row-actions">
                                     <a href="<?php echo htmlspecialchars(admin_url('posts/edit.php?id=' . $pid), ENT_QUOTES, 'UTF-8'); ?>">Edit</a>
                                     <span class="post-row-actions-sep">|</span>
@@ -295,26 +400,40 @@ require_once ADMIN_PATH . '/templates/header.php';
                                         <a class="post-row-preview-link" href="<?php echo htmlspecialchars($row_preview, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Preview</a>
                                     <?php endif; ?>
                                 </div>
+                                <?php endif; ?>
                             </td>
                             <td><?php echo htmlspecialchars($post['post_type_name'] ?? ''); ?></td>
                             <td><?php echo htmlspecialchars($post['author_name'] ?? 'Unknown'); ?></td>
+                            <?php if ($isTrashView): ?>
+                            <td><?php echo !empty($post['deleted_at']) ? date('Y-m-d H:i', strtotime($post['deleted_at'])) : '—'; ?></td>
+                            <?php else: ?>
                             <td class="post-status-cell">
                                 <span class="badge <?php echo $statusColor; ?> post-status-badge"><?php echo htmlspecialchars(ucfirst($status)); ?></span>
                             </td>
                             <td class="post-created-cell"><?php echo date('Y-m-d H:i', strtotime($post['created_at'] ?? 'now')); ?></td>
+                            <?php endif; ?>
                             <td style="text-align: right;">
                                 <div class="flex gap-2 justify-end">
+                                    <?php if ($isTrashView): ?>
+                                    <a href="<?php echo htmlspecialchars(admin_url('posts/permanent-delete.php?id=' . $pid . ($postTypeId ? '&post_type_id=' . (int) $postTypeId : '')), ENT_QUOTES, 'UTF-8'); ?>"
+                                       class="btn btn-sm btn-danger"
+                                       data-confirm="Permanently delete this post? This cannot be undone.">
+                                        <i class="fas fa-trash"></i> Delete permanently
+                                    </a>
+                                    <?php else: ?>
                                     <a href="<?php echo htmlspecialchars(admin_url('posts/edit.php?id=' . $pid), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-secondary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <a href="<?php echo htmlspecialchars(admin_url('posts/delete.php?id=' . $pid), ENT_QUOTES, 'UTF-8'); ?>"
+                                    <a href="<?php echo htmlspecialchars(admin_url('posts/delete.php?id=' . $pid . ($postTypeId ? '&post_type_id=' . (int) $postTypeId : '')), ENT_QUOTES, 'UTF-8'); ?>"
                                        class="btn btn-sm btn-danger"
-                                       data-confirm="Are you sure you want to delete this post?">
-                                        <i class="fas fa-trash"></i> Delete
+                                       data-confirm="Move this post to trash?">
+                                        <i class="fas fa-trash"></i> Trash
                                     </a>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
+                        <?php if (!$isTrashView): ?>
                         <tr class="post-quick-edit-row" hidden>
                             <td colspan="<?php echo (int) $postsTableColspan; ?>" class="post-quick-edit-cell">
                                 <div class="post-quick-edit-inner">
@@ -353,6 +472,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                                 </div>
                             </td>
                         </tr>
+                        <?php endif; ?>
                     <?php endforeach; ?>
                 </tbody>
             </table>
@@ -365,12 +485,18 @@ require_once ADMIN_PATH . '/templates/header.php';
 function filterByPostType(postTypeId) {
     var base = document.getElementById('posts-admin-page');
     var u = (base && base.getAttribute('data-posts-base-url')) ? base.getAttribute('data-posts-base-url') : '';
+    var listStatus = (base && base.getAttribute('data-list-status')) ? base.getAttribute('data-list-status') : '';
     if (!u) { u = '<?php echo htmlspecialchars(admin_url('posts'), ENT_QUOTES, 'UTF-8'); ?>'; }
+    var qs = [];
     if (postTypeId) {
-        window.location.href = u + (u.indexOf('?') >= 0 ? '&' : '?') + 'post_type_id=' + encodeURIComponent(postTypeId);
+        qs.push('post_type_id=' + encodeURIComponent(postTypeId));
     } else {
-        window.location.href = u.split('?')[0];
+        qs.push('post_type_id=all');
     }
+    if (listStatus) {
+        qs.push('status=' + encodeURIComponent(listStatus));
+    }
+    window.location.href = u + '?' + qs.join('&');
 }
 </script>
 <script src="<?php echo htmlspecialchars(admin_url('assets/js/posts-list.js'), ENT_QUOTES, 'UTF-8'); ?>?v=1"></script>

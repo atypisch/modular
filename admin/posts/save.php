@@ -20,12 +20,12 @@ if (!is_logged_in()) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts');
+    header('Location: ' . admin_posts_index_url());
     exit;
 }
 if (!csrf_verify()) {
     $_SESSION['error'] = 'Invalid request. Please try again.';
-    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/posts');
+    header('Location: ' . admin_posts_index_url());
     exit;
 }
 

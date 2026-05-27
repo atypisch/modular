@@ -19,13 +19,13 @@ if (!is_logged_in()) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ' . admin_url('posts'));
+    header('Location: ' . admin_posts_index_url());
     exit;
 }
 
 if (!csrf_verify()) {
     $_SESSION['error'] = 'Invalid request. Please try again.';
-    header('Location: ' . admin_url('posts'));
+    header('Location: ' . admin_posts_index_url());
     exit;
 }
 
@@ -39,10 +39,11 @@ $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static 
 })));
 
 $redirectPt = isset($_POST['redirect_post_type_id']) ? trim((string) $_POST['redirect_post_type_id']) : '';
-$redirectUrl = admin_url('posts');
-if ($redirectPt !== '' && ctype_digit($redirectPt)) {
-    $redirectUrl = admin_url('posts?post_type_id=' . (int) $redirectPt);
-}
+$redirectStatus = isset($_POST['redirect_status']) ? trim((string) $_POST['redirect_status']) : '';
+$redirectListStatus = admin_posts_list_status_from_request($redirectStatus !== '' ? $redirectStatus : null);
+$redirectPostTypeId = admin_posts_resolve_post_type_id(null, $redirectPt !== '' ? $redirectPt : null);
+$redirectUrl = admin_posts_index_url($redirectPostTypeId, $redirectListStatus !== '' ? $redirectListStatus : null);
+$redirectTrash = $redirectListStatus === 'trash';
 
 if (empty($ids)) {
     $_SESSION['error'] = 'No posts selected.';
@@ -56,7 +57,9 @@ if (count($ids) > 500) {
     exit;
 }
 
-$allowedActions = ['trash', 'draft', 'published', 'archived'];
+$allowedActions = $redirectTrash
+    ? ['delete_forever']
+    : ['trash', 'draft', 'published', 'archived'];
 if (!in_array($action, $allowedActions, true)) {
     $_SESSION['error'] = 'Invalid bulk action.';
     header('Location: ' . $redirectUrl);
@@ -66,7 +69,10 @@ if (!in_array($action, $allowedActions, true)) {
 $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
 try {
-    if ($action === 'trash') {
+    if ($action === 'delete_forever') {
+        $n = admin_posts_permanently_delete($db, $ids);
+        $_SESSION['success'] = $n === 1 ? '1 post permanently deleted.' : $n . ' posts permanently deleted.';
+    } elseif ($action === 'trash') {
         $sql = "UPDATE posts SET deleted_at = NOW(), updated_by = ?, updated_at = NOW() WHERE id IN ($placeholders) AND deleted_at IS NULL";
         $params = array_merge([$userId], $ids);
         $stmt = $db->prepare($sql);

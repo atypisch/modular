@@ -158,6 +158,10 @@
                 if (!window.confirm('Move the selected posts to trash?')) {
                     e.preventDefault();
                 }
+            } else if (action === 'delete_forever') {
+                if (!window.confirm('Permanently delete the selected posts? This cannot be undone.')) {
+                    e.preventDefault();
+                }
             }
         });
     }
