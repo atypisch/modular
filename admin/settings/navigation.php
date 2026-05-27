@@ -12,6 +12,7 @@ if (!defined('ADMIN_PATH')) {
 }
 require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
+require_once CORE_PATH . '/functions/permalinks.php';
 
 if (!is_logged_in()) {
     header('Location: ' . ADMIN_URL . '/auth/login.php');
@@ -140,21 +141,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $edit_slug !== null && isset($_POST
     }
 }
 
-// Load all post types and their published posts (for "available" panel – overview per type)
+// Load all post types and their published posts (for "available" panel – overview per type).
+// Posts are flattened depth-first so parents appear before children, with depth carried along.
 $available_by_type = [];
 try {
     $stmt = $db->query("SELECT id, name, slug FROM post_types WHERE deleted_at IS NULL ORDER BY name");
     $types = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($types as $pt) {
         $stmt = $db->prepare("
-            SELECT p.id, p.title, p.slug FROM posts p
+            SELECT p.id, p.parent_id, p.title, p.slug FROM posts p
             WHERE p.post_type_id = ? AND p.deleted_at IS NULL AND p.status = 'published'
             ORDER BY p.title ASC
         ");
         $stmt->execute([$pt['id']]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $byParent = [];
+        $ownIds = [];
+        foreach ($rows as $r) {
+            $ownIds[(int) $r['id']] = true;
+        }
+        foreach ($rows as $r) {
+            $pid = $r['parent_id'] !== null ? (int) $r['parent_id'] : 0;
+            // Treat parents that are not in this post type's published set as roots
+            if ($pid !== 0 && empty($ownIds[$pid])) {
+                $pid = 0;
+            }
+            $byParent[$pid][] = $r;
+        }
+
+        $flat = [];
+        $walk = function ($parentId, $depth) use (&$walk, &$byParent, &$flat, $db) {
+            $children = $byParent[$parentId] ?? [];
+            foreach ($children as $row) {
+                $path = get_hierarchical_post_path((int) $row['id'], $db);
+                $row['depth'] = $depth;
+                $row['url_path'] = $path !== '' ? $path : (string) $row['slug'];
+                $flat[] = $row;
+                $walk((int) $row['id'], $depth + 1);
+            }
+        };
+        $walk(0, 0);
+
         $available_by_type[] = [
             'post_type' => $pt,
-            'posts' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+            'posts' => $flat,
         ];
     }
 } catch (Exception $e) {
@@ -226,18 +257,38 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <h3>Available items</h3>
                     <p class="text-muted small">Drag a link into the dropzone on the right to add it to this navigation.</p>
                     <?php foreach ($available_by_type as $group): ?>
-                        <div class="nav-group">
-                            <strong><?php echo htmlspecialchars($group['post_type']['name']); ?></strong>
-                            <ul class="nav-available-list" data-base="<?php echo htmlspecialchars($base_path); ?>">
-                                <?php foreach ($group['posts'] as $post): ?>
-                                    <li class="nav-available-item" draggable="true" data-type="post" data-post-id="<?php echo (int)$post['id']; ?>" data-post-type="<?php echo htmlspecialchars($group['post_type']['slug']); ?>" data-label="<?php echo htmlspecialchars($post['title']); ?>" data-url="<?php echo htmlspecialchars($base_path . '/' . $post['slug']); ?>">
-                                        <?php echo htmlspecialchars($post['title']); ?>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                            <?php if (empty($group['posts'])): ?>
-                                <p class="nav-empty-hint text-muted">No published items</p>
-                            <?php endif; ?>
+                        <?php $ptSlug = $group['post_type']['slug'] ?? ''; ?>
+                        <div class="nav-group" data-pt-slug="<?php echo htmlspecialchars($ptSlug); ?>">
+                            <button type="button" class="nav-group-toggle" aria-expanded="true">
+                                <i class="fas fa-chevron-down nav-group-caret" aria-hidden="true"></i>
+                                <strong><?php echo htmlspecialchars($group['post_type']['name']); ?></strong>
+                                <span class="nav-group-count"><?php echo count($group['posts']); ?></span>
+                            </button>
+                            <div class="nav-group-body">
+                                <ul class="nav-available-list" data-base="<?php echo htmlspecialchars($base_path); ?>">
+                                    <?php foreach ($group['posts'] as $post): ?>
+                                        <?php
+                                        $depth = isset($post['depth']) ? (int) $post['depth'] : 0;
+                                        $urlPath = isset($post['url_path']) && $post['url_path'] !== '' ? $post['url_path'] : (string) $post['slug'];
+                                        $fullUrl = $base_path . '/' . ltrim($urlPath, '/');
+                                        $prefix = $depth > 0 ? str_repeat('-', $depth) . ' ' : '';
+                                        ?>
+                                        <li class="nav-available-item" draggable="true"
+                                            data-type="post"
+                                            data-post-id="<?php echo (int)$post['id']; ?>"
+                                            data-post-type="<?php echo htmlspecialchars($ptSlug); ?>"
+                                            data-label="<?php echo htmlspecialchars($post['title']); ?>"
+                                            data-url="<?php echo htmlspecialchars($fullUrl); ?>"
+                                            data-depth="<?php echo $depth; ?>"
+                                            style="<?php echo $depth > 0 ? 'padding-left:' . (0.75 + $depth * 1.0) . 'rem;' : ''; ?>">
+                                            <span class="nav-available-prefix" aria-hidden="true"><?php echo htmlspecialchars($prefix); ?></span><?php echo htmlspecialchars($post['title']); ?>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                                <?php if (empty($group['posts'])): ?>
+                                    <p class="nav-empty-hint text-muted">No published items</p>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     <?php endforeach; ?>
                     <?php if (empty($available_by_type)): ?>
@@ -290,18 +341,59 @@ require_once ADMIN_PATH . '/templates/header.php';
 .nav-list-settings a { font-weight: 500; }
 .form-inline { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
 .form-inline input[type="text"] { min-width: 160px; }
-.nav-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem; }
-@media (max-width: 768px) { .nav-editor { grid-template-columns: 1fr; } }
+.nav-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem; align-items: start; }
+@media (max-width: 768px) {
+    .nav-editor { grid-template-columns: 1fr; }
+    .nav-editor-menu { position: static !important; max-height: none !important; overflow: visible !important; }
+}
+.nav-editor-menu {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+}
 .nav-editor-available h3, .nav-editor-menu h3 { margin-bottom: 0.5rem; font-size: 1rem; }
 .nav-editor-available .small, .nav-editor-menu .small { font-size: 0.875rem; margin-bottom: 0.75rem; }
-.nav-group { margin-bottom: 1rem; }
-.nav-group strong { display: block; margin-bottom: 0.25rem; }
+.nav-group { margin-bottom: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; overflow: hidden; }
+.nav-group-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    background: #f8fafc;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+}
+.nav-group-toggle:hover { background: #f1f5f9; }
+.nav-group-toggle strong { font-weight: 600; flex: 1; }
+.nav-group-caret { font-size: 0.75rem; color: #64748b; transition: transform 0.15s ease; }
+.nav-group.is-collapsed .nav-group-caret { transform: rotate(-90deg); }
+.nav-group.is-collapsed .nav-group-toggle { border-bottom-color: transparent; }
+.nav-group.is-collapsed .nav-group-body { display: none; }
+.nav-group-count {
+    font-size: 0.75rem;
+    color: #64748b;
+    background: #e2e8f0;
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+    min-width: 1.5rem;
+    text-align: center;
+}
+.nav-group-body { padding: 0.5rem 0.75rem; }
 .nav-empty-hint { font-size: 0.85rem; margin: 0.25rem 0 0 0; }
 .nav-available-list { list-style: none; padding: 0; margin: 0; }
 .nav-available-item, .nav-menu-item { padding: 0.5rem 0.75rem; margin-bottom: 4px; border-radius: 6px; cursor: grab; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .nav-available-item:active { cursor: grabbing; }
 .nav-available-item { background: #f0f4ff; border: 1px dashed #c7d2fe; }
 .nav-available-item:hover { background: #e0e7ff; }
+.nav-available-prefix { color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; }
+.nav-available-item[data-depth="0"] .nav-available-prefix { display: none; }
 .nav-dropzone { min-height: 120px; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 0.75rem; background: #f8fafc; transition: background 0.15s, border-color 0.15s; }
 .nav-dropzone.drag-over { background: #f1f5f9; border-color: #2563eb; }
 .nav-dropzone-placeholder { margin: 1.5rem 0; text-align: center; color: #64748b; font-size: 0.9rem; }
@@ -464,6 +556,41 @@ require_once ADMIN_PATH . '/templates/header.php';
     });
 
     document.getElementById('nav-menu-form').addEventListener('submit', function() { serialize(); });
+
+    // Per-post-type collapse with localStorage persistence
+    var COLLAPSE_KEY = 'mdlr_nav_collapsed_pt';
+    function readCollapsed() {
+        try {
+            var raw = localStorage.getItem(COLLAPSE_KEY);
+            var arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+        } catch (e) {
+            return [];
+        }
+    }
+    function writeCollapsed(arr) {
+        try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(arr)); } catch (e) {}
+    }
+    var collapsed = readCollapsed();
+    document.querySelectorAll('.nav-group').forEach(function(group) {
+        var slug = group.getAttribute('data-pt-slug') || '';
+        var toggle = group.querySelector('.nav-group-toggle');
+        if (!toggle) return;
+        if (slug && collapsed.indexOf(slug) !== -1) {
+            group.classList.add('is-collapsed');
+            toggle.setAttribute('aria-expanded', 'false');
+        }
+        toggle.addEventListener('click', function() {
+            var nowCollapsed = !group.classList.contains('is-collapsed');
+            group.classList.toggle('is-collapsed', nowCollapsed);
+            toggle.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true');
+            var current = readCollapsed();
+            var idx = current.indexOf(slug);
+            if (nowCollapsed && idx === -1) current.push(slug);
+            if (!nowCollapsed && idx !== -1) current.splice(idx, 1);
+            writeCollapsed(current);
+        });
+    });
 })();
 </script>
 
