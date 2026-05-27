@@ -247,92 +247,90 @@ require_once ADMIN_PATH . '/templates/header.php';
             }
         }
         ?>
-        <div class="card nav-editor-card">
+        <div class="card nav-editor-header">
             <p><a href="<?php echo ADMIN_URL; ?>/settings/navigation.php">&larr; Back to navigations</a></p>
             <h2><?php echo htmlspecialchars($current_name); ?></h2>
             <p class="text-muted">Drag items from the left into the menu on the right. Reorder by dragging. Add custom links below.</p>
+        </div>
 
-            <div class="nav-editor">
-                <div class="nav-editor-available">
-                    <h3>Available items</h3>
-                    <p class="text-muted small">Drag a link into the dropzone on the right to add it to this navigation.</p>
-                    <?php foreach ($available_by_type as $group): ?>
-                        <?php $ptSlug = $group['post_type']['slug'] ?? ''; ?>
-                        <div class="nav-group" data-pt-slug="<?php echo htmlspecialchars($ptSlug); ?>">
-                            <button type="button" class="nav-group-toggle" aria-expanded="true">
-                                <i class="fas fa-chevron-down nav-group-caret" aria-hidden="true"></i>
-                                <strong><?php echo htmlspecialchars($group['post_type']['name']); ?></strong>
-                                <span class="nav-group-count"><?php echo count($group['posts']); ?></span>
-                            </button>
-                            <div class="nav-group-body">
-                                <ul class="nav-available-list" data-base="<?php echo htmlspecialchars($base_path); ?>">
-                                    <?php foreach ($group['posts'] as $post): ?>
-                                        <?php
-                                        $depth = isset($post['depth']) ? (int) $post['depth'] : 0;
-                                        $urlPath = isset($post['url_path']) && $post['url_path'] !== '' ? $post['url_path'] : (string) $post['slug'];
-                                        $fullUrl = $base_path . '/' . ltrim($urlPath, '/');
-                                        $prefix = $depth > 0 ? str_repeat('-', $depth) . ' ' : '';
-                                        ?>
-                                        <li class="nav-available-item" draggable="true"
-                                            data-type="post"
-                                            data-post-id="<?php echo (int)$post['id']; ?>"
-                                            data-post-type="<?php echo htmlspecialchars($ptSlug); ?>"
-                                            data-label="<?php echo htmlspecialchars($post['title']); ?>"
-                                            data-url="<?php echo htmlspecialchars($fullUrl); ?>"
-                                            data-depth="<?php echo $depth; ?>"
-                                            style="<?php echo $depth > 0 ? 'padding-left:' . (0.75 + $depth * 1.0) . 'rem;' : ''; ?>">
-                                            <span class="nav-available-prefix" aria-hidden="true"><?php echo htmlspecialchars($prefix); ?></span><?php echo htmlspecialchars($post['title']); ?>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                                <?php if (empty($group['posts'])): ?>
-                                    <p class="nav-empty-hint text-muted">No published items</p>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                    <?php if (empty($available_by_type)): ?>
-                        <p class="text-muted">No post types found. Add items below as custom links.</p>
-                    <?php endif; ?>
-                </div>
-                <div class="nav-editor-menu">
-                  <div class="nav-editor-menu-sticky">
-                    <h3>Dropzone – <?php echo htmlspecialchars($current_name); ?></h3>
-                    <p class="text-muted small">Drop items here to build the menu. Reorder by dragging.</p>
-                    <form method="post" id="nav-menu-form">
-                        <?php echo function_exists('csrf_field') ? csrf_field() : ''; ?>
-                        <input type="hidden" name="action" value="save_menu">
-                        <input type="hidden" name="menu_items" id="menu_items_input" value="<?php echo htmlspecialchars(json_encode($menu_items)); ?>">
-                        <div class="nav-dropzone" id="nav-dropzone">
-                            <ul class="nav-menu-list" id="nav-menu-list">
-                                <?php foreach ($menu_items as $item): ?>
+        <div class="nav-editor">
+            <div class="nav-editor-available card">
+                <h3>Available items</h3>
+                <p class="text-muted small">Drag a link into the dropzone on the right to add it to this navigation.</p>
+                <?php foreach ($available_by_type as $group): ?>
+                    <?php $ptSlug = $group['post_type']['slug'] ?? ''; ?>
+                    <div class="nav-group" data-pt-slug="<?php echo htmlspecialchars($ptSlug); ?>">
+                        <button type="button" class="nav-group-toggle" aria-expanded="true">
+                            <i class="fas fa-chevron-down nav-group-caret" aria-hidden="true"></i>
+                            <strong><?php echo htmlspecialchars($group['post_type']['name']); ?></strong>
+                            <span class="nav-group-count"><?php echo count($group['posts']); ?></span>
+                        </button>
+                        <div class="nav-group-body">
+                            <ul class="nav-available-list" data-base="<?php echo htmlspecialchars($base_path); ?>">
+                                <?php foreach ($group['posts'] as $post): ?>
                                     <?php
-                                    $isPost = isset($item['type']) && $item['type'] === 'post' && !empty($item['post_id']);
-                                    $dataType = $isPost ? 'post' : 'custom';
-                                    $dataPostId = $isPost ? (int)$item['post_id'] : '';
-                                    $dataPostType = $isPost ? ($item['post_type'] ?? '') : '';
+                                    $depth = isset($post['depth']) ? (int) $post['depth'] : 0;
+                                    $urlPath = isset($post['url_path']) && $post['url_path'] !== '' ? $post['url_path'] : (string) $post['slug'];
+                                    $fullUrl = $base_path . '/' . ltrim($urlPath, '/');
+                                    $prefix = $depth > 0 ? str_repeat('-', $depth) . ' ' : '';
                                     ?>
-                                    <li class="nav-menu-item" data-type="<?php echo htmlspecialchars($dataType); ?>" data-post-id="<?php echo $dataPostId; ?>" data-post-type="<?php echo htmlspecialchars($dataPostType); ?>" data-label="<?php echo htmlspecialchars($item['label'] ?? ''); ?>" data-url="<?php echo htmlspecialchars($item['url'] ?? '#'); ?>">
-                                        <span class="nav-item-label"><?php echo htmlspecialchars($item['label'] ?? ''); ?></span>
-                                        <span class="nav-item-url text-muted"><?php echo htmlspecialchars($item['url'] ?? '#'); ?></span>
-                                        <button type="button" class="nav-remove" aria-label="Remove">×</button>
+                                    <li class="nav-available-item" draggable="true"
+                                        data-type="post"
+                                        data-post-id="<?php echo (int)$post['id']; ?>"
+                                        data-post-type="<?php echo htmlspecialchars($ptSlug); ?>"
+                                        data-label="<?php echo htmlspecialchars($post['title']); ?>"
+                                        data-url="<?php echo htmlspecialchars($fullUrl); ?>"
+                                        data-depth="<?php echo $depth; ?>"
+                                        style="<?php echo $depth > 0 ? 'padding-left:' . (0.75 + $depth * 1.0) . 'rem;' : ''; ?>">
+                                        <span class="nav-available-prefix" aria-hidden="true"><?php echo htmlspecialchars($prefix); ?></span><?php echo htmlspecialchars($post['title']); ?>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
-                            <p class="nav-dropzone-placeholder" id="nav-dropzone-placeholder"<?php echo !empty($menu_items) ? ' style="display:none"' : ''; ?>>Drag items here or add a custom link below</p>
+                            <?php if (empty($group['posts'])): ?>
+                                <p class="nav-empty-hint text-muted">No published items</p>
+                            <?php endif; ?>
                         </div>
-                        <div class="nav-custom">
-                            <input type="text" id="custom_label" placeholder="Label">
-                            <input type="text" id="custom_url" placeholder="URL (e.g. /contact)">
-                            <button type="button" id="nav-add-custom" class="btn btn-secondary">Add custom link</button>
-                        </div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn btn-primary">Save menu</button>
-                        </div>
-                    </form>
-                  </div>
-                </div>
+                    </div>
+                <?php endforeach; ?>
+                <?php if (empty($available_by_type)): ?>
+                    <p class="text-muted">No post types found. Add items below as custom links.</p>
+                <?php endif; ?>
             </div>
+            <aside class="nav-editor-menu">
+                <h3>Dropzone – <?php echo htmlspecialchars($current_name); ?></h3>
+                <p class="text-muted small">Drop items here to build the menu. Reorder by dragging.</p>
+                <form method="post" id="nav-menu-form">
+                    <?php echo function_exists('csrf_field') ? csrf_field() : ''; ?>
+                    <input type="hidden" name="action" value="save_menu">
+                    <input type="hidden" name="menu_items" id="menu_items_input" value="<?php echo htmlspecialchars(json_encode($menu_items)); ?>">
+                    <div class="nav-dropzone" id="nav-dropzone">
+                        <ul class="nav-menu-list" id="nav-menu-list">
+                            <?php foreach ($menu_items as $item): ?>
+                                <?php
+                                $isPost = isset($item['type']) && $item['type'] === 'post' && !empty($item['post_id']);
+                                $dataType = $isPost ? 'post' : 'custom';
+                                $dataPostId = $isPost ? (int)$item['post_id'] : '';
+                                $dataPostType = $isPost ? ($item['post_type'] ?? '') : '';
+                                ?>
+                                <li class="nav-menu-item" data-type="<?php echo htmlspecialchars($dataType); ?>" data-post-id="<?php echo $dataPostId; ?>" data-post-type="<?php echo htmlspecialchars($dataPostType); ?>" data-label="<?php echo htmlspecialchars($item['label'] ?? ''); ?>" data-url="<?php echo htmlspecialchars($item['url'] ?? '#'); ?>">
+                                    <span class="nav-item-label"><?php echo htmlspecialchars($item['label'] ?? ''); ?></span>
+                                    <span class="nav-item-url text-muted"><?php echo htmlspecialchars($item['url'] ?? '#'); ?></span>
+                                    <button type="button" class="nav-remove" aria-label="Remove">×</button>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <p class="nav-dropzone-placeholder" id="nav-dropzone-placeholder"<?php echo !empty($menu_items) ? ' style="display:none"' : ''; ?>>Drag items here or add a custom link below</p>
+                    </div>
+                    <div class="nav-custom">
+                        <input type="text" id="custom_label" placeholder="Label">
+                        <input type="text" id="custom_url" placeholder="URL (e.g. /contact)">
+                        <button type="button" id="nav-add-custom" class="btn btn-secondary">Add custom link</button>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save menu</button>
+                    </div>
+                </form>
+            </aside>
         </div>
     <?php endif; ?>
 </div>
@@ -343,21 +341,33 @@ require_once ADMIN_PATH . '/templates/header.php';
 .nav-list-settings a { font-weight: 500; }
 .form-inline { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
 .form-inline input[type="text"] { min-width: 160px; }
-/* Card needs overflow:visible so sticky inside it can pin to the scrolling .main-content. */
-.nav-editor-card { overflow: visible; }
-/* Grid uses default align-items:stretch so the right column gets the row's full height,
-   giving the inner sticky wrapper room to pin within. */
-.nav-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem; }
-.nav-editor-menu { min-width: 0; }
-.nav-editor-menu-sticky {
+/* Grid is a direct child of .container (no .card wrapper) so sticky inside engages against .main-content. */
+.nav-editor {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 1rem;
+    align-items: start;
+}
+.nav-editor-available { min-width: 0; }
+.nav-editor-menu {
+    min-width: 0;
+    align-self: start;
     position: sticky;
-    top: 1rem;
-    max-height: calc(100vh - 2rem);
-    overflow: auto;
+    top: 0.75rem;
+    max-height: calc(100vh - var(--toolbar-height) - 2.5rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 @media (max-width: 768px) {
     .nav-editor { grid-template-columns: 1fr; }
-    .nav-editor-menu-sticky {
+    .nav-editor-menu {
         position: static;
         max-height: none;
         overflow: visible;
