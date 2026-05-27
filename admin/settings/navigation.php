@@ -296,6 +296,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <?php endif; ?>
                 </div>
                 <div class="nav-editor-menu">
+                  <div class="nav-editor-menu-sticky">
                     <h3>Dropzone – <?php echo htmlspecialchars($current_name); ?></h3>
                     <p class="text-muted small">Drop items here to build the menu. Reorder by dragging.</p>
                     <form method="post" id="nav-menu-form">
@@ -329,6 +330,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                             <button type="submit" class="btn btn-primary">Save menu</button>
                         </div>
                     </form>
+                  </div>
                 </div>
             </div>
         </div>
@@ -343,17 +345,23 @@ require_once ADMIN_PATH . '/templates/header.php';
 .form-inline input[type="text"] { min-width: 160px; }
 /* Card needs overflow:visible so sticky inside it can pin to the scrolling .main-content. */
 .nav-editor-card { overflow: visible; }
-.nav-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem; align-items: start; }
-@media (max-width: 768px) {
-    .nav-editor { grid-template-columns: 1fr; }
-    .nav-editor-menu { position: static !important; max-height: none !important; overflow: visible !important; }
-}
-.nav-editor-menu {
+/* Grid uses default align-items:stretch so the right column gets the row's full height,
+   giving the inner sticky wrapper room to pin within. */
+.nav-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem; }
+.nav-editor-menu { min-width: 0; }
+.nav-editor-menu-sticky {
     position: sticky;
     top: 1rem;
-    align-self: start;
     max-height: calc(100vh - 2rem);
     overflow: auto;
+}
+@media (max-width: 768px) {
+    .nav-editor { grid-template-columns: 1fr; }
+    .nav-editor-menu-sticky {
+        position: static;
+        max-height: none;
+        overflow: visible;
+    }
 }
 .nav-editor-available h3, .nav-editor-menu h3 { margin-bottom: 0.5rem; font-size: 1rem; }
 .nav-editor-available .small, .nav-editor-menu .small { font-size: 0.875rem; margin-bottom: 0.75rem; }
