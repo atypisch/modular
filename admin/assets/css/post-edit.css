@@ -1283,6 +1283,27 @@
 }
 .modular-field-group-pane-drop {
     min-height: 60px;
+    border: 2px dashed transparent;
+    border-radius: 6px;
+    transition: border-color 0.15s, background 0.15s;
+}
+.modular-field-group-pane-drop .modular-column-inner:empty {
+    min-height: 60px;
+    position: relative;
+}
+.modular-field-group-pane-drop .modular-column-inner:empty::after {
+    content: 'Drag fields here';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+.modular-field-group-pane-drop.modular-column-drag-over {
+    border-color: var(--primary-color, #2563eb);
+    background: rgba(37, 99, 235, 0.04);
 }
 .modular-field-group-pane.is-locked .modular-field-group-pane-drop {
     opacity: 0.85;

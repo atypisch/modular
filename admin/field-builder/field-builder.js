@@ -373,8 +373,11 @@
                 }
                 if (out.length !== (this.activeFields || []).length) {
                     if (typeof console !== 'undefined') {
-                        console.warn('Field builder: DOM sync length mismatch, skip.');
+                        console.warn('Field builder: DOM sync length mismatch (DOM=' + out.length + ', state=' + (this.activeFields || []).length + '), forcing reinit.');
                     }
+                    this.canvasListKey = (this.canvasListKey || 0) + 1;
+                    var self2 = this;
+                    this.$nextTick(function () { self2.reinitSortable(); });
                     return;
                 }
                 if (sameUidOrder(this.activeFields, out)) return;
@@ -644,6 +647,7 @@
                     var fieldsForSave = self.activeFields.map(function (f) {
                         return omitUidDeep(f);
                     });
+                    console.log('[Field Builder] Saving fields:', fieldsForSave.map(function(f) { return f.type + ':' + (f.label || f.name); }));
                     payload.append('schema', JSON.stringify({ fields: fieldsForSave }));
                     if (self.config.csrfToken) payload.append('_csrf_token', self.config.csrfToken);
                     if (sharedActions.length) {
@@ -749,12 +753,14 @@
                     if (!groupRoot) return;
                     self._fbGroupSortables = [];
                     groupRoot.querySelectorAll('.field-builder-group-inner').forEach(function (ul) {
+                        var syncAndReinit = function () {
+                            self.syncActiveFieldsFromGroupedCanvas();
+                            self.$nextTick(function () { self.reinitSortable(); });
+                        };
                         var inst = window.ModularSortable.create(ul, Object.assign({}, commonGhost, {
-                            group: 'field-builder-groups',
-                            onEnd: function () {
-                                self.syncActiveFieldsFromGroupedCanvas();
-                                self.$nextTick(function () { self.reinitSortable(); });
-                            }
+                            group: { name: 'field-builder-groups', pull: true, put: true },
+                            onEnd: syncAndReinit,
+                            onAdd: syncAndReinit
                         }));
                         self._fbGroupSortables.push(inst);
                     });

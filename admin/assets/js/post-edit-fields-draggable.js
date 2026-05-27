@@ -49,6 +49,9 @@
                     el.classList.remove('modular-top-drag-over', 'modular-column-drag-over');
                 });
             }
+            function onFieldSortAdd() {
+                if (api && typeof api.syncLayoutFromDOM === 'function') api.syncLayoutFromDOM();
+            }
             function cleanupFieldDropContainer(innerEl) {
                 if (!innerEl) return;
                 if (innerEl._modularSortable) {
@@ -86,9 +89,12 @@
                     ghostClass: dragOpts.ghostClass,
                     chosenClass: dragOpts.chosenClass,
                     forceFallback: true,
-                    fallbackOnBody: true
+                    fallbackOnBody: true,
+                    emptyInsertThreshold: 40,
+                    swapThreshold: 0.65
                 };
 
+                var fieldGroup = { name: dragOpts.group, pull: true, put: true };
                 if (fieldDropContainerHasTabGroups(innerEl)) {
                     innerEl._modularOuterSortable = window.ModularSortable.create(innerEl, Object.assign({}, commonOpts, {
                         draggable: '> .modular-field-group',
@@ -97,18 +103,22 @@
                     }));
                     innerEl.querySelectorAll('.modular-field-group-inner').forEach(function (groupInnerEl) {
                         groupInnerEl._modularSortable = window.ModularSortable.create(groupInnerEl, Object.assign({}, commonOpts, {
+                            draggable: '> [data-field-id]',
                             handle: dragOpts.contentHandle,
-                            group: dragOpts.group,
+                            group: fieldGroup,
                             onMove: onFieldSortMove,
-                            onEnd: onFieldSortEnd
+                            onEnd: onFieldSortEnd,
+                            onAdd: onFieldSortAdd
                         }));
                     });
                 } else {
                     innerEl._modularSortable = window.ModularSortable.create(innerEl, Object.assign({}, commonOpts, {
+                        draggable: '> [data-field-id]',
                         handle: dragOpts.contentHandle,
-                        group: dragOpts.group,
+                        group: fieldGroup,
                         onMove: onFieldSortMove,
-                        onEnd: onFieldSortEnd
+                        onEnd: onFieldSortEnd,
+                        onAdd: onFieldSortAdd
                     }));
                 }
             }
@@ -116,6 +126,12 @@
             attachFieldDropContainerSortables(root.querySelector('.modular-top-inner'));
             root.querySelectorAll('.modular-layout-block .modular-column-inner').forEach(function (innerEl) {
                 attachFieldDropContainerSortables(innerEl);
+            });
+            // Explicitly attach to field group pane drop zones (may be nested deeper)
+            root.querySelectorAll('.modular-field-group-pane-drop .modular-column-inner').forEach(function (innerEl) {
+                if (!innerEl._modularSortable) {
+                    attachFieldDropContainerSortables(innerEl);
+                }
             });
         }
         setTimeout(initColumnSortables, 100);
@@ -546,7 +562,7 @@
                 body.append('post_type_id', String(window.MODULAR_POST_TYPE_ID || 0));
                 body.append('label', block.label || 'Field Group');
                 body.append('items', JSON.stringify(items));
-                if (window.MODULAR_CSRF_TOKEN) body.append('csrf_token', window.MODULAR_CSRF_TOKEN);
+                if (window.MODULAR_CSRF_TOKEN) body.append('_csrf_token', window.MODULAR_CSRF_TOKEN);
                 fetch(base + '/admin/post-types/field-group-api.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Accept': 'application/json' },

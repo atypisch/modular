@@ -464,6 +464,10 @@
             var type = (field.type || 'text').toLowerCase();
             var isRelationship = type === 'relationship' || type === 'relation';
 
+            if (type === 'repeater' || type === 'flexible_content') {
+                return null;
+            }
+
             if (type === 'latest_posts') {
                 var allowed = (field.post_type || []).slice();
                 var current = ctx.localValue && typeof ctx.localValue === 'object' ? ctx.localValue : {};
@@ -549,19 +553,6 @@
                         h('div', { class: 'field-tab-label' }, resolved.label),
                     ]);
                 }
-            }
-
-            if (resolved.isLayout && type !== 'group') {
-                var layoutMsg = type === 'repeater' || type === 'flexible_content'
-                    ? 'Repeater / Flexible content: full nested editor TBD; for now use sub_fields in Field Builder + JSON or standalone fields.'
-                    : 'Layout field: no editor yet.';
-                return h('div', {
-                    class: 'form-group form-group-layout field-type-' + type,
-                    'data-field-type': type,
-                }, [
-                    h('strong', { class: 'block margin-bottom' }, resolved.label || type),
-                    h('p', { class: 'help-text' }, layoutMsg),
-                ]);
             }
 
             if (type === 'hidden') {
@@ -2243,6 +2234,12 @@
         }
     }
 
+    function isLockedBlock(block) {
+        if (!block || block.type !== 'field_group') return false;
+        var kind = block.source && block.source.kind;
+        return kind === 'fixed_pt' || kind === 'shared';
+    }
+
     window.ModularFieldRendererApp = {
         mount: mountFieldRendererApp,
         _instance: null,
@@ -2291,7 +2288,7 @@
             body.append('id', String(postId));
             body.append('layout_json', JSON.stringify(payload));
             if (typeof window.MODULAR_CSRF_TOKEN !== 'undefined' && window.MODULAR_CSRF_TOKEN) {
-                body.append('csrf_token', window.MODULAR_CSRF_TOKEN);
+                body.append('_csrf_token', window.MODULAR_CSRF_TOKEN);
             }
             try {
                 fetch(base.replace(/\/$/, '') + '/admin/posts/update-layout.php', {
@@ -2474,7 +2471,7 @@
                 } else {
                     cols[columnIndex].push(newInst);
                 }
-                return { id: b.id, numCols: b.numCols, columns: cols };
+                return Object.assign({}, b, { columns: cols });
             });
             return newId;
         },
@@ -2538,7 +2535,7 @@
                     removeFromList(c);
                     return c;
                 });
-                return { id: b.id, numCols: b.numCols, columns: cols };
+                return Object.assign({}, b, { columns: cols });
             });
             if (inst.instanceValues && inst.instanceValues[instanceId] !== undefined) {
                 delete inst.instanceValues[instanceId];
@@ -2730,7 +2727,7 @@
                                 c2.splice(found.index + 1, 0, newInst);
                                 return c2;
                             });
-                            return { id: b.id, numCols: b.numCols, label: b.label, collapsed: !!b.collapsed, columns: newCols };
+                            return Object.assign({}, b, { columns: newCols });
                         });
                         var val = (inst.instanceValues && inst.instanceValues[instanceId]) !== undefined ? inst.instanceValues[instanceId] : undefined;
                         var copyVal = val !== undefined && val !== null ? (typeof val === 'object' && val !== null && !Array.isArray(val) ? Object.assign({}, val) : Array.isArray(val) ? val.slice() : val) : undefined;
@@ -2803,14 +2800,20 @@
             if (topInner) newTop = modularFlattenInstancesFromDropContainer(topInner, idToInst);
             inst.topSection.value = newTop;
             var blocks = (inst.layoutBlocks && inst.layoutBlocks.value) || [];
-            var newBlocks = blocks.map(function (block, bi) {
+            var newBlocks = blocks.map(function (block) {
+                var bid = block && block.id ? String(block.id) : '';
                 if (block.type === 'field_group') {
                     if (isLockedBlock(block)) {
                         return block;
                     }
-                    var panes = root.querySelectorAll('.modular-field-group-pane-drop[data-block-index="' + bi + '"]');
+                    var panes = bid
+                        ? root.querySelectorAll('.modular-field-group-pane-drop[data-field-group-block-id="' + bid + '"]')
+                        : [];
                     var combined = [];
                     var paneList = [].slice.call(panes);
+                    if (paneList.length === 0) {
+                        return block;
+                    }
                     paneList.forEach(function (paneEl, pi) {
                         var inner = paneEl.querySelector('.modular-column-inner');
                         var tabKey = paneEl.getAttribute('data-field-group-tab-key') || '';
@@ -2831,11 +2834,17 @@
                     });
                     return Object.assign({}, block, { columns: [ combined, [], [] ] });
                 }
+                var layoutShell = bid ? root.querySelector('.modular-layout-block:not(.modular-field-group-block)[data-block-id="' + bid + '"]') : null;
+                if (!layoutShell && bid) {
+                    return block;
+                }
                 var numCols = block.numCols === 2 || block.numCols === 3 ? block.numCols : 1;
                 var cols = [];
                 for (var ci = 0; ci < 3; ci++) {
                     if (ci < numCols) {
-                        var colEl = root.querySelector('.modular-column-drop[data-block-index="' + bi + '"][data-column-index="' + ci + '"] .modular-column-inner');
+                        var colEl = layoutShell
+                            ? layoutShell.querySelector('.modular-column-drop[data-column-index="' + ci + '"] .modular-column-inner')
+                            : null;
                         var newCol = [];
                         if (colEl) newCol = modularFlattenInstancesFromDropContainer(colEl, idToInst);
                         cols.push(newCol);

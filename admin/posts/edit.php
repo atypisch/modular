@@ -1083,7 +1083,7 @@ $additional_scripts = $useSchemaForm
     . '<script src="' . htmlspecialchars($admin_assets) . '/js/field-renderer/resolveFieldComponent.js?v=1"></script>'
     . '<script src="' . htmlspecialchars($admin_assets) . '/js/field-renderer/drag-manager.js?v=1"></script>'
     . '<script src="' . htmlspecialchars($admin_assets) . '/js/field-renderer/field-renderer-app.js?v=7"></script>'
-    . '<script src="' . htmlspecialchars($admin_assets) . '/js/post-edit-fields-draggable.js?v=4"></script>'
+    . '<script src="' . htmlspecialchars($admin_assets) . '/js/post-edit-fields-draggable.js?v=6"></script>'
     : '<script src="' . htmlspecialchars($admin_assets) . '/js/primevue-fields.js?v=3"></script>';
 require_once ADMIN_PATH . '/templates/footer.php';
 ?>

@@ -22,7 +22,7 @@ class FieldRegistry
     private static $fields = [];
 
     /** Types that are aliases; shown only once in admin (canonical type is the main one). */
-    private static $adminHiddenAliases = ['relation'];
+    private static $adminHiddenAliases = ['relation', 'flexible_content'];
 
     public static function register(string $type, FieldInterface $field): void
     {
