@@ -44,7 +44,12 @@ $schema = $postType['schema'];
 if (is_string($schema)) {
     $schema = json_decode($schema, true);
 }
-$schema = is_array($schema) ? $schema : ['fields' => []];
+if (!is_array($schema)) {
+    $schema = ['fields' => []];
+} elseif (!isset($schema['fields']) || !is_array($schema['fields'])) {
+    $isList = array_keys($schema) === array_keys(array_values($schema));
+    $schema = $isList ? ['fields' => $schema] : ['fields' => []];
+}
 $mode = $postType['mode'] ?? 'fixed';
 $modularAllowed = function_exists('subscription_has_feature') && subscription_has_feature('modular_post_types');
 
@@ -76,8 +81,38 @@ try {
 } catch (Exception $e) {
 }
 
+// Load shared fields data for sharing UI
+$sharedFieldsRaw = $db->query(
+    "SELECT id, name, type, definition FROM shared_fields WHERE deleted_at IS NULL"
+)->fetchAll(PDO::FETCH_ASSOC);
+
+// Build map: shared_id => list of post type ids that use it
+$sharedFieldPostTypes = [];
+foreach ($availablePostTypes as $pt) {
+    if ((int)$pt['id'] === $id) continue;
+    $ptStmt = $db->prepare("SELECT `schema` FROM post_types WHERE id = ? AND deleted_at IS NULL");
+    $ptStmt->execute([$pt['id']]);
+    $ptRow = $ptStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$ptRow || !$ptRow['schema']) continue;
+    $ptSchema = json_decode($ptRow['schema'], true);
+    if (!is_array($ptSchema) || empty($ptSchema['fields'])) continue;
+    foreach ($ptSchema['fields'] as $f) {
+        if (isset($f['_shared_id'])) {
+            $sid = (int)$f['_shared_id'];
+            if (!isset($sharedFieldPostTypes[$sid])) $sharedFieldPostTypes[$sid] = [];
+            $sharedFieldPostTypes[$sid][] = (int)$pt['id'];
+        }
+    }
+}
+
 $page_title = 'Field Builder: ' . htmlspecialchars($postType['name']);
 $post_types_active = true;
+
+$sharedFieldAttachDefaults = [];
+foreach ($sharedFieldsRaw as $sfRow) {
+    $defRow = json_decode($sfRow['definition'] ?? '{}', true);
+    $sharedFieldAttachDefaults[(int)$sfRow['id']] = is_array($defRow) && !empty($defRow['attach_to_new_post_types']);
+}
 
 $config = [
     'postTypeId' => $id,
@@ -93,6 +128,14 @@ $config = [
     'adminUrl' => defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin',
     'saveUrl' => (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/post-types/field-schema-save.php',
     'csrfToken' => function_exists('csrf_token') ? csrf_token() : '',
+    'sharedFields' => array_map(function ($sf) {
+        return ['id' => (int)$sf['id'], 'name' => $sf['name'], 'type' => $sf['type']];
+    }, $sharedFieldsRaw),
+    'sharedFieldPostTypes' => $sharedFieldPostTypes,
+    'sharedFieldAttachDefaults' => $sharedFieldAttachDefaults,
+    'otherPostTypes' => array_values(array_filter($availablePostTypes, function ($pt) use ($id) {
+        return (int)$pt['id'] !== $id;
+    })),
 ];
 
 require_once ADMIN_PATH . '/templates/header.php';
@@ -142,6 +185,7 @@ require_once ADMIN_PATH . '/templates/header.php';
                     <div v-show="expandedCategories.includes(cat)" class="library-category-list" style="margin-bottom: var(--spacing-sm);">
                         <div v-for="f in filteredLibraryByCategory(cat)" :key="f.type"
                             class="field-library-item"
+                            :title="f.description || f.label"
                             style="padding:0.4rem 0.6rem;margin:0.2rem 0;border-radius:var(--radius-sm);cursor:grab;display:flex;align-items:center;gap:0.5rem;background:var(--surface);border:1px solid var(--border-color);font-size:0.875rem;"
                             draggable="true"
                             :data-type="f.type" :data-label="f.label" :data-icon="f.icon || 'fa-circle'"
@@ -161,17 +205,52 @@ require_once ADMIN_PATH . '/templates/header.php';
         <div class="active-schema-wrapper" style="display:flex;flex-direction:column;gap:var(--spacing-md);min-width:0;">
             <!-- Active fields (always visible when creating a post) -->
             <div class="card active-schema" style="padding: var(--spacing-md); display: flex; flex-direction: column; min-width: 0;">
-                <h3 class="active-schema-title" style="margin: 0 0 var(--spacing-md); font-size: 1rem;">Active fields</h3>
+                <div class="flex justify-between align-center" style="margin: 0 0 var(--spacing-md); gap: 0.75rem; flex-wrap: wrap;">
+                    <h3 class="active-schema-title" style="margin: 0; font-size: 1rem;">Active fields</h3>
+                    <button type="button" class="btn btn-secondary btn-sm" style="flex-shrink:0;" title="Adds a Field Group marker so fields below belong to this block until the next marker" @click="addFieldGroupSection">
+                        <i class="fas fa-layer-group"></i> Field Group
+                    </button>
+                </div>
                 <p class="field-library-hint" style="margin: 0 0 0.5rem 0; font-size: 0.8rem; color: var(--text-muted);">
-                    These fields are available for this post type. In modular mode you can choose which ones are shown when a new post is created.
+                    Fields used by this post type. On the canvas, <strong>Field Group</strong> markers split the schema into sections (the first section is usually &quot;General&quot;); order matches the editor.
                 </p>
+                <?php
+                $ptSchemaPeek = isset($currentSchema) && is_array($currentSchema) ? $currentSchema : null;
+                if ($ptSchemaPeek === null && isset($postType['schema'])) {
+                    $ptSchemaPeek = is_string($postType['schema']) ? json_decode($postType['schema'], true) : (is_array($postType['schema']) ? $postType['schema'] : null);
+                }
+                $fixedFgList = (is_array($ptSchemaPeek) && isset($ptSchemaPeek['field_groups']) && is_array($ptSchemaPeek['field_groups'])) ? $ptSchemaPeek['field_groups'] : [];
+                if (!empty($fixedFgList)):
+                ?>
+                <details class="field-builder-fixed-groups" style="margin:0 0 0.5rem 0;padding:0.5rem 0.75rem;border:1px dashed var(--border-color, #e2e8f0);border-radius:6px;background:var(--background-subtle, #f8fafc);">
+                    <summary style="font-size:0.8rem;color:var(--text-muted);cursor:pointer;">
+                        <i class="fas fa-lock" style="margin-right:0.25rem;opacity:0.7;"></i>
+                        Schema-level Field Groups (<?php echo count($fixedFgList); ?>) — managed from the post item editor.
+                    </summary>
+                    <ul style="margin:0.5rem 0 0;padding:0 0 0 1.25rem;list-style:disc;font-size:0.8rem;color:var(--text-muted);">
+                        <?php foreach ($fixedFgList as $fg):
+                            if (!is_array($fg)) continue;
+                            $labelTxt = $fg['label'] ?? 'Field Group';
+                            $shared = !empty($fg['shared_id']);
+                        ?>
+                            <li><strong><?php echo htmlspecialchars($labelTxt, ENT_QUOTES, 'UTF-8'); ?></strong>
+                                <?php echo $shared ? '<span class="field-type-badge" style="font-size:0.65rem;margin-left:0.25rem;">shared</span>' : '<span class="field-type-badge" style="font-size:0.65rem;margin-left:0.25rem;">fixed</span>'; ?>
+                                · <?php echo count(isset($fg['items']) && is_array($fg['items']) ? $fg['items'] : []); ?> fields
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <p style="margin:0.5rem 0 0;font-size:0.78rem;color:var(--text-muted);">
+                        Field Groups marked <strong>Fixed</strong> or <strong>Shared</strong> appear locked on every item of this post type. Create or edit them from any post item editor via <em>Add field group</em>.
+                    </p>
+                </details>
+                <?php endif; ?>
                 <div v-if="config.mode === 'modular'" class="show-on-creation-controls" style="margin:0 0 0.5rem 0;font-size:0.8rem;color:var(--text-muted);display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
                     <span style="margin-left:1.25rem;"></span>
                     <label class="flex align-center gap-2">
                         <input type="checkbox" v-model="allShowOnCreationSelected">
-                        <span>Show all fields on creation</span>
+                        <span>Alle velden tonen bij nieuw bericht</span>
                     </label>
-                    <i class="fas fa-info-circle" style="color:var(--text-muted);cursor:help;" title="Uncheck individual fields below to hide them on creation but keep them available in the &quot;Add fields&quot; panel." aria-label="Help"></i>
+                    <i class="fas fa-info-circle" style="color:var(--text-muted);cursor:help;" title="Gaat over het aanmaken van een nieuw bericht (content), niet over nieuwe post types. Uitvinken verbergt het veld op het eerste scherm; editors kunnen het alsnog via &quot;Velden toevoegen&quot; kiezen." aria-label="Help"></i>
                 </div>
                 <div ref="dropZoneRef"
                     class="active-fields-list"
@@ -184,14 +263,15 @@ require_once ADMIN_PATH . '/templates/header.php';
                         <i class="fas fa-mouse-pointer" style="font-size:2rem;margin-bottom:0.5rem;"></i>
                         <p>No fields yet. Drag from the library or click a field type to add.</p>
                     </div>
-                    <ul ref="canvasListRef" v-show="activeFields.length > 0" :key="canvasListKey" class="active-fields-ul" style="list-style:none;margin:0;padding:0;">
+                    <template v-if="activeFields.length > 0">
+                    <ul ref="canvasListRef" v-if="!canvasHasGroupedLayout" :key="'canvas-flat-' + canvasListKey" class="active-fields-ul" style="list-style:none;margin:0;padding:0;">
                         <li v-for="(field, index) in activeFields" :key="field._uid || ('f-' + index)"
                             class="active-field-row"
                             :class="{ selected: selectedIndex === index }"
                             style="display:flex;align-items:center;gap:var(--spacing-sm);padding:0.5rem 0.75rem;margin:0.4rem 0;background:var(--surface);border:1px solid var(--border-color);border-radius:var(--radius-sm);cursor:pointer;"
                             :data-index="index"
                             @click="selectField(index)">
-                            <label v-if="config.mode === 'modular'" class="show-on-creation-toggle" style="display:flex;align-items:center;flex-shrink:0;" @click.stop>
+                            <label v-if="config.mode === 'modular'" class="show-on-creation-toggle" style="display:flex;align-items:center;flex-shrink:0;" @click.stop title="Tonen bij nieuw bericht (content), niet bij nieuw post type">
                                 <input type="checkbox" v-model="field.show_on_creation">
                             </label>
                             <span class="drag-handle" title="Drag to reorder" style="cursor:grab;color:var(--text-muted);"><i class="fas fa-grip-vertical"></i></span>
@@ -203,17 +283,63 @@ require_once ADMIN_PATH . '/templates/header.php';
                                 {{ field.label || field.name || field.type }}
                                 <span v-if="field.required" class="required-badge" style="color:var(--error-text);font-weight:600;">*</span>
                             </span>
+                            <span v-if="field._shared_id" class="shared-badge" title="Gedeeld veld" style="color:var(--primary-color);font-size:0.75rem;"><i class="fas fa-link"></i></span>
                             <span class="field-type-badge" style="font-size:0.7rem;color:var(--text-muted);background:var(--background-subtle);padding:0.2rem 0.5rem;border-radius:4px;">{{ field.type }}</span>
                             <button type="button" class="btn-row" title="Edit settings" @click.stop="selectField(index)"><i class="fas fa-cog"></i></button>
                             <button type="button" class="btn-row" title="Duplicate" @click.stop="duplicateField(index)"><i class="fas fa-copy"></i></button>
                             <button type="button" class="btn-row btn-delete" title="Delete" @click.stop="deleteField(index)"><i class="fas fa-trash-alt"></i></button>
                         </li>
                     </ul>
+                    <div ref="canvasGroupsRef" v-else :key="'canvas-grouped-' + canvasListKey" class="field-builder-canvas-grouped" style="margin:0;padding:0;">
+                        <div v-for="(seg, si) in builderSegments" :key="'seg-' + si + '-' + (seg.tabIdx !== null ? seg.tabIdx : 'lead')"
+                             class="field-builder-section"
+                             :data-segment-leading="seg.tabIdx === null ? '1' : '0'"
+                             :data-tab-uid="seg.tabIdx !== null && activeFields[seg.tabIdx] ? activeFields[seg.tabIdx]._uid : null">
+                            <div class="field-builder-section-header">
+                                <span class="field-builder-section-handle" title="Drag the whole Field Group section to reorder">
+                                    <i class="fas fa-grip-vertical" style="color:var(--text-muted);cursor:grab;"></i>
+                                </span>
+                                <span class="field-builder-section-title" style="font-weight:600;font-size:0.9rem;">
+                                    {{ seg.tabIdx === null ? 'General' : ((activeFields[seg.tabIdx] && activeFields[seg.tabIdx].label) || 'Field Group') }}
+                                </span>
+                                <span v-if="seg.tabIdx !== null" class="field-type-badge" style="font-size:0.65rem;margin-left:0.25rem;">field group</span>
+                                <button v-if="seg.tabIdx !== null" type="button" class="btn btn-secondary btn-sm" style="margin-left:0.35rem;padding:0.15rem 0.45rem;font-size:0.75rem;" @click.stop="selectField(seg.tabIdx)">Settings</button>
+                            </div>
+                            <ul class="field-builder-group-inner active-fields-ul" style="list-style:none;margin:0;padding:0.35rem 0 0.75rem 1.25rem;">
+                                <li v-for="fi in seg.fieldIndices" :key="activeFields[fi]._uid || ('row-' + fi)"
+                                    class="active-field-row"
+                                    :class="{ selected: selectedIndex === fi }"
+                                    style="display:flex;align-items:center;gap:var(--spacing-sm);padding:0.5rem 0.75rem;margin:0.4rem 0;background:var(--surface);border:1px solid var(--border-color);border-radius:var(--radius-sm);cursor:pointer;"
+                                    :data-flat-index="fi"
+                                    :data-af-uid="activeFields[fi]._uid"
+                                    @click="selectField(fi)">
+                                    <label v-if="config.mode === 'modular'" class="show-on-creation-toggle" style="display:flex;align-items:center;flex-shrink:0;" @click.stop title="Tonen bij nieuw bericht (content), niet bij nieuw post type">
+                                        <input type="checkbox" v-model="activeFields[fi].show_on_creation">
+                                    </label>
+                                    <span class="drag-handle" title="Drag to reorder" style="cursor:grab;color:var(--text-muted);"><i class="fas fa-grip-vertical"></i></span>
+                                    <button type="button" class="field-row-collapse" style="width:1.25rem;height:1.25rem;padding:0;margin:0;border:none;background:none;cursor:pointer;color:var(--text-muted);" @click.stop="toggleSettings(fi)" :aria-label="selectedIndex === fi ? 'Close settings' : 'Open settings'">
+                                        <i class="fas" :class="selectedIndex === fi ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                                    </button>
+                                    <span class="field-label" style="flex:1;min-width:0;font-weight:500;display:flex;align-items:center;gap:0.35rem;">
+                                        <i class="fas" :class="getFieldIcon(activeFields[fi])" style="color:var(--text-muted);"></i>
+                                        {{ activeFields[fi].label || activeFields[fi].name || activeFields[fi].type }}
+                                        <span v-if="activeFields[fi].required" class="required-badge" style="color:var(--error-text);font-weight:600;">*</span>
+                                    </span>
+                                    <span v-if="activeFields[fi]._shared_id" class="shared-badge" title="Gedeeld veld" style="color:var(--primary-color);font-size:0.75rem;"><i class="fas fa-link"></i></span>
+                                    <span class="field-type-badge" style="font-size:0.7rem;color:var(--text-muted);background:var(--background-subtle);padding:0.2rem 0.5rem;border-radius:4px;">{{ activeFields[fi].type }}</span>
+                                    <button type="button" class="btn-row" title="Edit settings" @click.stop="selectField(fi)"><i class="fas fa-cog"></i></button>
+                                    <button type="button" class="btn-row" title="Duplicate" @click.stop="duplicateField(fi)"><i class="fas fa-copy"></i></button>
+                                    <button type="button" class="btn-row btn-delete" title="Delete" @click.stop="deleteField(fi)"><i class="fas fa-trash-alt"></i></button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    </template>
                     <div v-show="isDropActive && libraryInsertIndex >= 0" class="active-fields-insert-line visible" style="position:absolute;left:var(--spacing-md);right:var(--spacing-md);height:0;border-top:3px dashed #2d8016;pointer-events:none;z-index:10;" :style="{ top: insertLineTop + 'px' }"></div>
                 </div>
             </div>
 
-            <!-- Geen aparte Modular fields-card meer: alle active fields zijn beschikbaar in Add fields -->
+            <!-- Modular fields card removed: active fields live in canvas -->
         </div>
     </div>
 
@@ -261,6 +387,64 @@ require_once ADMIN_PATH . '/templates/header.php';
                         <input v-else type="text" class="form-control" v-model="selectedField[item.key]" />
                     </div>
                 </template>
+                <!-- Sharing section (General tab only) -->
+                <div v-if="settingsTab === 'general' && selectedField && selectedField.type" class="field-sharing-section" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color);">
+                    <label style="display:block;font-size:0.875rem;font-weight:600;margin-bottom:0.5rem;">
+                        <i class="fas fa-link" style="margin-right:0.25rem;"></i> Delen
+                    </label>
+                    <!-- Already shared -->
+                    <template v-if="selectedField._shared_id">
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin:0 0 0.5rem;">
+                            <i class="fas fa-link" style="color:var(--primary-color);"></i>
+                            Dit veld is gedeeld met {{ getSharedPostTypeNames(selectedField._shared_id) }}.
+                        </p>
+                        <label class="flex align-center gap-2" style="margin:0.5rem 0;font-size:0.85rem;font-weight:normal;cursor:pointer;">
+                            <input type="checkbox" v-model="selectedField.attach_to_new_post_types" />
+                            <span>Bij nieuw post type automatisch toevoegen</span>
+                        </label>
+                        <p class="help-text" style="font-size:0.75rem;color:var(--text-muted);margin:0 0 0.75rem;">Voegt dit gedeelde veld toe aan het schema wanneer je een nieuw post type aanmaakt (los van de vinkjes &quot;bij nieuw bericht&quot; hierboven).</p>
+                        <button type="button" class="btn btn-secondary btn-sm" @click="detachSharedField(selectedIndex)">
+                            <i class="fas fa-unlink"></i> Lostrekken
+                        </button>
+                    </template>
+                    <!-- Not shared yet: offer to share -->
+                    <template v-else>
+                        <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.5rem;">Deel dit veld met andere post types:</p>
+                        <div style="display:flex;flex-direction:column;gap:0.35rem;max-height:10rem;overflow-y:auto;">
+                            <label v-for="pt in config.otherPostTypes" :key="pt.id" style="display:flex;align-items:center;gap:0.5rem;font-weight:normal;font-size:0.85rem;">
+                                <input type="checkbox"
+                                    :value="pt.id"
+                                    :checked="(selectedField._share_with_post_types || []).indexOf(pt.id) >= 0"
+                                    @change="toggleShareWith(selectedIndex, pt.id, $event.target.checked)" />
+                                {{ pt.name }}
+                            </label>
+                        </div>
+                    </template>
+                </div>
+
+                <div v-if="selectedField && selectedField.type === 'group'" class="field-builder-group-subpanel" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color);">
+                    <label style="display:block;font-size:0.875rem;font-weight:600;margin-bottom:0.35rem;">Fields inside this group</label>
+                    <p class="help-text" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">Manage sub-fields here (not drag from canvas). Add <strong>Field Group</strong> (utilities) between sub-fields for segments. Under <em>Display → Inner tabs layout</em>, choose stacked, top tabs, or sidebar (ACF-style).</p>
+                    <ul v-if="(selectedField.sub_fields || []).length" style="list-style:none;margin:0;padding:0;">
+                        <li v-for="(sub, si) in selectedField.sub_fields" :key="sub._uid || ('grp-sub-' + si)" style="display:flex;align-items:center;gap:0.45rem;padding:0.4rem 0.5rem;margin-bottom:0.35rem;background:var(--background-subtle);border:1px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.85rem;">
+                            <span style="flex:1;min-width:0;">
+                                <i class="fas" :class="getFieldIcon(sub)" style="margin-right:0.35rem;color:var(--text-muted);"></i>{{ sub.label || sub.name }}
+                                <span style="color:var(--text-muted);">({{ sub.type }})</span>
+                            </span>
+                            <button type="button" class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem;font-size:0.7rem;" :disabled="si === 0" @click="moveGroupSubField(si, -1)" title="Omhoog"><i class="fas fa-arrow-up"></i></button>
+                            <button type="button" class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem;font-size:0.7rem;" :disabled="si >= selectedField.sub_fields.length - 1" @click="moveGroupSubField(si, 1)" title="Omlaag"><i class="fas fa-arrow-down"></i></button>
+                            <button type="button" class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem;font-size:0.7rem;color:var(--error-text);" title="Verwijderen" @click="removeGroupSubField(si)"><i class="fas fa-trash-alt"></i></button>
+                        </li>
+                    </ul>
+                    <div style="margin-top:0.65rem;display:flex;align-items:center;gap:0.5rem;">
+                        <select class="form-control" style="flex:1;font-size:0.875rem;" @change="onGroupSubFieldAddSelect($event)">
+                            <option value="">Add field…</option>
+                            <optgroup v-for="cat in config.categoryOrder" :key="'grp-add-' + cat" :label="cat">
+                                <option v-for="lf in filteredLibraryByCategory(cat)" :key="lf.type + '-' + cat" :value="lf.type">{{ lf.label }} — {{ lf.type }}</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -279,6 +463,38 @@ require_once ADMIN_PATH . '/templates/header.php';
 #field-builder-vue-app .active-fields-ul .active-field-row { opacity: 1 !important; visibility: visible !important; }
 #field-builder-vue-app .active-fields-ul .sortable-chosen.active-field-row,
 #field-builder-vue-app .active-fields-ul .sortable-drag.active-field-row { opacity: 1 !important; visibility: visible !important; }
+#field-builder-vue-app .field-builder-canvas-grouped {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+#field-builder-vue-app .field-builder-section {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: rgba(0, 0, 0, 0.03);
+}
+#field-builder-vue-app .field-builder-group-subpanel .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+#field-builder-vue-app .field-builder-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.6rem;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(45, 128, 22, 0.06);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+#field-builder-vue-app .field-builder-section-handle {
+    cursor: grab;
+    display: inline-flex;
+    align-items: center;
+    padding-right: 0.15rem;
+}
+#field-builder-vue-app .field-builder-section-handle:active {
+    cursor: grabbing;
+}
 </style>
 <script>
 window.MODULAR_FIELD_BUILDER_CONFIG = <?php echo json_encode($config); ?>;

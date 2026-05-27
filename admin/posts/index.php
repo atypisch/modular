@@ -185,7 +185,13 @@ require_once ADMIN_PATH . '/templates/header.php';
         </div>
     <?php endif; ?>
 
-    <div class="card">
+    <?php if (isset($_SESSION['error'])): ?>
+        <div class="alert alert-error">
+            <?php echo htmlspecialchars((string) $_SESSION['error']); unset($_SESSION['error']); ?>
+        </div>
+    <?php endif; ?>
+
+    <div class="card" id="posts-admin-page" data-posts-base-url="<?php echo htmlspecialchars(admin_url('posts'), ENT_QUOTES, 'UTF-8'); ?>">
         <?php if (empty($posts)): ?>
             <div class="empty-state">
                 <i class="fas fa-file-alt"></i>
@@ -196,9 +202,31 @@ require_once ADMIN_PATH . '/templates/header.php';
                 </a>
             </div>
         <?php else: ?>
-            <table class="table" id="posts-table" data-hierarchical="<?php echo $isHierarchicalListing ? '1' : '0'; ?>" data-csrf="<?php echo function_exists('csrf_token') ? htmlspecialchars(csrf_token()) : ''; ?>">
+            <?php
+            $postsTableColspan = 6 + 1 + ($isHierarchicalListing ? 1 : 0);
+            ?>
+            <form id="posts-bulk-form" class="posts-bulk-form" method="post" action="<?php echo htmlspecialchars(admin_url('posts/bulk-actions.php'), ENT_QUOTES, 'UTF-8'); ?>">
+                <?php echo function_exists('csrf_field') ? csrf_field() : ''; ?>
+                <input type="hidden" name="redirect_post_type_id" value="<?php echo htmlspecialchars((string) ($postTypeId ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                <div class="posts-bulk-toolbar flex flex-wrap items-center gap-2" style="padding:0.75rem 1rem;border-bottom:1px solid var(--border-color,#dee2e6);">
+                    <label class="flex items-center gap-2" style="margin:0;">
+                        <span class="text-muted" style="font-size:0.875rem;">Bulk actions</span>
+                        <select name="bulk_action" id="posts-bulk-action" class="form-control" style="width:auto;min-width:12rem;">
+                            <option value="">Choose action…</option>
+                            <option value="trash">Move to trash</option>
+                            <option value="draft">Set status to Draft</option>
+                            <option value="published">Set status to Published</option>
+                            <option value="archived">Set status to Archived</option>
+                        </select>
+                    </label>
+                    <button type="submit" class="btn btn-secondary" id="posts-bulk-apply">Apply</button>
+                </div>
+                <table class="table" id="posts-table" data-hierarchical="<?php echo $isHierarchicalListing ? '1' : '0'; ?>" data-csrf="<?php echo function_exists('csrf_token') ? htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') : ''; ?>" data-reorder-url="<?php echo htmlspecialchars(admin_url('posts/reorder.php'), ENT_QUOTES, 'UTF-8'); ?>" data-quick-save-url="<?php echo htmlspecialchars(admin_url('posts/quick-save.php'), ENT_QUOTES, 'UTF-8'); ?>">
                 <thead>
                     <tr>
+                        <th style="width: 2.5rem;">
+                            <input type="checkbox" id="posts-select-all" title="Select all" aria-label="Select all">
+                        </th>
                         <?php if ($isHierarchicalListing): ?>
                             <th style="width: 44px;"></th>
                         <?php endif; ?>
@@ -215,8 +243,34 @@ require_once ADMIN_PATH . '/templates/header.php';
                         <?php
                         $depth = isset($post['_depth']) ? (int)$post['_depth'] : 0;
                         $titlePrefix = $depth > 0 ? str_repeat('— ', $depth) : '';
+                        $pid = (int) $post['id'];
+                        $row_view = '';
+                        $row_preview = '';
+                        if (trim((string) ($post['slug'] ?? '')) !== '') {
+                            $row_view = function_exists('get_permalink') ? get_permalink($pid) : '';
+                            $row_preview = function_exists('get_post_preview_url') ? get_post_preview_url($pid) : '';
+                        }
+                        $status = $post['status'] ?? 'draft';
+                        $statusColors = [
+                            'published' => 'badge-success',
+                            'draft' => 'badge-secondary',
+                            'archived' => 'badge-warning',
+                            'scheduled' => 'badge-secondary',
+                        ];
+                        $statusColor = $statusColors[$status] ?? 'badge-secondary';
+                        $publishedRaw = $post['published_at'] ?? '';
+                        $dtLocal = '';
+                        if ($publishedRaw !== '' && $publishedRaw !== null) {
+                            $ts = strtotime((string) $publishedRaw);
+                            if ($ts !== false) {
+                                $dtLocal = date('Y-m-d\TH:i', $ts);
+                            }
+                        }
                         ?>
-                        <tr data-post-id="<?php echo (int)$post['id']; ?>" data-parent-id="<?php echo $post['parent_id'] !== null ? (int)$post['parent_id'] : ''; ?>" data-depth="<?php echo $depth; ?>">
+                        <tr class="post-main-row" data-post-id="<?php echo $pid; ?>" data-parent-id="<?php echo $post['parent_id'] !== null ? (int)$post['parent_id'] : ''; ?>" data-depth="<?php echo $depth; ?>">
+                            <td>
+                                <input type="checkbox" class="post-select-checkbox" name="post_ids[]" value="<?php echo $pid; ?>">
+                            </td>
                             <?php if ($isHierarchicalListing): ?>
                                 <td style="text-align:center;">
                                     <button type="button" class="btn btn-sm btn-secondary post-drag-handle" draggable="true" title="Sleep om te ordenen" aria-label="Sleep om te ordenen">
@@ -228,28 +282,32 @@ require_once ADMIN_PATH . '/templates/header.php';
                                 <strong class="post-title-label" style="display: inline-block; padding-left: <?php echo $depth * 14; ?>px;">
                                     <?php echo htmlspecialchars($titlePrefix . ($post['title'] ?? 'Untitled')); ?>
                                 </strong>
+                                <div class="post-row-actions">
+                                    <a href="<?php echo htmlspecialchars(admin_url('posts/edit.php?id=' . $pid), ENT_QUOTES, 'UTF-8'); ?>">Edit</a>
+                                    <span class="post-row-actions-sep">|</span>
+                                    <button type="button" class="post-row-quick-edit-btn">Quick edit</button>
+                                    <?php if ($row_view !== ''): ?>
+                                        <span class="post-row-actions-sep">|</span>
+                                        <a class="post-row-view-link" href="<?php echo htmlspecialchars($row_view, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">View</a>
+                                    <?php endif; ?>
+                                    <?php if ($row_preview !== ''): ?>
+                                        <span class="post-row-actions-sep">|</span>
+                                        <a class="post-row-preview-link" href="<?php echo htmlspecialchars($row_preview, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Preview</a>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                             <td><?php echo htmlspecialchars($post['post_type_name'] ?? ''); ?></td>
                             <td><?php echo htmlspecialchars($post['author_name'] ?? 'Unknown'); ?></td>
-                            <td>
-                                <?php
-                                $status = $post['status'] ?? 'draft';
-                                $statusColors = [
-                                    'published' => 'badge-success',
-                                    'draft' => 'badge-secondary',
-                                    'archived' => 'badge-warning'
-                                ];
-                                $statusColor = $statusColors[$status] ?? 'badge-secondary';
-                                ?>
-                                <span class="badge <?php echo $statusColor; ?>"><?php echo ucfirst($status); ?></span>
+                            <td class="post-status-cell">
+                                <span class="badge <?php echo $statusColor; ?> post-status-badge"><?php echo htmlspecialchars(ucfirst($status)); ?></span>
                             </td>
-                            <td><?php echo date('Y-m-d H:i', strtotime($post['created_at'] ?? 'now')); ?></td>
+                            <td class="post-created-cell"><?php echo date('Y-m-d H:i', strtotime($post['created_at'] ?? 'now')); ?></td>
                             <td style="text-align: right;">
                                 <div class="flex gap-2 justify-end">
-                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/edit.php?id=<?php echo $post['id']; ?>" class="btn btn-sm btn-secondary">
+                                    <a href="<?php echo htmlspecialchars(admin_url('posts/edit.php?id=' . $pid), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-secondary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/posts/delete.php?id=<?php echo $post['id']; ?>" 
+                                    <a href="<?php echo htmlspecialchars(admin_url('posts/delete.php?id=' . $pid), ENT_QUOTES, 'UTF-8'); ?>"
                                        class="btn btn-sm btn-danger"
                                        data-confirm="Are you sure you want to delete this post?">
                                         <i class="fas fa-trash"></i> Delete
@@ -257,22 +315,65 @@ require_once ADMIN_PATH . '/templates/header.php';
                                 </div>
                             </td>
                         </tr>
+                        <tr class="post-quick-edit-row" hidden>
+                            <td colspan="<?php echo (int) $postsTableColspan; ?>" class="post-quick-edit-cell">
+                                <div class="post-quick-edit-inner">
+                                    <div class="post-quick-edit-grid">
+                                        <div class="form-group">
+                                            <label>Title</label>
+                                            <input type="text" class="form-control qe-title" value="<?php echo htmlspecialchars($post['title'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Slug</label>
+                                            <input type="text" class="form-control qe-slug" value="<?php echo htmlspecialchars($post['slug'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Status</label>
+                                            <select class="form-control qe-status">
+                                                <option value="draft" <?php echo $status === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                                                <option value="published" <?php echo $status === 'published' ? 'selected' : ''; ?>>Published</option>
+                                                <option value="scheduled" <?php echo $status === 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
+                                                <option value="archived" <?php echo $status === 'archived' ? 'selected' : ''; ?>>Archived</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Published</label>
+                                            <input type="datetime-local" class="form-control qe-published" value="<?php echo htmlspecialchars($dtLocal, ENT_QUOTES, 'UTF-8'); ?>">
+                                        </div>
+                                        <div class="form-group qe-excerpt-wrap">
+                                            <label>Excerpt</label>
+                                            <textarea class="form-control qe-excerpt" rows="3"><?php echo htmlspecialchars($post['excerpt'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="post-quick-edit-actions flex gap-2 flex-wrap">
+                                        <button type="button" class="btn btn-primary qe-save">Update</button>
+                                        <button type="button" class="btn btn-secondary qe-cancel">Cancel</button>
+                                        <span class="qe-message text-muted" style="font-size:0.875rem;"></span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            </form>
         <?php endif; ?>
     </div>
 </div>
 
 <script>
 function filterByPostType(postTypeId) {
+    var base = document.getElementById('posts-admin-page');
+    var u = (base && base.getAttribute('data-posts-base-url')) ? base.getAttribute('data-posts-base-url') : '';
+    if (!u) { u = '<?php echo htmlspecialchars(admin_url('posts'), ENT_QUOTES, 'UTF-8'); ?>'; }
     if (postTypeId) {
-        window.location.href = '/modular/admin/posts?post_type_id=' + postTypeId;
+        window.location.href = u + (u.indexOf('?') >= 0 ? '&' : '?') + 'post_type_id=' + encodeURIComponent(postTypeId);
     } else {
-        window.location.href = '/modular/admin/posts';
+        window.location.href = u.split('?')[0];
     }
 }
 </script>
-<script src="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/assets/js/post-tree-reorder.js?v=1"></script>
+<script src="<?php echo htmlspecialchars(admin_url('assets/js/posts-list.js'), ENT_QUOTES, 'UTF-8'); ?>?v=1"></script>
+<script src="<?php echo htmlspecialchars(admin_url('assets/js/post-tree-reorder.js'), ENT_QUOTES, 'UTF-8'); ?>?v=2"></script>
 
 <?php require_once ADMIN_PATH . '/templates/footer.php'; ?>

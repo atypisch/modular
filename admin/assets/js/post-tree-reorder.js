@@ -6,10 +6,19 @@
     if (!tbody) return;
 
     var dragRow = null;
+    var dragPartner = null;
     var draggedPostId = null;
 
     function rows() {
-        return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-post-id]'));
+        return Array.prototype.slice.call(tbody.querySelectorAll('tr.post-main-row[data-post-id]'));
+    }
+
+    function nextMainRow(tr) {
+        var n = tr.nextElementSibling;
+        while (n && !n.classList.contains('post-main-row')) {
+            n = n.nextElementSibling;
+        }
+        return n;
     }
 
     function updateDropClass(target, active) {
@@ -33,8 +42,10 @@
 
     function saveOrder() {
         var csrf = table.getAttribute('data-csrf') || '';
+        var reorderUrl = table.getAttribute('data-reorder-url') || '';
+        if (!reorderUrl) return;
         var payload = { moves: syncOrderPayload(), _token: csrf };
-        fetch('/modular/admin/posts/reorder.php', {
+        fetch(reorderUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -56,27 +67,31 @@
     tbody.addEventListener('dragstart', function (e) {
         var handle = e.target.closest('.post-drag-handle');
         if (!handle) return;
-        dragRow = handle.closest('tr[data-post-id]');
+        dragRow = handle.closest('tr.post-main-row[data-post-id]');
         if (!dragRow) return;
+        dragPartner = dragRow.nextElementSibling;
+        if (!dragPartner || !dragPartner.classList.contains('post-quick-edit-row')) {
+            dragPartner = null;
+        }
         draggedPostId = parseInt(dragRow.getAttribute('data-post-id'), 10);
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(draggedPostId));
     });
 
     tbody.addEventListener('dragover', function (e) {
-        var targetRow = e.target.closest('tr[data-post-id]');
+        var targetRow = e.target.closest('tr.post-main-row[data-post-id]');
         if (!dragRow || !targetRow || targetRow === dragRow) return;
         e.preventDefault();
         updateDropClass(targetRow, true);
     });
 
     tbody.addEventListener('dragleave', function (e) {
-        var targetRow = e.target.closest('tr[data-post-id]');
+        var targetRow = e.target.closest('tr.post-main-row[data-post-id]');
         updateDropClass(targetRow, false);
     });
 
     tbody.addEventListener('drop', function (e) {
-        var targetRow = e.target.closest('tr[data-post-id]');
+        var targetRow = e.target.closest('tr.post-main-row[data-post-id]');
         if (!dragRow || !targetRow || targetRow === dragRow) return;
         e.preventDefault();
         updateDropClass(targetRow, false);
@@ -97,7 +112,20 @@
         if (before) {
             tbody.insertBefore(dragRow, targetRow);
         } else {
-            tbody.insertBefore(dragRow, targetRow.nextSibling);
+            var afterAnchor = nextMainRow(targetRow);
+            if (afterAnchor) {
+                tbody.insertBefore(dragRow, afterAnchor);
+            } else {
+                var qe = targetRow.nextElementSibling;
+                if (qe && qe.classList.contains('post-quick-edit-row')) {
+                    tbody.insertBefore(dragRow, qe.nextSibling);
+                } else {
+                    tbody.appendChild(dragRow);
+                }
+            }
+        }
+        if (dragPartner) {
+            tbody.insertBefore(dragPartner, dragRow.nextSibling);
         }
 
         if (makeChild) {
@@ -116,6 +144,7 @@
     tbody.addEventListener('dragend', function () {
         rows().forEach(function (row) { updateDropClass(row, false); });
         dragRow = null;
+        dragPartner = null;
         draggedPostId = null;
     });
 })();

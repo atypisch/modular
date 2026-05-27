@@ -33,15 +33,6 @@ require_once CORE_PATH . '/classes/Hooks.php';
 require_once CORE_PATH . '/classes/Module.php';
 require_once CORE_PATH . '/classes/ModuleManager.php';
 
-// Export/Import registry — register all core tables BEFORE modules load so
-// modules can md_export_register() their own tables in their init hook.
-if (is_file(CORE_PATH . '/functions/export.php')) {
-    require_once CORE_PATH . '/functions/export.php';
-    if (function_exists('md_export_register_core')) {
-        md_export_register_core();
-    }
-}
-
 // Initialize module manager and load active modules
 // Only if modules table exists to prevent errors
 if (isset($GLOBALS['db'])) {
@@ -61,6 +52,13 @@ if (isset($GLOBALS['db'])) {
     } catch (\PDOException $e) {
         // Modules table doesn't exist yet - that's okay
         error_log("Modules table not found. Module system will be available after installation.");
+    }
+
+    if (is_file(CORE_PATH . '/functions/atypisch-sync-visual-schema.php')) {
+        require_once CORE_PATH . '/functions/atypisch-sync-visual-schema.php';
+        if (function_exists('atypisch_sync_visual_fields_into_post_types')) {
+            atypisch_sync_visual_fields_into_post_types();
+        }
     }
 }
 
@@ -92,6 +90,7 @@ if (!headers_sent()) {
         "'unsafe-inline'",
         $leafletCdn,
         $simezuHost,
+        "https://fonts.googleapis.com",
     ];
 
     $imgSrc = [
@@ -104,6 +103,7 @@ if (!headers_sent()) {
 
     $fontSrc = [
         "'self'",
+        "https://fonts.gstatic.com",
     ];
 
     $csp = sprintf(

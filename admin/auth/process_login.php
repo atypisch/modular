@@ -47,7 +47,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         // Check if user exists
         $stmt = $db->prepare("SELECT * FROM users WHERE email = ?");
         $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        // Fetch all rows to fully buffer the result set (avoids MySQL unbuffered cursor conflicts).
+        $userRows = $stmt->fetchAll();
+        $user = $userRows[0] ?? null;
 
         if (!$user || !password_verify($password, $user['password'])) {
             $_SESSION['error'] = 'Invalid email or password';
@@ -72,7 +74,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                 LIMIT 1
             ");
             $roleStmt->execute([$user['id']]);
-            $role = $roleStmt->fetchColumn();
+            // Fetch all to fully buffer (prevents MySQL unbuffered cursor conflicts).
+            $roleRows = $roleStmt->fetchAll(PDO::FETCH_COLUMN);
+            $role = $roleRows[0] ?? null;
             $_SESSION['user_role'] = $role ?: 'user';
         } catch (\PDOException $e) {
             $_SESSION['user_role'] = 'user';

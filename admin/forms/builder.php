@@ -35,6 +35,7 @@ if ($formId) {
         $formFields = json_decode($form['fields'], true) ?: [];
     }
 }
+$isEditMode = ($form && !empty($form['id']));
 
 // Field types
 $fieldTypes = [
@@ -47,6 +48,7 @@ $fieldTypes = [
     'file' => ['label' => 'File Upload', 'icon' => 'file'],
     'date' => ['label' => 'Date', 'icon' => 'calendar'],
     'number' => ['label' => 'Number', 'icon' => 'hashtag'],
+    'content' => ['label' => 'Text Block', 'icon' => 'paragraph'],
 ];
 
 require_once ADMIN_PATH . '/templates/header.php';
@@ -54,10 +56,18 @@ require_once ADMIN_PATH . '/templates/header.php';
 
 <div class="container">
     <div class="card">
+        <?php if (isset($_GET['created'])): ?>
+            <div class="form-builder-message success" role="status" aria-live="polite" style="display: block;">
+                Form created. You are now creating a new form.
+            </div>
+        <?php endif; ?>
         <div class="flex justify-between items-center mb-4">
-            <h1><?php echo $form ? 'Edit Form' : 'Create Form'; ?></h1>
+            <h1><?php echo $isEditMode ? 'Edit Form' : 'Create Form'; ?></h1>
             <div>
-                <button id="save-form-btn" class="btn btn-primary">Save Form</button>
+                <?php if ($isEditMode): ?>
+                    <a href="<?php echo (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'); ?>/forms/builder.php" class="btn btn-secondary" style="margin-right: 8px;">Create New Form</a>
+                <?php endif; ?>
+                <button id="save-form-btn" class="btn btn-primary"><?php echo $isEditMode ? 'Update Form' : 'Save Form'; ?></button>
             </div>
         </div>
         <div id="form-builder-message" class="form-builder-message" role="status" aria-live="polite" style="display: none;"></div>
@@ -167,8 +177,20 @@ require_once ADMIN_PATH . '/templates/header.php';
     background: #d0d0d0;
 }
 
+.form-field-instance .drag-handle {
+    cursor: move;
+    color: #888;
+    font-size: 0.95rem;
+    line-height: 1;
+    user-select: none;
+}
+
 .form-field-instance .field-label-editable {
     font-weight: 600;
+}
+
+.sortable-ghost {
+    opacity: 0.45;
 }
 
 .form-field-instance .field-type-badge {
@@ -194,11 +216,58 @@ require_once ADMIN_PATH . '/templates/header.php';
     color: #c62828;
     border: 1px solid #ef9a9a;
 }
+
+.form-content-preview {
+    padding: 0.75rem;
+    border-radius: 3px;
+}
+
+.form-content-preview.form-content-preview-comment {
+    border-left: 3px solid #9ca3af;
+    background: #fff;
+}
+
+.form-content-preview.form-content-preview-plain {
+    border-left: 0;
+    background: transparent;
+    padding: 0.25rem 0;
+}
+
+.form-content-preview strong {
+    display: block;
+    margin-bottom: 0.35rem;
+}
+
+.form-content-preview p {
+    margin: 0;
+    color: #444;
+}
+
+.content-inline-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.content-inline-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.content-inline-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    color: #444;
+}
 </style>
 
 <script>
 let formFields = <?php echo json_encode($formFields); ?>;
 let draggedField = null;
+let formFieldsSortable = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     renderFormFields();
@@ -234,17 +303,27 @@ function setupDragAndDrop() {
     });
 }
 
+function slugifyName(value) {
+    return String(value || '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+}
+
 function addField(type) {
-    const label = type.charAt(0).toUpperCase() + type.slice(1);
+    const label = type === 'content' ? 'Section' : type.charAt(0).toUpperCase() + type.slice(1);
+    const ts = Date.now();
     const field = {
-        id: 'field_' + Date.now(),
+        id: 'field_' + ts,
         type: type,
         label: label,
-        name: (type + '_' + Date.now()).toLowerCase().replace(/\s+/g, '_'),
+        name: type === 'content' ? '' : slugifyName(type + '_' + ts),
         required: false,
         placeholder: '',
         options: []
     };
+    if (type === 'content') {
+        field.content = 'Add your intro text or chapter explanation here.';
+        field.style = 'paragraph';
+        field.as_comment = false;
+    }
     formFields.push(field);
     renderFormFields();
 }
@@ -254,14 +333,128 @@ function removeField(id) {
     renderFormFields();
 }
 
+
+function syncFormFieldsOrderFromDom() {
+    const container = document.getElementById('form-fields-list');
+    if (!container) return;
+    const ids = Array.from(container.querySelectorAll('.form-field-instance[data-field-id]'))
+        .map(el => el.getAttribute('data-field-id'));
+    if (!ids.length) return;
+    const byId = new Map(formFields.map(f => [String(f.id), f]));
+    formFields = ids.map(id => byId.get(String(id))).filter(Boolean);
+}
+
+function setupSortableFields() {
+    const container = document.getElementById('form-fields-list');
+    if (!container || !container.querySelector('.form-field-instance')) {
+        if (formFieldsSortable && typeof formFieldsSortable.destroy === 'function') {
+            formFieldsSortable.destroy();
+            formFieldsSortable = null;
+        }
+        return;
+    }
+
+    if (formFieldsSortable && typeof formFieldsSortable.destroy === 'function') {
+        formFieldsSortable.destroy();
+        formFieldsSortable = null;
+    }
+
+    if (window.ModularSortable && typeof window.ModularSortable.create === 'function') {
+        formFieldsSortable = window.ModularSortable.create(container, {
+            handle: '.drag-handle',
+            animation: 150,
+            onEnd: function() {
+                syncFormFieldsOrderFromDom();
+            }
+        });
+    } else if (window.Sortable && typeof window.Sortable.create === 'function') {
+        formFieldsSortable = window.Sortable.create(container, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            onEnd: function() {
+                syncFormFieldsOrderFromDom();
+            }
+        });
+    }
+}
+
 function editField(id) {
     const field = formFields.find(f => f.id === id);
     if (!field) return;
+
     const container = document.getElementById('form-fields-list');
-    const wrap = container.querySelector('[data-field-id="' + id + '"]');
+    const wrap = container ? container.querySelector('[data-field-id="' + id + '"]') : null;
     if (!wrap) return;
     const labelEl = wrap.querySelector('.field-label-editable');
-    const actionsEl = wrap.querySelector('.field-actions');
+    const previewEl = wrap.querySelector('.field-preview');
+
+    if (field.type === 'content') {
+        if (!labelEl || !previewEl || labelEl.querySelector('input') || previewEl.querySelector('textarea')) return;
+
+        const titleInput = document.createElement('input');
+        titleInput.type = 'text';
+        titleInput.className = 'form-control field-label-input';
+        titleInput.value = field.label || 'Section';
+        titleInput.style.width = '100%';
+        titleInput.style.maxWidth = '240px';
+        labelEl.textContent = '';
+        labelEl.appendChild(titleInput);
+
+        previewEl.innerHTML = `
+            <div class="content-inline-editor">
+                <textarea class="form-control content-inline-textarea" rows="4"></textarea>
+                <label class="content-inline-toggle">
+                    <input type="checkbox" class="content-inline-comment-toggle" />
+                    Show as comment block
+                </label>
+                <div class="content-inline-actions">
+                    <button type="button" class="btn btn-sm btn-secondary content-inline-cancel">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary content-inline-save">Save</button>
+                </div>
+            </div>
+        `;
+        const contentInput = previewEl.querySelector('.content-inline-textarea');
+        const commentToggle = previewEl.querySelector('.content-inline-comment-toggle');
+        const saveBtn = previewEl.querySelector('.content-inline-save');
+        const cancelBtn = previewEl.querySelector('.content-inline-cancel');
+        contentInput.value = field.content || '';
+        commentToggle.checked = !!field.as_comment;
+
+        function saveContentBlock() {
+            field.label = (titleInput.value || '').trim() || 'Section';
+            field.content = (contentInput.value || '').trim();
+            field.as_comment = !!commentToggle.checked;
+            renderFormFields();
+        }
+        function cancelContentBlock() {
+            renderFormFields();
+        }
+        saveBtn.addEventListener('click', saveContentBlock);
+        cancelBtn.addEventListener('click', cancelContentBlock);
+        titleInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelContentBlock();
+            }
+        });
+        contentInput.addEventListener('keydown', function(e) {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                saveContentBlock();
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelContentBlock();
+            }
+        });
+        titleInput.focus();
+        titleInput.select();
+        return;
+    }
+
     if (!labelEl || labelEl.querySelector('input')) return;
     const input = document.createElement('input');
     input.type = 'text';
@@ -277,7 +470,7 @@ function editField(id) {
         const newLabel = input.value.trim();
         if (newLabel) {
             field.label = newLabel;
-            field.name = newLabel.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            field.name = slugifyName(newLabel);
         }
         renderFormFields();
     }
@@ -307,10 +500,11 @@ function renderFormFields() {
         container.innerHTML = formFields.map((field) => `
             <div class="form-field-instance" data-field-id="${field.id}">
                 <div class="field-header">
+                    <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
                     <span class="field-label-editable">${escapeHtml(field.label)}</span>
                     <span class="field-type-badge">${escapeHtml(field.type)}</span>
                     <div class="field-actions">
-                        <button type="button" class="edit-field-btn" data-id="${field.id}" title="Edit label">✎</button>
+                        <button type="button" class="edit-field-btn" data-id="${field.id}" title="${field.type === 'content' ? 'Edit text block' : 'Edit label'}">✎</button>
                         <button type="button" class="remove-field-btn" data-id="${field.id}" title="Delete">×</button>
                     </div>
                 </div>
@@ -326,6 +520,8 @@ function renderFormFields() {
             btn.addEventListener('click', () => removeField(btn.dataset.id));
         });
     }
+
+    setupSortableFields();
 }
 
 function escapeHtml(s) {
@@ -349,6 +545,8 @@ function renderFieldPreview(field) {
             return `<input type="checkbox" ${field.required ? 'required' : ''} disabled> ${field.label}`;
         case 'radio':
             return `<input type="radio" ${field.required ? 'required' : ''} disabled> ${field.label}`;
+        case 'content':
+            return `<div class="${field.as_comment ? 'form-content-preview form-content-preview-comment' : 'form-content-preview form-content-preview-plain'}"><strong>${escapeHtml(field.label || 'Section')}</strong><p>${escapeHtml(field.content || '')}</p></div>`;
         default:
             return `<input type="text" placeholder="${field.placeholder}" disabled>`;
     }
@@ -380,8 +578,9 @@ document.getElementById('save-form-btn').addEventListener('click', function() {
         return;
     }
 
-    const url = '/modular/admin/api/index.php/api/v1/forms' + (<?php echo $formId ? "'/{$formId}'" : "''"; ?>);
-    const method = <?php echo $formId ? "'PUT'" : "'POST'"; ?>;
+    const apiBase = <?php echo json_encode((defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/api/index.php'); ?>;
+    const url = apiBase + '/api/v1/forms' + (<?php echo $isEditMode ? "'/" . (int) $form['id'] . "'" : "''"; ?>);
+    const method = <?php echo $isEditMode ? "'PUT'" : "'POST'"; ?>;
 
     fetch(url, {
         method: method,
@@ -398,7 +597,8 @@ document.getElementById('save-form-btn').addEventListener('click', function() {
             try {
                 result = text ? JSON.parse(text) : {};
             } catch (e) {
-                throw new Error('Server returned invalid response. Try again or check the console.');
+                const snippet = (text || '').slice(0, 180).trim();
+                throw new Error('Server returned invalid response: ' + (snippet || 'empty response'));
             }
             if (!response.ok) {
                 var err = new Error(result.error || result.message || 'Request failed');
@@ -414,8 +614,10 @@ document.getElementById('save-form-btn').addEventListener('click', function() {
             showFormMessage('error', 'Error: ' + result.error);
         } else {
             showFormMessage('success', 'Form saved successfully.');
-            if (result.id && !<?php echo $formId ? 'true' : 'false'; ?>) {
-                window.location.href = window.location.pathname + '?id=' + result.id;
+            if (!<?php echo $isEditMode ? 'true' : 'false'; ?>) {
+                // Stay in create mode after a successful create to prevent
+                // accidentally overwriting the just-created form on next save.
+                window.location.href = window.location.pathname + '?created=1';
             }
         }
     })

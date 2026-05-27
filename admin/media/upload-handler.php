@@ -11,14 +11,30 @@ if (!defined('ADMIN_PATH')) {
 }
 require_once dirname(__DIR__) . '/bootstrap.php';
 require_once CORE_PATH . '/functions/auth.php';
+require_once CORE_PATH . '/functions/http.php';
+
+function media_upload_wants_json(): bool {
+    $requestedWith = strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+    if ($requestedWith === 'xmlhttprequest') {
+        return true;
+    }
+    $accept = strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? ''));
+    return strpos($accept, 'application/json') !== false;
+}
 
 if (!is_logged_in()) {
+    if (media_upload_wants_json()) {
+        header('Content-Type: application/json');
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Not authenticated.']);
+        exit;
+    }
     header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/login.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['file'])) {
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    $isAjax = media_upload_wants_json();
     if ($isAjax) {
         header('Content-Type: application/json');
         http_response_code(400);
@@ -30,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['file'])) {
     exit;
 }
 if (!csrf_verify()) {
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    $isAjax = media_upload_wants_json();
     // For AJAX file uploads from the form, also check CSRF token from query string or header
     $getToken = $_GET['_csrf_token'] ?? '';
     $headerToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
@@ -55,13 +71,13 @@ $db = $GLOBALS['db'];
 $userId = $_SESSION['user_id'] ?? 1;
 
 $file = $_FILES['file'];
-$title = filter_input(INPUT_POST, 'title', FILTER_SANITIZE_STRING) ?? '';
-$altText = filter_input(INPUT_POST, 'alt_text', FILTER_SANITIZE_STRING) ?? '';
-$folderPath = filter_input(INPUT_POST, 'folder_path', FILTER_SANITIZE_STRING) ?? '';
+$title = md_sanitize_text((string)($_POST['title'] ?? ''));
+$altText = md_sanitize_text((string)($_POST['alt_text'] ?? ''));
+$folderPath = md_sanitize_text((string)($_POST['folder_path'] ?? ''));
 
 // Validate file
 if ($file['error'] !== UPLOAD_ERR_OK) {
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    $isAjax = media_upload_wants_json();
     $errorMsg = 'File upload error.';
     if ($isAjax) {
         header('Content-Type: application/json');
@@ -79,7 +95,7 @@ $allowedTypes = [
     'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm', 'audio/flac', 'audio/aac', 'audio/mp4',
 ];
 if (!in_array($file['type'], $allowedTypes)) {
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    $isAjax = media_upload_wants_json();
     $errorMsg = 'File type not allowed. Allowed: images, PDF, and audio (MP3, WAV, OGG, WebM, FLAC, AAC).';
     if ($isAjax) {
         header('Content-Type: application/json');
@@ -134,8 +150,8 @@ if ($fileType === 'image') {
 // Save to database
 try {
     // Store file_path as a path RELATIVE to the uploads directory so downstream
-    // URL resolvers can prepend UPLOADS_WEB_PATH without producing a doubled
-    // prefix (e.g. /modular/public/uploads/modular/public/uploads/...).
+    // URL resolvers (md_uploads_paths etc.) can prepend UPLOADS_WEB_PATH without
+    // producing a doubled prefix like /atypisch-mdlr/public/uploads/atypisch-mdlr/...
     $relativePath = $filename;
     $uploadsWebBase = defined('UPLOADS_WEB_PATH')
         ? rtrim(UPLOADS_WEB_PATH, '/')
@@ -160,7 +176,7 @@ try {
     $mediaId = (int)$db->lastInsertId();
     
     // Check if AJAX request
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    $isAjax = media_upload_wants_json();
     
     if ($isAjax) {
         header('Content-Type: application/json');
@@ -187,7 +203,7 @@ try {
     error_log("Media upload error: " . $errorMsg);
     
     // Check if AJAX request
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    $isAjax = media_upload_wants_json();
     
     if ($isAjax) {
         header('Content-Type: application/json');

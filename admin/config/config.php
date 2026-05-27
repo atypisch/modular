@@ -51,12 +51,18 @@ try {
         array(
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            // Avoid "Cannot execute queries while other unbuffered queries are active"
+            // by forcing MySQL to buffer results for prepared statements.
+            PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
             PDO::ATTR_EMULATE_PREPARES => false
         )
     );
     
     // Test the connection
-    $db->query("SELECT 1");
+    $testStmt = $db->query("SELECT 1");
+    // Consume and close result to avoid unbuffered cursor conflicts.
+    $testStmt->fetch();
+    $testStmt->closeCursor();
     
     // Make database connection available globally
     $GLOBALS['db'] = $db;
@@ -70,7 +76,10 @@ try {
 $requestUri = $_SERVER['REQUEST_URI'] ?? '';
 $isAdminRequest = (strpos($requestUri, '/admin') !== false);
 $isSetupRequest = (strpos($requestUri, '/admin/setup') !== false);
-if (isset($GLOBALS['db']) && $isAdminRequest && !$isSetupRequest) {
+// Avoid running migrations during auth flows (login/register), since they can
+// trigger unbuffered cursor conflicts that prevent authentication from working.
+$isAuthRequest = (strpos($requestUri, '/admin/auth/') !== false);
+if (isset($GLOBALS['db']) && $isAdminRequest && !$isSetupRequest && !$isAuthRequest) {
     require_once CORE_PATH . '/functions/database.php';
     if (function_exists('run_pending_migrations')) {
         run_pending_migrations();

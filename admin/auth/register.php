@@ -12,6 +12,8 @@ unset($_SESSION['error']);
 unset($_SESSION['success']);
 
 $page_title = 'Register';
+$loginUrl = (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin');
+$loginUrl = rtrim((string) $loginUrl, '/') . '/auth/login.php';
 $content = '
     <div class="auth-container">
         <div class="auth-card">
@@ -66,7 +68,7 @@ $content = '
                     <button type="submit" class="btn btn-primary w-full" id="submit-btn" disabled>Register</button>
                 </div>
                 <div class="auth-links">
-                    <a href="<?php echo defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin'; ?>/auth/login.php" class="text-blue-600 hover:text-blue-800">Already have an account? Login</a>
+                    <a href="' . esc_url($loginUrl) . '" class="text-blue-600 hover:text-blue-800">Already have an account? Login</a>
                 </div>
             </form>
         </div>

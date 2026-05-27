@@ -73,6 +73,81 @@
         });
     }
 
+    // Reactive cache of media_id -> public URL. Shared across all FileUpload previews,
+    // so a single fetch per media_id feeds every thumbnail. Used by the field-renderer
+    // image/file/gallery preview.
+    var mediaUrlCache = reactive({});
+    var MEDIA_PENDING = '__pending__';
+    var MEDIA_FAILED = '__failed__';
+
+    function buildMediaUrl(m) {
+        if (!m) return '';
+        // Prefer the server-provided `url`: upload-handler.php now returns it as a
+        // clean host-absolute web path (UPLOADS_WEB_PATH + filename). If an older
+        // record had `SITE_URL + file_path` that doubled BASE_PATH, collapse it.
+        if (m.url) {
+            var base = (window.MODULAR_BASE_URL || '').replace(/\/+$/, '');
+            if (base && base !== '/') {
+                var doubled = base + base;
+                if (m.url.indexOf(doubled) !== -1) {
+                    return m.url.split(doubled).join(base);
+                }
+            }
+            return m.url;
+        }
+        // Fallback: file_path may be either an absolute URL, a host-absolute path,
+        // or a bare filename relative to UPLOADS_WEB_PATH. Normalize accordingly.
+        var fp = m.file_path || '';
+        if (!fp) return '';
+        if (/^https?:\/\//i.test(fp)) return fp;
+        if (fp.charAt(0) === '/') return fp;
+        var uploadsBase = (window.MODULAR_UPLOADS_WEB_PATH
+            || ((window.MODULAR_BASE_URL || '') + '/public/uploads')
+        ).replace(/\/+$/, '');
+        return uploadsBase + '/' + fp;
+    }
+
+    function resolveMediaUrl(id) {
+        if (!id) return;
+        if (mediaUrlCache[id] !== undefined) return;
+        // Seed PENDING so concurrent renders don't all refetch, and so we never fall
+        // back to undefined (which would retrigger render -> resolve -> render in a loop).
+        mediaUrlCache[id] = MEDIA_PENDING;
+        var apiBase = (window.MODULAR_BASE_URL || '') + '/admin/api/index.php';
+        fetch(apiBase + '/api/v1/media/' + encodeURIComponent(id), {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+        })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (m) {
+                // The API sometimes wraps the media record ({data: {...}}), unwrap it.
+                if (m && m.data && typeof m.data === 'object' && !m.file_path && !m.url) {
+                    m = m.data;
+                }
+                var url = buildMediaUrl(m);
+                // Mark both success and failure with a non-undefined sentinel so the
+                // render loop doesn't retry forever.
+                mediaUrlCache[id] = url || MEDIA_FAILED;
+            })
+            .catch(function () { mediaUrlCache[id] = MEDIA_FAILED; });
+    }
+
+    function getCachedMediaUrl(id) {
+        if (!id) return '';
+        var v = mediaUrlCache[id];
+        if (v === undefined) {
+            resolveMediaUrl(id);
+            return '';
+        }
+        if (v === MEDIA_PENDING || v === MEDIA_FAILED) return '';
+        return v;
+    }
+
+    function isImageUrl(url) {
+        if (!url) return false;
+        return /\.(jpe?g|png|gif|webp|svg|avif|bmp)(\?.*)?$/i.test(url);
+    }
+
     /**
      * Normalize initial value for a field type (e.g. Calendar expects Date or string in format).
      */
@@ -85,7 +160,231 @@
         if (type === 'checkbox' || type === 'true_false') return false;
         if (type === 'number' || type === 'range' || type === 'rating') return null;
         if (type === 'gallery' || type === 'carousel' || type === 'chart') return type === 'chart' ? {} : [];
+        if (type === 'group') return {};
         return '';
+    }
+
+    /** Split schema field defs (sub_fields order) using tab utilities as boundaries — mirrors post/instance tab segmentation. */
+    function segmentFieldDefsByTabs(fieldDefs) {
+        var arr = fieldDefs || [];
+        var segments = [];
+        function isTab(sf) {
+            return sf && String(sf.type || '').toLowerCase() === 'tab';
+        }
+        var leading = [];
+        var i = 0;
+        while (i < arr.length && !isTab(arr[i])) {
+            leading.push(arr[i]);
+            i++;
+        }
+        if (leading.length) {
+            segments.push({ tabDef: null, defs: leading });
+        }
+        while (i < arr.length) {
+            if (!isTab(arr[i])) {
+                i++;
+                continue;
+            }
+            var tabDef = arr[i++];
+            var chunk = [];
+            while (i < arr.length && !isTab(arr[i])) {
+                chunk.push(arr[i]);
+                i++;
+            }
+            segments.push({ tabDef: tabDef, defs: chunk });
+        }
+        return segments;
+    }
+
+    /**
+     * Horizontal or vertical tab navigation inside a Group (sub_fields split by tab / Field Group markers).
+     */
+    var ModularGroupTabPanels = {
+        name: 'ModularGroupTabPanels',
+        props: {
+            layout: { type: String, default: 'top' },
+            segments: { type: Array, default: function () { return []; } },
+        },
+        data: function () {
+            return { activeIndex: 0 };
+        },
+        watch: {
+            segments: {
+                deep: true,
+                handler: function () {
+                    var len = (this.segments || []).length;
+                    if (this.activeIndex >= len) this.activeIndex = Math.max(0, len - 1);
+                },
+            },
+        },
+        render: function () {
+            var hFn = Vue.h;
+            var segs = this.segments || [];
+            var layout = this.layout || 'top';
+            var ix = this.activeIndex;
+            var self = this;
+            if (!segs.length) return null;
+            function mkBtn(seg, idx) {
+                var active = ix === idx;
+                return hFn('button', {
+                    key: 'itab-' + seg.key + '-' + idx,
+                    type: 'button',
+                    class: 'modular-inner-tab-btn' + (active ? ' modular-inner-tab-btn--active' : ''),
+                    role: 'tab',
+                    'aria-selected': active ? 'true' : 'false',
+                    tabindex: active ? '0' : '-1',
+                    onClick: function (e) {
+                        e.preventDefault();
+                        self.activeIndex = idx;
+                    },
+                }, seg.title || 'Tab');
+            }
+            var activeSeg = segs[ix] || segs[0];
+            var panelContent = activeSeg && activeSeg.nodes ? activeSeg.nodes : [];
+            var panel = hFn('div', {
+                key: 'ipnl-' + (activeSeg ? activeSeg.key : 'x'),
+                class: 'modular-inner-tab-panel',
+                role: 'tabpanel',
+            }, panelContent);
+            var navClass = layout === 'sidebar'
+                ? 'modular-inner-tabs-nav modular-inner-tabs-nav--sidebar'
+                : 'modular-inner-tabs-nav modular-inner-tabs-nav--top';
+            var navRow = hFn('div', { class: navClass, role: 'tablist' }, segs.map(mkBtn));
+            var outerClass = layout === 'sidebar'
+                ? 'modular-group-tab-panels modular-group-tab-panels--sidebar'
+                : 'modular-group-tab-panels modular-group-tab-panels--top';
+            return hFn('div', { class: outerClass }, [navRow, panel]);
+        },
+    };
+
+    /** Resolve inner tab UI for Group fields (matches GroupField PHP default: top when unset). */
+    function resolveGroupInnerTabsLayout(fld) {
+        var raw = fld && fld.inner_tabs_layout;
+        if ((raw === undefined || raw === null || raw === '') && fld && fld.ui && fld.ui.props) {
+            raw = fld.ui.props.inner_tabs_layout;
+        }
+        if (raw === 'top' || raw === 'sidebar' || raw === 'stacked') return raw;
+        return 'top';
+    }
+
+    /**
+     * Renders nested sub_fields for group (tabs + recurse into nested group). Used as inputEl for modular toolbar wrap.
+     */
+    function modularRenderGroupSubtree(ctx, field, hArg, FieldRendererComp) {
+        var nested = !!ctx.nested;
+        var subs = Array.isArray(field.sub_fields) ? field.sub_fields : [];
+        var hasTabs = subs.some(function (sf) {
+            return sf && String(sf.type || '').toLowerCase() === 'tab';
+        });
+        var segments = segmentFieldDefsByTabs(subs);
+        var innerLayout = resolveGroupInnerTabsLayout(field);
+        function getChild(nm) {
+            var lv = ctx.localValue;
+            if (!lv || typeof lv !== 'object') return undefined;
+            return lv[nm];
+        }
+        function setChild(nm, val) {
+            var base = (ctx.localValue && typeof ctx.localValue === 'object') ? Object.assign({}, ctx.localValue) : {};
+            base[nm] = val;
+            ctx.localValue = base;
+        }
+        function renderOneSub(sf) {
+            if (!sf) return null;
+            var st = String(sf.type || '').toLowerCase();
+            var nk = sf.name || sf.key || '';
+            if (isUtilityType(sf.type)) {
+                if (st === 'tab') {
+                    return hArg('div', { key: 'utab-' + nk + '-' + (sf.label || ''), class: 'form-group form-group-utility form-group-tab modular-nested-tab' }, [
+                        hArg('div', { class: 'field-tab-label' }, sf.label || 'Field Group'),
+                    ]);
+                }
+                if (st === 'divider') {
+                    return hArg(PV.Divider, { key: 'udiv-' + nk }, null);
+                }
+                if (st === 'message') {
+                    return hArg('div', { key: 'umsg-' + nk, class: 'help-text modular-nested-msg' }, sf.label || sf.instructions || '');
+                }
+                return null;
+            }
+            var subResolved = resolveFieldComponent(sf.type, sf);
+            if (subResolved.isLayout) {
+                if (st === 'group') {
+                    return hArg(FieldRendererComp, {
+                        key: 'ng-' + nk,
+                        field: sf,
+                        modelValue: getChild(nk),
+                        nested: true,
+                        optionsMap: ctx.optionsMap || {},
+                        instanceId: (ctx.instanceId || '') + '-sub-' + nk,
+                        'onUpdate:modelValue': function (v) { setChild(nk, v); },
+                    });
+                }
+                return hArg('div', {
+                    key: 'lay-' + nk,
+                    class: 'help-text text-muted',
+                    style: 'padding:0.5rem;',
+                }, 'Layout `' + st + '` is not supported inside a group yet (use a nested group or another field type).');
+            }
+            return hArg(FieldRendererComp, {
+                key: 'f-' + nk,
+                field: sf,
+                modelValue: getChild(nk),
+                nested: true,
+                optionsMap: ctx.optionsMap || {},
+                instanceId: (ctx.instanceId || '') + '-sub-' + nk,
+                'onUpdate:modelValue': function (v) { setChild(nk, v); },
+            });
+        }
+        var subRootClass = 'modular-group-subfields' + (nested ? ' modular-group-subfields-nested' : '');
+
+        if (!hasTabs) {
+            var onlySeg = segments.length ? segments[0] : { defs: [] };
+            var flatNodes = (onlySeg.defs || []).map(renderOneSub).filter(Boolean);
+            return hArg('div', {
+                class: subRootClass,
+            }, flatNodes);
+        }
+
+        var panelsData = [];
+        segments.forEach(function (seg, si) {
+            var innerNodes = (seg.defs || []).map(renderOneSub).filter(Boolean);
+            var title = seg.tabDef
+                ? (seg.tabDef.label || 'Field Group')
+                : 'General';
+            panelsData.push({
+                key: 'gseg-' + si + '-' + title,
+                title: title,
+                nodes: innerNodes,
+            });
+        });
+
+        function renderStacked() {
+            var wrapped = [];
+            panelsData.forEach(function (pk, si) {
+                wrapped.push(hArg('div', { key: pk.key, class: 'modular-nested-field-segment' }, [
+                    hArg('div', { class: 'modular-nested-field-segment-title' }, pk.title),
+                    hArg('div', { class: 'modular-nested-field-segment-inner' }, pk.nodes),
+                ]));
+            });
+            return hArg('div', { class: subRootClass }, wrapped);
+        }
+
+        var usePanels = panelsData.length > 1 && innerLayout !== 'stacked';
+
+        if (usePanels && (innerLayout === 'top' || innerLayout === 'sidebar')) {
+            return hArg('div', { class: subRootClass }, [
+                hArg(ModularGroupTabPanels, {
+                    layout: innerLayout,
+                    segments: panelsData,
+                }),
+            ]);
+        }
+
+        if (panelsData.length === 1) {
+            return hArg('div', { class: subRootClass }, panelsData[0].nodes || []);
+        }
+
+        return renderStacked();
     }
 
     /**
@@ -100,6 +399,7 @@
             instanceId: { type: String, default: '' },
             onRemove: { type: Function, default: null },
             onDuplicate: { type: Function, default: null },
+            nested: { type: Boolean, default: false },
         },
         emits: ['update:modelValue'],
         setup: function (props, context) {
@@ -141,6 +441,10 @@
                 }
             }, { immediate: true });
 
+            // Active FileUpload tasks for this field, keyed by taskId.
+            // Shape: { [taskId]: { name: string, percent: number, error?: string } }
+            var uploadProgress = ref({});
+
             return {
                 resolved: resolved,
                 localValue: localValue,
@@ -149,7 +453,9 @@
                 relationshipPostType: relationshipPostType,
                 isCollapsed: isCollapsed,
                 isEditingLabel: isEditingLabel,
-                labelDraft: labelDraft
+                labelDraft: labelDraft,
+                uploadProgress: uploadProgress,
+                nested: computed(function () { return !!props.nested; })
             };
         },
         render: function (ctx) {
@@ -245,13 +551,16 @@
                 }
             }
 
-            if (resolved.isLayout) {
+            if (resolved.isLayout && type !== 'group') {
+                var layoutMsg = type === 'repeater' || type === 'flexible_content'
+                    ? 'Repeater / Flexible content: full nested editor TBD; for now use sub_fields in Field Builder + JSON or standalone fields.'
+                    : 'Layout field: no editor yet.';
                 return h('div', {
                     class: 'form-group form-group-layout field-type-' + type,
                     'data-field-type': type,
                 }, [
                     h('strong', { class: 'block margin-bottom' }, resolved.label || type),
-                    h('p', { class: 'help-text' }, 'Nested and repeating fields (group/repeater/flexible) use the same schema; full nested Vue rendering can be added here.'),
+                    h('p', { class: 'help-text' }, layoutMsg),
                 ]);
             }
 
@@ -265,7 +574,7 @@
 
             var tag = resolved.tag;
             var component = COMPONENT_REGISTRY[tag];
-            if (!component && tag !== 'input') {
+            if (type !== 'group' && !component && tag !== 'input') {
                 return h('div', { class: 'form-group' }, [
                     h('label', resolved.label),
                     h('p', { class: 'help-text' }, 'Unknown component: ' + resolved.component),
@@ -299,7 +608,9 @@
                 picklistModelValue = [filteredSource, tgt];
             }
 
-            var bindProps = Object.assign({}, resolved.props, {
+            var bindProps;
+            if (type !== 'group') {
+            bindProps = Object.assign({}, resolved.props, {
                 modelValue: tag === 'p-picklist' ? picklistModelValue : (tag === 'wysiwyg-field' ? String(ctx.localValue || '') : ctx.localValue),
                 'onUpdate:modelValue': tag === 'p-picklist'
                     ? function (v) {
@@ -330,6 +641,10 @@
                         try {
                             var response = JSON.parse(xhr.responseText);
                             if (response.success) {
+                                var freshUrl = buildMediaUrl(response);
+                                if (response.media_id && freshUrl) {
+                                    mediaUrlCache[response.media_id] = freshUrl;
+                                }
                                 var currentValue = ctx.localValue;
                                 if (resolved.props.multiple) {
                                     if (!Array.isArray(currentValue)) currentValue = [];
@@ -348,53 +663,102 @@
                 };
             }
 
-            // FileUpload with customUpload needs custom handler
+            // FileUpload with customUpload: one XHR per file with live upload progress.
+            // Server-side upload-handler.php only returns JSON when X-Requested-With is set,
+            // so routing through customUpload also avoids the 302 that basic-mode triggers.
+            // PrimeVue emits 'uploader' (payload: {files}), which binds as onUploader in
+            // render functions. The previous 'uploadHandler' key was a dead prop.
             if (tag === 'p-fileupload' && resolved.props.customUpload) {
-                bindProps.uploadHandler = function(options) {
-                    var files = options.files;
-                    if (!files || files.length === 0) return;
-                    var file = files[0];
-                    var formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('title', file.name);
-                    var csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
-                    if (csrfToken) formData.append('csrf_token', csrfToken);
-                    var xhr = new XMLHttpRequest();
-                    xhr.open('POST', window.MODULAR_BASE_URL + '/admin/media/upload-handler.php', true);
-                    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-                    xhr.onload = function() {
-                        if (xhr.status === 200) {
-                            try {
-                                var response = JSON.parse(xhr.responseText);
-                                if (response.success) {
-                                    var currentValue = ctx.localValue;
-                                    if (resolved.props.multiple) {
-                                        if (!Array.isArray(currentValue)) currentValue = [];
-                                        currentValue.push(response.media_id);
-                                    } else {
-                                        currentValue = response.media_id;
-                                    }
-                                    ctx.localValue = currentValue;
-                                } else {
-                                    (window.ModularModal && window.ModularModal.alert('Upload mislukt: ' + (response.error || 'Onbekende fout')));
-                                }
-                            } catch (e) {
-                                (window.ModularModal && window.ModularModal.alert('Upload mislukt: ongeldig antwoord'));
-                            }
+                bindProps.onUploader = function(options) {
+                    var files = (options && options.files) || [];
+                    if (!files.length) return;
+                    var csrfToken = document.querySelector('input[name="_csrf_token"]')?.value || window.MODULAR_CSRF_TOKEN || '';
+                    var remaining = files.length;
+                    var appendId = function (id) {
+                        if (id === undefined || id === null) return;
+                        if (resolved.props.multiple) {
+                            var cur = Array.isArray(ctx.localValue) ? ctx.localValue.slice() : [];
+                            cur.push(id);
+                            ctx.localValue = cur;
                         } else {
-                            (window.ModularModal && window.ModularModal.alert('Upload mislukt: serverfout'));
+                            ctx.localValue = id;
                         }
                     };
-                    xhr.onerror = function() {
-                        (window.ModularModal && window.ModularModal.alert('Upload mislukt: netwerkfout'));
+                    var setTask = function (tid, patch) {
+                        var next = Object.assign({}, ctx.uploadProgress);
+                        next[tid] = Object.assign({}, next[tid] || {}, patch);
+                        ctx.uploadProgress = next;
                     };
-                    xhr.send(formData);
+                    var removeTask = function (tid) {
+                        var next = Object.assign({}, ctx.uploadProgress);
+                        delete next[tid];
+                        ctx.uploadProgress = next;
+                    };
+                    var finishOne = function () {
+                        remaining -= 1;
+                        // PrimeVue basic mode resets its internal file list on the next
+                        // selection (`this.isBasic && this.hasFiles && (this.files = [])`),
+                        // so no explicit clear is needed here.
+                    };
+                    Array.prototype.forEach.call(files, function (file) {
+                        var tid = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+                        setTask(tid, { name: file.name, percent: 0 });
+                        var formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('title', file.name);
+                        if (csrfToken) formData.append('_csrf_token', csrfToken);
+                        var xhr = new XMLHttpRequest();
+                        xhr.open('POST', window.MODULAR_BASE_URL + '/admin/media/upload-handler.php', true);
+                        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                        xhr.setRequestHeader('Accept', 'application/json');
+                        if (csrfToken) {
+                            xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
+                        }
+                        if (xhr.upload) {
+                            xhr.upload.onprogress = function (e) {
+                                if (!e.lengthComputable) return;
+                                var pct = Math.max(0, Math.min(99, Math.round(e.loaded / e.total * 100)));
+                                setTask(tid, { percent: pct });
+                            };
+                        }
+                        var failWith = function (msg) {
+                            setTask(tid, { percent: 0, error: msg });
+                            setTimeout(function () { removeTask(tid); }, 3500);
+                            finishOne();
+                        };
+                        xhr.onload = function() {
+                            if (xhr.status !== 200) {
+                                failWith('Upload failed (' + xhr.status + ')');
+                                return;
+                            }
+                            var response;
+                            try { response = JSON.parse(xhr.responseText); }
+                            catch (e) { failWith('Invalid server response'); return; }
+                            if (!response || !response.success) {
+                                failWith((response && response.error) || 'Unknown error');
+                                return;
+                            }
+                            var freshUrl = buildMediaUrl(response);
+                            if (response.media_id && freshUrl) {
+                                mediaUrlCache[response.media_id] = freshUrl;
+                            }
+                            setTask(tid, { percent: 100 });
+                            appendId(response.media_id);
+                            removeTask(tid);
+                            finishOne();
+                        };
+                        xhr.onerror = function() { failWith('Network error'); };
+                        xhr.send(formData);
+                    });
                 };
+            }
             }
 
             // PickList needs option slot for item label
             var inputEl;
-            if (tag === 'p-picklist') {
+            if (type === 'group') {
+                inputEl = modularRenderGroupSubtree(ctx, field, h, FieldRenderer);
+            } else if (tag === 'p-picklist') {
                 inputEl = h(component, bindProps, {
                     option: function (slotProps) {
                         return slotProps.option ? slotProps.option.label : '';
@@ -404,6 +768,84 @@
                 inputEl = h('input', { type: 'hidden', name: 'field_data[' + (field.name || field.key) + ']', value: ctx.localValue });
             } else {
                 inputEl = h(component, bindProps);
+            }
+
+            // Wrap FileUpload with inline thumbnail preview (image/gallery/file/audio/video).
+            // PrimeVue 'basic' mode has no preview UI, so we render thumbs ourselves from
+            // media_id -> URL via the shared mediaUrlCache.
+            if (tag === 'p-fileupload') {
+                var isMulti = !!resolved.props.multiple;
+                var rawIds;
+                if (isMulti) {
+                    rawIds = Array.isArray(ctx.localValue) ? ctx.localValue : [];
+                } else {
+                    rawIds = (ctx.localValue !== null && ctx.localValue !== undefined && ctx.localValue !== '') ? [ctx.localValue] : [];
+                }
+                var thumbs = rawIds.map(function (mid, idx) {
+                    var url = getCachedMediaUrl(mid);
+                    var children;
+                    if (!url) {
+                        children = [h('span', { class: 'modular-fileupload-thumb-spinner', 'aria-hidden': 'true' }, [
+                            h('i', { class: 'pi pi-spin pi-spinner' })
+                        ])];
+                    } else if (isImageUrl(url)) {
+                        children = [h('img', { src: url, alt: '', loading: 'lazy' })];
+                    } else {
+                        var name = url.split('/').pop() || '';
+                        children = [
+                            h('span', { class: 'modular-fileupload-thumb-icon', 'aria-hidden': 'true' }, [
+                                h('i', { class: 'pi pi-file' })
+                            ]),
+                            h('span', { class: 'modular-fileupload-thumb-name', title: name }, name),
+                        ];
+                    }
+                    children.push(h('button', {
+                        type: 'button',
+                        class: 'modular-fileupload-remove',
+                        'aria-label': 'Verwijderen',
+                        title: 'Verwijderen',
+                        onClick: function (e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (isMulti) {
+                                var next = Array.isArray(ctx.localValue) ? ctx.localValue.slice() : [];
+                                next.splice(idx, 1);
+                                ctx.localValue = next;
+                            } else {
+                                ctx.localValue = null;
+                            }
+                        },
+                    }, '\u00d7'));
+                    return h('div', {
+                        class: 'modular-fileupload-thumb' + (isImageUrl(url) ? '' : ' is-file'),
+                        key: String(mid) + ':' + idx,
+                    }, children);
+                });
+                var previewEl = h('div', {
+                    class: 'modular-fileupload-preview' + (isMulti ? ' is-multi' : '') + (thumbs.length === 0 ? ' is-empty' : ''),
+                }, thumbs);
+                var progressMap = ctx.uploadProgress || {};
+                var progressIds = Object.keys(progressMap);
+                var progressEl = progressIds.length ? h('div', { class: 'modular-fileupload-progress-list' },
+                    progressIds.map(function (pid) {
+                        var p = progressMap[pid] || {};
+                        var pct = typeof p.percent === 'number' ? p.percent : 0;
+                        return h('div', {
+                            class: 'modular-fileupload-progress-row' + (p.error ? ' is-error' : ''),
+                            key: pid,
+                        }, [
+                            h('span', { class: 'modular-fileupload-progress-name', title: p.name || '' }, p.name || ''),
+                            h('div', { class: 'modular-fileupload-progress-bar' }, [
+                                h('div', {
+                                    class: 'modular-fileupload-progress-fill',
+                                    style: { width: pct + '%' },
+                                }),
+                            ]),
+                            h('span', { class: 'modular-fileupload-progress-pct' }, p.error ? (p.error || '!') : (pct + '%')),
+                        ]);
+                    })
+                ) : null;
+                inputEl = h('div', { class: 'modular-fileupload-wrap' }, [previewEl, inputEl, progressEl].filter(Boolean));
             }
 
             var helpEl = resolved.instructions ? h('div', { class: 'help-text' }, resolved.instructions) : null;
@@ -480,8 +922,18 @@
                 }
             }, [ h('i', { class: 'fas fa-pen' }) ]);
 
+            var isNestedField = (function () {
+                var n = ctx.nested;
+                if (n === true || n === false) return n;
+                if (n && typeof n === 'object' && 'value' in n) return !!n.value;
+                return false;
+            })();
+
+            var editBtnWrapped = editBtn;
+            var leftToolbarChildren = isNestedField ? [ titleNode ] : [ titleNode, editBtnWrapped ];
+
             var rightButtons = [];
-            if (ctx.onDuplicate && typeof ctx.onDuplicate === 'function') {
+            if (!isNestedField && ctx.onDuplicate && typeof ctx.onDuplicate === 'function') {
                 rightButtons.push(h('button', {
                     type: 'button',
                     class: 'field-toolbar-btn field-toolbar-duplicate',
@@ -490,7 +942,7 @@
                     onClick: function (e) { e.stopPropagation(); ctx.onDuplicate(); },
                 }, [ h('i', { class: 'fas fa-copy' }) ]));
             }
-            if (ctx.onRemove && typeof ctx.onRemove === 'function') {
+            if (!isNestedField && ctx.onRemove && typeof ctx.onRemove === 'function') {
                 rightButtons.push(h('button', {
                     type: 'button',
                     class: 'field-toolbar-btn field-toolbar-remove',
@@ -518,7 +970,7 @@
                 },
                 'aria-expanded': ctx.isCollapsed ? 'false' : 'true'
             }, [
-                h('div', { class: 'field-toolbar-left field-toolbar-handle' }, [ titleNode, editBtn ]),
+                h('div', { class: 'field-toolbar-left' + (!isNestedField ? ' field-toolbar-handle' : '') }, leftToolbarChildren),
                 h('div', { class: 'field-toolbar-right' }, rightButtons )
             ]);
 
@@ -541,6 +993,48 @@
             return h('div', rootAttrs, [ inner ]);
         },
     };
+
+    /**
+     * Build ordered layout instance refs from DOM (flat fields or modular-field-group panels).
+     * @param {HTMLElement} containerEl - .modular-top-inner or .modular-column-inner
+     * @param {Record<string,{id:string,name:string}>} idToInst
+     */
+    function modularFlattenInstancesFromDropContainer(containerEl, idToInst) {
+        var newList = [];
+        if (!containerEl || !idToInst) return newList;
+
+        var hasGroups = false;
+        var chi = containerEl.children;
+        for (var c = 0; c < chi.length; c++) {
+            var ch = chi[c];
+            if (ch && ch.classList && ch.classList.contains('modular-field-group')) {
+                hasGroups = true;
+                break;
+            }
+        }
+
+        if (hasGroups) {
+            for (var i = 0; i < chi.length; i++) {
+                var child = chi[i];
+                if (!child || !child.classList || !child.classList.contains('modular-field-group')) continue;
+                var tid = child.getAttribute('data-tab-instance-id');
+                if (tid && idToInst[tid]) newList.push(idToInst[tid]);
+                var gin = child.querySelector('.modular-field-group-inner');
+                if (gin) {
+                    gin.querySelectorAll('[data-field-id]').forEach(function (el) {
+                        var id = el.getAttribute('data-field-id');
+                        if (id && idToInst[id]) newList.push(idToInst[id]);
+                    });
+                }
+            }
+        } else {
+            containerEl.querySelectorAll('[data-field-id]').forEach(function (el) {
+                var id = el.getAttribute('data-field-id');
+                if (id && idToInst[id]) newList.push(idToInst[id]);
+            });
+        }
+        return newList;
+    }
 
     /**
      * Mount the field renderer app on the given element. Expects window.MODULAR_FIELD_SCHEMA and MODULAR_FIELD_DATA.
@@ -598,6 +1092,53 @@
         function filterValidInst(inst) {
             return !!(inst && fieldsByName[inst.name]);
         }
+        function normalizeInstOrMarker(item) {
+            if (item && typeof item === 'object' && item.type === 'tab') {
+                return {
+                    id: String(item.id || makeInstanceId('tab')),
+                    type: 'tab',
+                    label: typeof item.label === 'string' && item.label.trim() ? item.label.trim() : 'Tab'
+                };
+            }
+            var inst = normalizeInst(item);
+            return inst && fieldsByName[inst.name] ? inst : null;
+        }
+        function normalizeMixedList(list) {
+            return (list || []).map(normalizeInstOrMarker).filter(Boolean);
+        }
+
+        var fixedGroupsIndex = {};
+        var sharedGroupsIndex = {};
+        (function () {
+            var fg = (typeof window.MODULAR_FIXED_GROUPS !== 'undefined' && window.MODULAR_FIXED_GROUPS) || getJsonFromScript('modular-fixed-field-groups-json', []);
+            if (Array.isArray(fg)) {
+                fg.forEach(function (g) {
+                    if (g && (g.id || g.slug)) fixedGroupsIndex[String(g.id || g.slug)] = g;
+                });
+            }
+            var sg = (typeof window.MODULAR_SHARED_GROUPS_INDEX !== 'undefined' && window.MODULAR_SHARED_GROUPS_INDEX) || getJsonFromScript('modular-shared-field-groups-json', []);
+            if (Array.isArray(sg)) {
+                sg.forEach(function (g) {
+                    if (g && g.id) sharedGroupsIndex[String(g.id)] = g;
+                });
+            }
+        })();
+        function resolveGroupSource(source) {
+            if (!source || typeof source !== 'object') return null;
+            var kind = source.kind || 'local';
+            if (kind === 'fixed_pt' && source.ref && fixedGroupsIndex[String(source.ref)]) {
+                return fixedGroupsIndex[String(source.ref)];
+            }
+            if (kind === 'shared' && source.ref && sharedGroupsIndex[String(source.ref)]) {
+                return sharedGroupsIndex[String(source.ref)];
+            }
+            return null;
+        }
+        function isLockedBlock(block) {
+            if (!block || block.type !== 'field_group') return false;
+            var kind = block.source && block.source.kind;
+            return kind === 'fixed_pt' || kind === 'shared';
+        }
 
         if (initialLayout && typeof initialLayout === 'object' && !Array.isArray(initialLayout)) {
             if (Array.isArray(initialLayout.top)) {
@@ -605,18 +1146,45 @@
                 var rawBlocks = initialLayout.blocks;
                 if (!Array.isArray(rawBlocks)) rawBlocks = [];
                 layoutBlocks.value = rawBlocks.map(function (b) {
-                    var numCols = b.numCols === 2 || b.numCols === 3 ? b.numCols : 1;
+                    var type = b.type === 'field_group' ? 'field_group' : 'layout';
+                    var numCols = type === 'field_group' ? 1 : (b.numCols === 2 || b.numCols === 3 ? b.numCols : 1);
                     var cols = b.columns || [ [], [], [] ];
-                    var defaultLabel = numCols === 1 ? 'Layout 1 Column' : (numCols === 2 ? 'Layout 2 Columns' : 'Layout 3 Columns');
+                    var defaultLabel = type === 'field_group'
+                        ? 'Field Group'
+                        : (numCols === 1 ? 'Layout 1 Column' : (numCols === 2 ? 'Layout 2 Columns' : 'Layout 3 Columns'));
+                    var source = (b.source && typeof b.source === 'object')
+                        ? { kind: b.source.kind || 'local', ref: b.source.ref || null }
+                        : { kind: 'local', ref: null };
+                    if (type === 'field_group' && (source.kind === 'fixed_pt' || source.kind === 'shared')) {
+                        var grp = resolveGroupSource(source);
+                        if (grp) {
+                            var srcItems = Array.isArray(grp.items) ? grp.items : [];
+                            return {
+                                id: b.id || makeBlockId(),
+                                type: 'field_group',
+                                numCols: 1,
+                                label: (grp.label && String(grp.label).trim()) ? String(grp.label).trim() : defaultLabel,
+                                collapsed: !!b.collapsed,
+                                source: source,
+                                columns: [
+                                    normalizeMixedList(srcItems),
+                                    [],
+                                    []
+                                ]
+                            };
+                        }
+                    }
                     return {
                         id: b.id || makeBlockId(),
+                        type: type,
                         numCols: numCols,
                         label: typeof b.label === 'string' && b.label.trim() ? b.label.trim() : defaultLabel,
                         collapsed: !!b.collapsed,
+                        source: source,
                         columns: [
-                            (cols[0] || []).map(normalizeInst).filter(filterValidInst),
-                            (cols[1] || []).map(normalizeInst).filter(filterValidInst),
-                            (cols[2] || []).map(normalizeInst).filter(filterValidInst)
+                            type === 'field_group' ? normalizeMixedList(cols[0]) : (cols[0] || []).map(normalizeInst).filter(filterValidInst),
+                            type === 'field_group' ? [] : (cols[1] || []).map(normalizeInst).filter(filterValidInst),
+                            type === 'field_group' ? [] : (cols[2] || []).map(normalizeInst).filter(filterValidInst)
                         ]
                     };
                 });
@@ -704,9 +1272,35 @@
         layoutOrder.value = initialOrder;
 
         var instanceValues = reactive({});
+        function mergeGroupValuesFromSchema(fieldDefSchema, incoming) {
+            var merged = {};
+            var subs = fieldDefSchema.sub_fields || [];
+            subs.forEach(function (sf) {
+                if (!sf || isUtilityType(sf.type)) return;
+                var nk = sf.name || sf.key;
+                if (!nk) return;
+                var opts = Object.assign({}, sf, { options: optionsMap[sf.name] || sf.options });
+                var sr = resolveFieldComponent(sf.type, opts);
+                var typ = String(sf.type || '').toLowerCase();
+                var inv = (incoming && typeof incoming === 'object' && Object.prototype.hasOwnProperty.call(incoming, nk))
+                    ? incoming[nk]
+                    : undefined;
+                if (typ === 'group') {
+                    merged[nk] = mergeGroupValuesFromSchema(sf, (inv && typeof inv === 'object') ? inv : {});
+                } else {
+                    merged[nk] = inv !== undefined && inv !== null ? inv : defaultValueFor(sf, sr);
+                }
+            });
+            return merged;
+        }
         function seedInstanceValue(inst, valueFromData) {
             var fieldDef = fieldsByName[inst.name];
             if (!fieldDef || isUtilityType(fieldDef.type)) return;
+            if ((fieldDef.type || '').toLowerCase() === 'group') {
+                var incomingG = valueFromData;
+                instanceValues[inst.id] = mergeGroupValuesFromSchema(fieldDef, (incomingG && typeof incomingG === 'object') ? incomingG : {});
+                return;
+            }
             var resolved = resolveFieldComponent(fieldDef.type, Object.assign({}, fieldDef, { options: optionsMap[inst.name] || fieldDef.options }));
             var def = defaultValueFor(fieldDef, resolved);
             instanceValues[inst.id] = valueFromData !== undefined && valueFromData !== null ? valueFromData : def;
@@ -776,6 +1370,18 @@
             blockLabelDraft.value = typeof val === 'string' ? val : '';
         }
 
+        var fieldGroupCollapsed = reactive({});
+        function toggleFieldGroupCollapsed(key) {
+            var k = typeof key === 'string' ? key : String(key);
+            fieldGroupCollapsed[k] = !fieldGroupCollapsed[k];
+        }
+
+        var fieldGroupActiveTab = reactive({});
+        function setFieldGroupActiveTab(blockId, tabKey) {
+            if (!blockId) return;
+            fieldGroupActiveTab[String(blockId)] = tabKey;
+        }
+
         var app = createApp({
             setup: function () {
                 return {
@@ -800,6 +1406,10 @@
                     updateBlockCollapsed: updateBlockCollapsed,
                     setBlockEditingId: setBlockEditingId,
                     setBlockLabelDraft: setBlockLabelDraft,
+                    fieldGroupCollapsed: fieldGroupCollapsed,
+                    toggleFieldGroupCollapsed: toggleFieldGroupCollapsed,
+                    fieldGroupActiveTab: fieldGroupActiveTab,
+                    setFieldGroupActiveTab: setFieldGroupActiveTab,
                 };
             },
             render: function (ctx) {
@@ -819,7 +1429,48 @@
                 }
                 function renderFieldList(list) {
                     var arr = unwrapRef(list);
-                    return arr.map(function (inst) {
+                    function isTabInst(inst) {
+                        if (!inst) return false;
+                        if (inst.type === 'tab') return true;
+                        if (!inst.name) return false;
+                        var fd = ctx.fieldsByName[inst.name];
+                        return fd && String(fd.type || '').toLowerCase() === 'tab';
+                    }
+                    function tabLabel(inst) {
+                        if (!inst) return 'Tab';
+                        if (inst.type === 'tab') return inst.label || 'Tab';
+                        var fd = inst.name ? ctx.fieldsByName[inst.name] : null;
+                        return (fd && fd.label) ? String(fd.label) : 'Tab';
+                    }
+                    function listHasTabs() {
+                        return (arr || []).some(isTabInst);
+                    }
+                    function segmentInstancesByTabs() {
+                        var segments = [];
+                        var leading = [];
+                        var i = 0;
+                        while (i < arr.length && !isTabInst(arr[i])) {
+                            leading.push(arr[i]); i++;
+                        }
+                        if (leading.length) {
+                            segments.push({ tabInst: null, tabField: null, instances: leading });
+                        }
+                        while (i < arr.length) {
+                            if (!isTabInst(arr[i])) {
+                                i++;
+                                continue;
+                            }
+                            var tInst = arr[i++];
+                            var tFd = tInst && tInst.name ? ctx.fieldsByName[tInst.name] : null;
+                            var instances = [];
+                            while (i < arr.length && !isTabInst(arr[i])) {
+                                instances.push(arr[i]); i++;
+                            }
+                            segments.push({ tabInst: tInst, tabField: tFd, instances: instances });
+                        }
+                        return segments;
+                    }
+                    function renderOne(inst) {
                         if (!inst || !inst.name || !inst.id) return null;
                         var field = ctx.fieldsByName[inst.name];
                         if (!field) return null;
@@ -834,7 +1485,348 @@
                             onRemove: api && api.requestRemoveInstance ? function () { api.requestRemoveInstance(inst.id); } : null,
                             onDuplicate: api && api.duplicateInstance ? function () { api.duplicateInstance(inst.id); } : null,
                         });
+                    }
+                    if (!listHasTabs()) {
+                        return arr.map(renderOne).filter(Boolean);
+                    }
+                    var segments = segmentInstancesByTabs();
+                    return segments.map(function (seg, gi) {
+                        var gkey = seg.tabInst ? seg.tabInst.id : ('lead-' + gi);
+                        var title = seg.tabInst ? tabLabel(seg.tabInst) : 'General';
+                        var collapsedVal = ctx.fieldGroupCollapsed[gkey];
+                        var groupCollapsed = !!collapsedVal;
+                        var innerBlocks = seg.instances.map(renderOne).filter(Boolean);
+                        if (!seg.tabInst && innerBlocks.length === 0) return null;
+                        var header = h('div', {
+                            key: 'h-' + gkey,
+                            class: 'modular-field-group-toolbar',
+                            onDblclick: function (e) {
+                                e.stopPropagation();
+                                if (ctx.toggleFieldGroupCollapsed) ctx.toggleFieldGroupCollapsed(gkey);
+                            }
+                        }, [
+                            h('div', { class: 'modular-field-group-toolbar-left modular-field-group-handle' }, [
+                                h('span', { class: 'modular-field-group-title' }, title),
+                            ]),
+                            h('div', { class: 'modular-field-group-toolbar-right' }, [
+                                h('button', {
+                                    type: 'button',
+                                    class: 'modular-field-group-collapse-btn',
+                                    title: groupCollapsed ? 'Expand group' : 'Collapse group',
+                                    'aria-label': groupCollapsed ? 'Expand group' : 'Collapse group',
+                                    onClick: function (e) {
+                                        e.stopPropagation();
+                                        if (ctx.toggleFieldGroupCollapsed) ctx.toggleFieldGroupCollapsed(gkey);
+                                    }
+                                }, [ h('i', { class: groupCollapsed ? 'fas fa-chevron-down' : 'fas fa-chevron-up' }) ]),
+                            ]),
+                        ]);
+                        var groupAttrs = {
+                            key: 'grp-' + gkey,
+                            class: 'modular-field-group' + (groupCollapsed ? ' modular-field-group-collapsed' : ''),
+                            'data-segment-leading': seg.tabInst ? '0' : '1',
+                        };
+                        if (seg.tabInst && seg.tabInst.id) groupAttrs['data-tab-instance-id'] = seg.tabInst.id;
+                        return h('div', groupAttrs, [
+                            header,
+                            h('div', {
+                                key: 'i-' + gkey,
+                                class: 'modular-field-group-inner',
+                                style: groupCollapsed ? { display: 'none' } : {},
+                            }, innerBlocks),
+                        ]);
                     }).filter(Boolean);
+                }
+
+                function renderFieldGroupBlock(block, bi) {
+                    var blockCollapsed = !!block.collapsed;
+                    var locked = isLockedBlock(block);
+                    var sourceKind = block.source && block.source.kind ? block.source.kind : 'local';
+                    var items = (block.columns && block.columns[0]) || [];
+                    var currentEditingId = (ctx.blockEditingId && typeof ctx.blockEditingId.value !== 'undefined' ? ctx.blockEditingId.value : ctx.blockEditingId);
+                    var isEditingBlock = !locked && currentEditingId === block.id;
+                    var blockInputId = 'field-group-block-edit-' + (block.id || bi);
+                    var currentDraft = (ctx.blockLabelDraft && typeof ctx.blockLabelDraft.value !== 'undefined' ? ctx.blockLabelDraft.value : ctx.blockLabelDraft) || '';
+                    var blockLabel = block.label || 'Field Group';
+                    var blockId = block.id;
+
+                    function isTabMarker(inst) {
+                        if (!inst) return false;
+                        if (inst.type === 'tab') return true;
+                        if (!inst.name) return false;
+                        var fd = ctx.fieldsByName[inst.name];
+                        return fd && String(fd.type || '').toLowerCase() === 'tab';
+                    }
+                    function markerLabel(inst) {
+                        if (!inst) return 'Tab';
+                        if (inst.type === 'tab') return inst.label || 'Tab';
+                        var fd = inst.name ? ctx.fieldsByName[inst.name] : null;
+                        return (fd && fd.label) ? String(fd.label) : 'Tab';
+                    }
+                    var tabSegments = [];
+                    var leading = [];
+                    var ii = 0;
+                    while (ii < items.length && !isTabMarker(items[ii])) {
+                        leading.push(items[ii]); ii++;
+                    }
+                    if (leading.length || ii < items.length) {
+                        tabSegments.push({ key: '__general__', label: 'General', tabInst: null, instances: leading });
+                    }
+                    while (ii < items.length) {
+                        if (!isTabMarker(items[ii])) { ii++; continue; }
+                        var tInst = items[ii++];
+                        var insts = [];
+                        while (ii < items.length && !isTabMarker(items[ii])) {
+                            insts.push(items[ii]); ii++;
+                        }
+                        tabSegments.push({ key: tInst.id, label: markerLabel(tInst), tabInst: tInst, instances: insts });
+                    }
+                    var hasTabs = tabSegments.length > 1;
+                    var activeKey = ctx.fieldGroupActiveTab[String(blockId)] || (tabSegments[0] && tabSegments[0].key);
+
+                    function renderOneItem(inst) {
+                        if (!inst || !inst.id) return null;
+                        if (isTabMarker(inst)) return null;
+                        var field = ctx.fieldsByName[inst.name];
+                        if (!field) return null;
+                        var val = ctx.instanceValues[inst.id];
+                        return h(FieldRenderer, {
+                            key: inst.id,
+                            field: field,
+                            modelValue: val,
+                            'onUpdate:modelValue': function (v) { ctx.instanceValues[inst.id] = v; },
+                            optionsMap: ctx.optionsMap,
+                            instanceId: inst.id,
+                            readonly: locked,
+                            onRemove: !locked && api && api.requestRemoveInstance ? function () { api.requestRemoveInstance(inst.id); } : null,
+                            onDuplicate: !locked && api && api.duplicateInstance ? function () { api.duplicateInstance(inst.id); } : null,
+                        });
+                    }
+
+                    var headerLeft = (!locked && isEditingBlock)
+                        ? h('input', {
+                            type: 'text',
+                            id: blockInputId,
+                            class: 'layout-block-title-input',
+                            value: currentDraft,
+                            onInput: function (e) {
+                                if (ctx.setBlockLabelDraft) ctx.setBlockLabelDraft(e.target.value || '');
+                            },
+                            onKeydown: function (e) {
+                                if (e.key === 'Enter') {
+                                    var d = (ctx.blockLabelDraft && typeof ctx.blockLabelDraft.value !== 'undefined' ? ctx.blockLabelDraft.value : ctx.blockLabelDraft) || '';
+                                    if (ctx.updateBlockLabel) ctx.updateBlockLabel(blockId, d);
+                                    if (ctx.setBlockEditingId) ctx.setBlockEditingId(null);
+                                }
+                                if (e.key === 'Escape') {
+                                    if (ctx.setBlockEditingId) ctx.setBlockEditingId(null);
+                                    if (ctx.setBlockLabelDraft) ctx.setBlockLabelDraft(blockLabel);
+                                }
+                            },
+                            onBlur: function () {
+                                var d = (ctx.blockLabelDraft && typeof ctx.blockLabelDraft.value !== 'undefined' ? ctx.blockLabelDraft.value : ctx.blockLabelDraft) || '';
+                                if (ctx.updateBlockLabel) ctx.updateBlockLabel(blockId, d);
+                                if (ctx.setBlockEditingId) ctx.setBlockEditingId(null);
+                            }
+                        })
+                        : h('span', { class: 'layout-block-title-text' }, [
+                            h('i', { class: 'fas fa-layer-group', style: { marginRight: '0.4rem', opacity: 0.6 } }),
+                            blockLabel,
+                        ]);
+
+                    var headerRight = [];
+                    if (!locked) {
+                        headerRight.push(h('button', {
+                            type: 'button',
+                            class: 'layout-block-toolbar-btn',
+                            title: 'Add tab',
+                            'aria-label': 'Add tab',
+                            onClick: function (e) {
+                                e.stopPropagation();
+                                if (api && typeof api.addTabMarker === 'function') api.addTabMarker(blockId);
+                            }
+                        }, [ h('i', { class: 'fas fa-folder-plus' }) ]));
+                        headerRight.push(h('button', {
+                            type: 'button',
+                            class: 'layout-block-toolbar-btn',
+                            title: 'Save as fixed for this post type (locked on every item)',
+                            'aria-label': 'Save as fixed for this post type',
+                            onClick: function (e) {
+                                e.stopPropagation();
+                                if (!window.ModularPromoteFieldGroup) return;
+                                if (window.confirm('Make this group fixed for this post type? It will appear locked on every item.')) {
+                                    window.ModularPromoteFieldGroup(blockId, 'fixed_pt');
+                                }
+                            }
+                        }, [ h('i', { class: 'fas fa-lock' }) ]));
+                        headerRight.push(h('button', {
+                            type: 'button',
+                            class: 'layout-block-toolbar-btn',
+                            title: 'Share across post types (locked, reusable)',
+                            'aria-label': 'Share across post types',
+                            onClick: function (e) {
+                                e.stopPropagation();
+                                if (!window.ModularPromoteFieldGroup) return;
+                                if (window.confirm('Share this group across post types? It will be locked here and become attachable to other post types.')) {
+                                    window.ModularPromoteFieldGroup(blockId, 'shared');
+                                }
+                            }
+                        }, [ h('i', { class: 'fas fa-share-alt' }) ]));
+                    }
+                    if (!locked && api && api.duplicateBlock) {
+                        headerRight.push(h('button', {
+                            type: 'button',
+                            class: 'layout-block-toolbar-btn',
+                            title: 'Duplicate group',
+                            'aria-label': 'Duplicate group',
+                            onClick: function (e) {
+                                e.stopPropagation();
+                                api.duplicateBlock(blockId);
+                            }
+                        }, [ h('i', { class: 'fas fa-copy' }) ]));
+                    }
+                    if (api && api.requestRemoveBlock) {
+                        headerRight.push(h('button', {
+                            type: 'button',
+                            class: 'layout-block-toolbar-btn layout-block-toolbar-btn-remove',
+                            title: locked ? 'Detach group from this post' : 'Remove group',
+                            'aria-label': locked ? 'Detach group from this post' : 'Remove group',
+                            onClick: function (e) {
+                                e.stopPropagation();
+                                api.requestRemoveBlock(blockId);
+                            }
+                        }, [ h('i', { class: 'fas fa-trash-alt' }) ]));
+                    }
+                    headerRight.push(h('button', {
+                        type: 'button',
+                        class: 'layout-block-toolbar-btn',
+                        title: blockCollapsed ? 'Expand' : 'Collapse',
+                        'aria-label': blockCollapsed ? 'Expand' : 'Collapse',
+                        onClick: function (e) {
+                            e.stopPropagation();
+                            ctx.updateBlockCollapsed(blockId, !blockCollapsed);
+                        }
+                    }, [ h('i', { class: blockCollapsed ? 'fas fa-chevron-down' : 'fas fa-chevron-up' }) ]));
+
+                    var leftChildren = [ headerLeft ];
+                    if (!locked) {
+                        leftChildren.push(h('button', {
+                            type: 'button',
+                            class: 'layout-block-toolbar-btn',
+                            title: 'Rename group',
+                            'aria-label': 'Rename group',
+                            onClick: function (e) {
+                                e.stopPropagation();
+                                if (isEditingBlock) {
+                                    var draftNow = (ctx.blockLabelDraft && typeof ctx.blockLabelDraft.value !== 'undefined' ? ctx.blockLabelDraft.value : ctx.blockLabelDraft) || '';
+                                    if (ctx.updateBlockLabel) ctx.updateBlockLabel(blockId, draftNow);
+                                    if (ctx.setBlockEditingId) ctx.setBlockEditingId(null);
+                                } else {
+                                    if (ctx.setBlockLabelDraft) ctx.setBlockLabelDraft(blockLabel);
+                                    if (ctx.setBlockEditingId) ctx.setBlockEditingId(blockId);
+                                    setTimeout(function () {
+                                        var el = document.getElementById(blockInputId);
+                                        if (el) el.focus();
+                                    }, 50);
+                                }
+                            }
+                        }, [ h('i', { class: 'fas fa-pen' }) ]));
+                    }
+                    if (locked) {
+                        leftChildren.push(h('span', {
+                            class: 'modular-field-group-source-badge',
+                            title: sourceKind === 'shared' ? 'Shared field group' : 'Fixed for this post type'
+                        }, [
+                            h('i', { class: 'fas fa-lock', style: { marginRight: '0.3rem' } }),
+                            sourceKind === 'shared' ? 'Shared' : 'Fixed'
+                        ]));
+                    }
+
+                    var headerEl = h('div', {
+                        class: 'modular-block-header layout-block-toolbar modular-field-group-block-header' + (blockCollapsed ? ' layout-block-collapsed' : '') + (locked ? ' is-locked' : ''),
+                        onDblclick: function (e) {
+                            e.stopPropagation();
+                            ctx.updateBlockCollapsed(blockId, !blockCollapsed);
+                        },
+                        'aria-expanded': blockCollapsed ? 'false' : 'true'
+                    }, [
+                        h('div', { class: 'layout-block-toolbar-left layout-block-toolbar-handle' }, leftChildren),
+                        h('div', { class: 'layout-block-toolbar-right' }, headerRight)
+                    ]);
+
+                    var bodyChildren = [];
+                    if (hasTabs) {
+                        var tabBar = h('div', { class: 'modular-field-group-tabbar', role: 'tablist' }, tabSegments.map(function (seg) {
+                            var isActive = seg.key === activeKey;
+                            var tabChildren = [
+                                h('span', { class: 'modular-field-group-tab-label' }, seg.label),
+                            ];
+                            if (!locked && seg.tabInst) {
+                                tabChildren.push(h('button', {
+                                    type: 'button',
+                                    class: 'modular-field-group-tab-rename',
+                                    title: 'Rename tab',
+                                    onClick: function (e) {
+                                        e.stopPropagation();
+                                        if (api && typeof api.renameTabMarker === 'function') api.renameTabMarker(blockId, seg.tabInst.id);
+                                    }
+                                }, [ h('i', { class: 'fas fa-pen' }) ]));
+                                tabChildren.push(h('button', {
+                                    type: 'button',
+                                    class: 'modular-field-group-tab-remove',
+                                    title: 'Remove tab',
+                                    onClick: function (e) {
+                                        e.stopPropagation();
+                                        if (api && typeof api.removeTabMarker === 'function') api.removeTabMarker(blockId, seg.tabInst.id);
+                                    }
+                                }, [ h('i', { class: 'fas fa-times' }) ]));
+                            }
+                            return h('button', {
+                                type: 'button',
+                                class: 'modular-field-group-tab' + (isActive ? ' is-active' : ''),
+                                role: 'tab',
+                                'aria-selected': isActive ? 'true' : 'false',
+                                onClick: function (e) {
+                                    e.stopPropagation();
+                                    if (ctx.setFieldGroupActiveTab) ctx.setFieldGroupActiveTab(blockId, seg.key);
+                                }
+                            }, tabChildren);
+                        }));
+                        bodyChildren.push(tabBar);
+                    }
+
+                    var bodyLists = [];
+                    tabSegments.forEach(function (seg) {
+                        var isActive = seg.key === activeKey;
+                        var paneVisible = !hasTabs || isActive;
+                        var innerNodes = (seg.instances || []).map(renderOneItem).filter(Boolean);
+                        bodyLists.push(h('div', {
+                            key: 'pane-' + seg.key,
+                            class: 'modular-field-group-pane' + (paneVisible ? ' is-active' : '') + (locked ? ' is-locked' : ''),
+                            style: paneVisible ? {} : { display: 'none' },
+                        }, [
+                            h('div', {
+                                class: 'modular-column modular-column-drop modular-field-group-pane-drop',
+                                'data-block-index': String(bi),
+                                'data-column-index': '0',
+                                'data-field-group-block-id': blockId,
+                                'data-field-group-tab-key': String(seg.key),
+                                'data-field-group-locked': locked ? '1' : '0',
+                            }, [
+                                h('div', { class: 'modular-column-inner' }, innerNodes)
+                            ])
+                        ]));
+                    });
+                    bodyChildren.push(h('div', { class: 'modular-field-group-body', style: blockCollapsed ? { display: 'none' } : {} }, bodyLists));
+
+                    return h('div', {
+                        key: 'block-fg-' + (block.id || bi),
+                        class: 'modular-layout-block modular-field-group-block' + (blockCollapsed ? ' modular-layout-block-collapsed' : '') + (locked ? ' is-locked' : ''),
+                        'data-block-index': String(bi),
+                        'data-block-id': block.id || ('block-' + bi),
+                        'data-block-type': 'field_group',
+                        'data-field-group-source-kind': sourceKind
+                    }, [ headerEl, h('div', { class: 'modular-layout-block-columns' }, bodyChildren) ]);
                 }
 
                 var nodes = [];
@@ -961,6 +1953,10 @@
                     if (!block) continue;
                     var bi = blockOrderIds.indexOf(id);
                     if (bi === -1) bi = 0;
+                    if (block.type === 'field_group') {
+                        nodes.push(renderFieldGroupBlock(block, bi));
+                        continue;
+                    }
                     var numCols = block.numCols === 2 || block.numCols === 3 ? block.numCols : 1;
                     var cols = block.columns || [ [], [], [] ];
                     var blockLabel = block.label || (numCols === 1 ? 'Layout 1 Column' : (numCols === 2 ? 'Layout 2 Columns' : 'Layout 3 Columns'));
@@ -1092,12 +2088,13 @@
         });
 
         app.component('FieldRenderer', FieldRenderer);
+        app.component('ModularGroupTabPanels', ModularGroupTabPanels);
         registerAllComponents(app);
         if (typeof window.ModularWysiwygField !== 'undefined') {
             app.component('wysiwyg-field', window.ModularWysiwygField);
         }
         app.mount(root);
-        // JS-editor is actief: schakel PHP-fallback velden uit zodat ze geen HTML5-validatie triggeren.
+        // JS renderer active: disable PHP fallback fields so HTML5 validation does not fire twice.
         try {
             var phpFallback = document.getElementById('post-edit-fields-php-fallback');
             if (phpFallback) {
@@ -1112,7 +2109,7 @@
             try {
                 document.dispatchEvent(new CustomEvent('modular-layout-changed'));
             } catch (e) {}
-        }, 150);
+        }, 0);
 
         function seedNewInstances() {
             (topSection.value || []).forEach(function (inst) {
@@ -1167,11 +2164,20 @@
                     var payload = {
                         __layout_top: (topSection.value || []).slice(),
                         __layout_blocks: (layoutBlocks.value || []).map(function (b) {
+                            var bType = b.type === 'field_group' ? 'field_group' : 'layout';
+                            var defaultLabel = bType === 'field_group'
+                                ? 'Field Group'
+                                : (b.numCols === 1 ? 'Layout 1 Column' : (b.numCols === 2 ? 'Layout 2 Columns' : 'Layout 3 Columns'));
+                            var source = (b.source && typeof b.source === 'object')
+                                ? { kind: b.source.kind || 'local', ref: b.source.ref || null }
+                                : { kind: 'local', ref: null };
                             return {
                                 id: b.id,
-                                numCols: b.numCols,
-                                label: b.label || (b.numCols === 1 ? 'Layout 1 Column' : (b.numCols === 2 ? 'Layout 2 Columns' : 'Layout 3 Columns')),
+                                type: bType,
+                                numCols: bType === 'field_group' ? 1 : b.numCols,
+                                label: b.label || defaultLabel,
                                 collapsed: !!b.collapsed,
+                                source: source,
                                 columns: [ (b.columns[0] || []).slice(), (b.columns[1] || []).slice(), (b.columns[2] || []).slice() ]
                             };
                         }),
@@ -1201,7 +2207,7 @@
             }
         }
 
-        return { app: app, topSection: topSection, layoutBlocks: layoutBlocks, layoutOrder: layoutOrder, instanceValues: instanceValues };
+        return { app: app, topSection: topSection, layoutBlocks: layoutBlocks, layoutOrder: layoutOrder, instanceValues: instanceValues, fieldGroupActiveTab: fieldGroupActiveTab, fieldGroupCollapsed: fieldGroupCollapsed };
     }
 
     var mountRetries = 0;
@@ -1249,11 +2255,20 @@
             return {
                 topSection: (inst.topSection && inst.topSection.value || []).slice(),
                 layoutBlocks: (inst.layoutBlocks && inst.layoutBlocks.value || []).map(function (b) {
+                    var bType = b.type === 'field_group' ? 'field_group' : 'layout';
+                    var defaultLabel = bType === 'field_group'
+                        ? 'Field Group'
+                        : (b.numCols === 1 ? 'Layout 1 Column' : (b.numCols === 2 ? 'Layout 2 Columns' : 'Layout 3 Columns'));
+                    var source = (b.source && typeof b.source === 'object')
+                        ? { kind: b.source.kind || 'local', ref: b.source.ref || null }
+                        : { kind: 'local', ref: null };
                     return {
                         id: b.id,
-                        numCols: b.numCols,
-                        label: b.label || (b.numCols === 1 ? 'Layout 1 Column' : (b.numCols === 2 ? 'Layout 2 Columns' : 'Layout 3 Columns')),
+                        type: bType,
+                        numCols: bType === 'field_group' ? 1 : b.numCols,
+                        label: b.label || defaultLabel,
                         collapsed: !!b.collapsed,
+                        source: source,
                         columns: [ (b.columns[0] || []).slice(), (b.columns[1] || []).slice(), (b.columns[2] || []).slice() ]
                     };
                 })
@@ -1300,9 +2315,11 @@
             var next = (inst.layoutBlocks.value || []).slice();
             next.push({
                 id: 'block-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+                type: 'layout',
                 numCols: n,
                 label: defaultLabel,
                 collapsed: false,
+                source: { kind: 'local', ref: null },
                 columns: cols
             });
             inst.layoutBlocks.value = next;
@@ -1315,6 +2332,123 @@
                 document.dispatchEvent(new CustomEvent('modular-layout-changed'));
             } catch (e) {}
         },
+        addFieldGroup: function (options) {
+            var inst = window.ModularFieldRendererApp._instance;
+            if (!inst || !inst.layoutBlocks) return null;
+            var opts = options || {};
+            var label = (typeof opts.label === 'string' && opts.label.trim()) ? opts.label.trim() : 'Field Group';
+            var source = (opts.source && typeof opts.source === 'object')
+                ? { kind: opts.source.kind || 'local', ref: opts.source.ref || null }
+                : { kind: 'local', ref: null };
+            var items = Array.isArray(opts.items) ? opts.items.slice() : [];
+            var newId = opts.id || ('block-fg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
+            var next = (inst.layoutBlocks.value || []).slice();
+            next.push({
+                id: newId,
+                type: 'field_group',
+                numCols: 1,
+                label: label,
+                collapsed: false,
+                source: source,
+                columns: [ items, [], [] ]
+            });
+            inst.layoutBlocks.value = next;
+            var blockIds = next.map(function (b) { return b.id; });
+            inst.layoutOrder.value = ['top'].concat(blockIds);
+            try { document.dispatchEvent(new CustomEvent('modular-layout-changed')); } catch (e) {}
+            return newId;
+        },
+        attachFieldGroup: function (kind, ref) {
+            var api = window.ModularFieldRendererApp;
+            var k = kind === 'shared' ? 'shared' : 'fixed_pt';
+            var lookup = k === 'shared'
+                ? (window.MODULAR_SHARED_GROUPS_INDEX || [])
+                : (window.MODULAR_FIXED_GROUPS || []);
+            var def = null;
+            if (Array.isArray(lookup)) {
+                for (var i = 0; i < lookup.length; i++) {
+                    if (lookup[i] && String(lookup[i].id) === String(ref)) {
+                        def = lookup[i];
+                        break;
+                    }
+                }
+            }
+            var label = (def && def.label) ? def.label : 'Field Group';
+            var items = (def && Array.isArray(def.items)) ? def.items : [];
+            return api.addFieldGroup({
+                label: label,
+                source: { kind: k, ref: ref },
+                items: items
+            });
+        },
+        addTabMarker: function (blockId, label) {
+            var inst = window.ModularFieldRendererApp._instance;
+            if (!inst || !inst.layoutBlocks || !blockId) return null;
+            var newId = 'fg-tab-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+            var newMarker = { id: newId, type: 'tab', label: (typeof label === 'string' && label.trim()) ? label.trim() : 'New tab' };
+            var blocks = inst.layoutBlocks.value || [];
+            inst.layoutBlocks.value = blocks.map(function (b) {
+                if (b.id !== blockId || b.type !== 'field_group') return b;
+                var cols = (b.columns || [ [], [], [] ]).map(function (c) { return c.slice(); });
+                if (!cols[0]) cols[0] = [];
+                cols[0].push(newMarker);
+                return Object.assign({}, b, { columns: cols });
+            });
+            if (inst.fieldGroupActiveTab) {
+                inst.fieldGroupActiveTab[String(blockId)] = newId;
+            }
+            try { document.dispatchEvent(new CustomEvent('modular-layout-changed')); } catch (e) {}
+            return newId;
+        },
+        removeTabMarker: function (blockId, markerId) {
+            var inst = window.ModularFieldRendererApp._instance;
+            if (!inst || !inst.layoutBlocks || !blockId || !markerId) return;
+            var blocks = inst.layoutBlocks.value || [];
+            inst.layoutBlocks.value = blocks.map(function (b) {
+                if (b.id !== blockId || b.type !== 'field_group') return b;
+                var cols = (b.columns || [ [], [], [] ]).map(function (c) { return c.slice(); });
+                if (Array.isArray(cols[0])) {
+                    cols[0] = cols[0].filter(function (it) { return !(it && it.type === 'tab' && it.id === markerId); });
+                }
+                return Object.assign({}, b, { columns: cols });
+            });
+            if (inst.fieldGroupActiveTab && inst.fieldGroupActiveTab[String(blockId)] === markerId) {
+                inst.fieldGroupActiveTab[String(blockId)] = '__general__';
+            }
+            try { document.dispatchEvent(new CustomEvent('modular-layout-changed')); } catch (e) {}
+        },
+        renameTabMarker: function (blockId, markerId) {
+            var inst = window.ModularFieldRendererApp._instance;
+            if (!inst || !inst.layoutBlocks || !blockId || !markerId) return;
+            var current = '';
+            (inst.layoutBlocks.value || []).some(function (b) {
+                if (b.id !== blockId) return false;
+                ((b.columns && b.columns[0]) || []).some(function (it) {
+                    if (it && it.type === 'tab' && it.id === markerId) {
+                        current = it.label || '';
+                        return true;
+                    }
+                    return false;
+                });
+                return true;
+            });
+            var next = window.prompt('Tab label', current || 'Tab');
+            if (next === null) return;
+            var label = String(next).trim() || 'Tab';
+            inst.layoutBlocks.value = (inst.layoutBlocks.value || []).map(function (b) {
+                if (b.id !== blockId || b.type !== 'field_group') return b;
+                var cols = (b.columns || [ [], [], [] ]).map(function (c) {
+                    return (c || []).map(function (it) {
+                        if (it && it.type === 'tab' && it.id === markerId) {
+                            return Object.assign({}, it, { label: label });
+                        }
+                        return it;
+                    });
+                });
+                return Object.assign({}, b, { columns: cols });
+            });
+            try { document.dispatchEvent(new CustomEvent('modular-layout-changed')); } catch (e) {}
+        },
         addInstanceToTop: function (fieldName) {
             return window.ModularFieldRendererApp.addInstanceToTopAt(-1, fieldName);
         },
@@ -1325,25 +2459,14 @@
             var inst = window.ModularFieldRendererApp._instance;
             if (!inst || !inst.layoutBlocks) return null;
             var blocks = inst.layoutBlocks.value || [];
-            if (!blocks.length) return null;
-            // blockIndex coming from drag/drop is the visual index (in layoutOrder, excluding 'top').
-            // Map that to the actual block in layoutBlocks by id so reordering keeps indices aligned.
-            var order = (inst.layoutOrder && inst.layoutOrder.value) || [];
-            var orderedBlockIds = order.filter(function (id) { return id !== 'top'; });
-            if (blockIndex < 0 || blockIndex >= orderedBlockIds.length) return null;
-            var targetId = orderedBlockIds[blockIndex];
-            var realIndex = blocks.findIndex(function (b) { return b && b.id === targetId; });
-            if (realIndex === -1) {
-                // Fallback: assume order and blocks are aligned
-                realIndex = blockIndex < blocks.length ? blockIndex : 0;
-            }
-            var block = blocks[realIndex];
+            if (blockIndex < 0 || blockIndex >= blocks.length) return null;
+            var block = blocks[blockIndex];
             var numCols = block.numCols === 2 || block.numCols === 3 ? block.numCols : 1;
             if (columnIndex < 0 || columnIndex >= numCols) return null;
             var newId = 'fi-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
             var newInst = { id: newId, name: fieldName };
             inst.layoutBlocks.value = blocks.map(function (b, i) {
-                if (i !== realIndex) return b;
+                if (i !== blockIndex) return b;
                 var cols = (b.columns || [ [], [], [] ]).map(function (c) { return c.slice(); });
                 if (!cols[columnIndex]) cols[columnIndex] = [];
                 if (insertIndex >= 0 && insertIndex <= cols[columnIndex].length) {
@@ -1520,9 +2643,14 @@
             var blockIndex = blocks.findIndex(function (b) { return b && b.id === blockId; });
             if (blockIndex === -1) return null;
             var block = blocks[blockIndex];
-            var newBlockId = 'block-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+            var isFieldGroup = block.type === 'field_group';
+            var newBlockId = (isFieldGroup ? 'block-fg-' : 'block-') + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
             var newColumns = (block.columns || [ [], [], [] ]).map(function (col) {
                 return (col || []).map(function (oldInst) {
+                    if (oldInst && oldInst.type === 'tab') {
+                        var newTabId = 'fg-tab-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+                        return { id: newTabId, type: 'tab', label: oldInst.label || 'Tab' };
+                    }
                     var newId = 'fi-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
                     var val = (inst.instanceValues && inst.instanceValues[oldInst.id]) !== undefined ? inst.instanceValues[oldInst.id] : undefined;
                     var copyVal = val !== undefined && val !== null
@@ -1534,11 +2662,14 @@
                     return { id: newId, name: oldInst.name };
                 });
             });
+            var defaultLabel = isFieldGroup ? 'Field Group' : (block.numCols === 2 ? 'Layout 2 Columns' : block.numCols === 3 ? 'Layout 3 Columns' : 'Layout 1 Column');
             var newBlock = {
                 id: newBlockId,
-                numCols: block.numCols === 2 || block.numCols === 3 ? block.numCols : 1,
-                label: (block.label || '').trim() ? (block.label + ' (copy)') : (block.numCols === 2 ? 'Layout 2 Columns (copy)' : block.numCols === 3 ? 'Layout 3 Columns (copy)' : 'Layout 1 Column (copy)'),
+                type: isFieldGroup ? 'field_group' : 'layout',
+                numCols: isFieldGroup ? 1 : (block.numCols === 2 || block.numCols === 3 ? block.numCols : 1),
+                label: (block.label || '').trim() ? (block.label + ' (copy)') : (defaultLabel + ' (copy)'),
                 collapsed: !!block.collapsed,
+                source: { kind: 'local', ref: null },
                 columns: newColumns
             };
             var next = blocks.slice();
@@ -1626,7 +2757,7 @@
                 if (i !== blockIndex) return b;
                 var cols = (b.columns || [ [], [], [] ]).map(function (c) { return c.slice(); });
                 cols[columnIndex] = Array.isArray(instances) ? instances.slice() : [];
-                return { id: b.id, numCols: b.numCols, label: b.label, collapsed: !!b.collapsed, columns: cols };
+                return Object.assign({}, b, { columns: cols });
             });
         },
         /** Reorder based on DOM: both top section and layout blocks (drag whole dropzones). */
@@ -1669,39 +2800,50 @@
             });
             var topInner = root.querySelector('.modular-top-inner');
             var newTop = [];
-            if (topInner) {
-                topInner.querySelectorAll('[data-field-id]').forEach(function (el) {
-                    var id = el.getAttribute('data-field-id');
-                    if (id && idToInst[id]) newTop.push(idToInst[id]);
-                });
-            }
+            if (topInner) newTop = modularFlattenInstancesFromDropContainer(topInner, idToInst);
             inst.topSection.value = newTop;
             var blocks = (inst.layoutBlocks && inst.layoutBlocks.value) || [];
             var newBlocks = blocks.map(function (block, bi) {
+                if (block.type === 'field_group') {
+                    if (isLockedBlock(block)) {
+                        return block;
+                    }
+                    var panes = root.querySelectorAll('.modular-field-group-pane-drop[data-block-index="' + bi + '"]');
+                    var combined = [];
+                    var paneList = [].slice.call(panes);
+                    paneList.forEach(function (paneEl, pi) {
+                        var inner = paneEl.querySelector('.modular-column-inner');
+                        var tabKey = paneEl.getAttribute('data-field-group-tab-key') || '';
+                        if (pi > 0 || tabKey !== '__general__') {
+                            var orig = (block.columns && block.columns[0]) || [];
+                            for (var oi = 0; oi < orig.length; oi++) {
+                                if (orig[oi] && orig[oi].type === 'tab' && String(orig[oi].id) === tabKey) {
+                                    combined.push(orig[oi]);
+                                    break;
+                                }
+                            }
+                        }
+                        if (inner) {
+                            modularFlattenInstancesFromDropContainer(inner, idToInst).forEach(function (it) {
+                                combined.push(it);
+                            });
+                        }
+                    });
+                    return Object.assign({}, block, { columns: [ combined, [], [] ] });
+                }
                 var numCols = block.numCols === 2 || block.numCols === 3 ? block.numCols : 1;
                 var cols = [];
                 for (var ci = 0; ci < 3; ci++) {
                     if (ci < numCols) {
                         var colEl = root.querySelector('.modular-column-drop[data-block-index="' + bi + '"][data-column-index="' + ci + '"] .modular-column-inner');
                         var newCol = [];
-                        if (colEl) {
-                            colEl.querySelectorAll('[data-field-id]').forEach(function (el) {
-                                var id = el.getAttribute('data-field-id');
-                                if (id && idToInst[id]) newCol.push(idToInst[id]);
-                            });
-                        }
+                        if (colEl) newCol = modularFlattenInstancesFromDropContainer(colEl, idToInst);
                         cols.push(newCol);
                     } else {
                         cols.push([]);
                     }
                 }
-                return {
-                    id: block.id,
-                    numCols: block.numCols,
-                    label: block.label || (block.numCols === 1 ? 'Layout 1 Column' : (block.numCols === 2 ? 'Layout 2 Columns' : 'Layout 3 Columns')),
-                    collapsed: !!block.collapsed,
-                    columns: cols
-                };
+                return Object.assign({}, block, { columns: cols });
             });
             inst.layoutBlocks.value = newBlocks;
         },

@@ -28,85 +28,94 @@
 
         var api = window.ModularFieldRendererApp;
         function initColumnSortables() {
-            var layout = api.getLayout();
-            var topInner = root.querySelector('.modular-top-inner');
-            if (topInner) {
-                if (topInner._modularSortable) {
-                    topInner._modularSortable.destroy();
-                    topInner._modularSortable = null;
-                }
-                topInner._modularSortable = window.ModularSortable.create(topInner, {
-                    animation: dragOpts.animation,
-                    ghostClass: dragOpts.ghostClass,
-                    chosenClass: dragOpts.chosenClass,
-                    handle: dragOpts.contentHandle,
-                    forceFallback: true,
-                    fallbackOnBody: true,
-                    group: dragOpts.group,
-                    onMove: function (evt) {
-                        var toInner = evt.to;
-                        if (!toInner) return;
-                        var over = toInner.closest('.modular-top-drop, .modular-column-drop');
-                        root.querySelectorAll('.modular-top-drop, .modular-column-drop').forEach(function (el) {
-                            el.classList.remove('modular-top-drag-over', 'modular-column-drag-over');
-                        });
-                        if (over) {
-                            if (over.classList.contains('modular-top-drop')) {
-                                over.classList.add('modular-top-drag-over');
-                            } else {
-                                over.classList.add('modular-column-drag-over');
-                            }
-                        }
-                    },
-                    onEnd: function () {
-                        if (api && typeof api.syncLayoutFromDOM === 'function') api.syncLayoutFromDOM();
-                        root.querySelectorAll('.modular-top-drop, .modular-column-drop').forEach(function (el) {
-                            el.classList.remove('modular-top-drag-over', 'modular-column-drag-over');
-                        });
+            function onFieldSortMove(evt) {
+                var toInner = evt.to;
+                if (!toInner) return;
+                var over = toInner.closest('.modular-top-drop, .modular-column-drop');
+                root.querySelectorAll('.modular-top-drop, .modular-column-drop').forEach(function (el) {
+                    el.classList.remove('modular-top-drag-over', 'modular-column-drag-over');
+                });
+                if (over) {
+                    if (over.classList.contains('modular-top-drop')) {
+                        over.classList.add('modular-top-drag-over');
+                    } else {
+                        over.classList.add('modular-column-drag-over');
                     }
+                }
+            }
+            function onFieldSortEnd() {
+                if (api && typeof api.syncLayoutFromDOM === 'function') api.syncLayoutFromDOM();
+                root.querySelectorAll('.modular-top-drop, .modular-column-drop').forEach(function (el) {
+                    el.classList.remove('modular-top-drag-over', 'modular-column-drag-over');
                 });
             }
-            root.querySelectorAll('.modular-layout-block .modular-column-inner').forEach(function (innerEl) {
-                var col = innerEl.closest('.modular-column-drop');
-                if (!col) return;
-                var blockIdx = col.getAttribute('data-block-index');
-                var colIdx = col.getAttribute('data-column-index');
-                var bi = blockIdx !== null && blockIdx !== '' ? parseInt(blockIdx, 10) : 0;
-                var ci = colIdx !== null && colIdx !== '' ? parseInt(colIdx, 10) : 0;
+            function cleanupFieldDropContainer(innerEl) {
+                if (!innerEl) return;
                 if (innerEl._modularSortable) {
                     innerEl._modularSortable.destroy();
                     innerEl._modularSortable = null;
                 }
-                innerEl._modularSortable = window.ModularSortable.create(innerEl, {
+                if (innerEl._modularOuterSortable) {
+                    innerEl._modularOuterSortable.destroy();
+                    innerEl._modularOuterSortable = null;
+                }
+                innerEl.querySelectorAll('.modular-field-group-inner').forEach(function (ge) {
+                    if (ge._modularSortable) {
+                        ge._modularSortable.destroy();
+                        ge._modularSortable = null;
+                    }
+                });
+            }
+            function fieldDropContainerHasTabGroups(innerEl) {
+                if (!innerEl) return false;
+                var chi = innerEl.children;
+                for (var c = 0; c < chi.length; c++) {
+                    if (chi[c].classList && chi[c].classList.contains('modular-field-group')) return true;
+                }
+                return false;
+            }
+            function attachFieldDropContainerSortables(innerEl) {
+                cleanupFieldDropContainer(innerEl);
+                if (!innerEl) return;
+                var lockedAncestor = innerEl.closest && innerEl.closest('[data-field-group-locked="1"]');
+                if (lockedAncestor) {
+                    return;
+                }
+                var commonOpts = {
                     animation: dragOpts.animation,
                     ghostClass: dragOpts.ghostClass,
                     chosenClass: dragOpts.chosenClass,
-                    handle: dragOpts.contentHandle,
                     forceFallback: true,
-                    fallbackOnBody: true,
-                    group: dragOpts.group,
-                    onMove: function (evt) {
-                        var toInner = evt.to;
-                        if (!toInner) return;
-                        var over = toInner.closest('.modular-top-drop, .modular-column-drop');
-                        root.querySelectorAll('.modular-top-drop, .modular-column-drop').forEach(function (el) {
-                            el.classList.remove('modular-top-drag-over', 'modular-column-drag-over');
-                        });
-                        if (over) {
-                            if (over.classList.contains('modular-top-drop')) {
-                                over.classList.add('modular-top-drag-over');
-                            } else {
-                                over.classList.add('modular-column-drag-over');
-                            }
-                        }
-                    },
-                    onEnd: function () {
-                        if (api && typeof api.syncLayoutFromDOM === 'function') api.syncLayoutFromDOM();
-                        root.querySelectorAll('.modular-top-drop, .modular-column-drop').forEach(function (el) {
-                            el.classList.remove('modular-top-drag-over', 'modular-column-drag-over');
-                        });
-                    }
-                });
+                    fallbackOnBody: true
+                };
+
+                if (fieldDropContainerHasTabGroups(innerEl)) {
+                    innerEl._modularOuterSortable = window.ModularSortable.create(innerEl, Object.assign({}, commonOpts, {
+                        draggable: '> .modular-field-group',
+                        handle: '.modular-field-group-handle',
+                        onEnd: onFieldSortEnd
+                    }));
+                    innerEl.querySelectorAll('.modular-field-group-inner').forEach(function (groupInnerEl) {
+                        groupInnerEl._modularSortable = window.ModularSortable.create(groupInnerEl, Object.assign({}, commonOpts, {
+                            handle: dragOpts.contentHandle,
+                            group: dragOpts.group,
+                            onMove: onFieldSortMove,
+                            onEnd: onFieldSortEnd
+                        }));
+                    });
+                } else {
+                    innerEl._modularSortable = window.ModularSortable.create(innerEl, Object.assign({}, commonOpts, {
+                        handle: dragOpts.contentHandle,
+                        group: dragOpts.group,
+                        onMove: onFieldSortMove,
+                        onEnd: onFieldSortEnd
+                    }));
+                }
+            }
+
+            attachFieldDropContainerSortables(root.querySelector('.modular-top-inner'));
+            root.querySelectorAll('.modular-layout-block .modular-column-inner').forEach(function (innerEl) {
+                attachFieldDropContainerSortables(innerEl);
             });
         }
         setTimeout(initColumnSortables, 100);
@@ -416,6 +425,161 @@
                 addLayoutMenu.style.display = 'none';
                 addLayoutBtn.setAttribute('aria-expanded', 'false');
             });
+        }
+
+        // Add field group button + modal
+        var addFieldGroupBtn = document.getElementById('add-field-group-btn');
+        var addFieldGroupModal = document.getElementById('add-field-group-modal');
+        if (addFieldGroupBtn && addFieldGroupModal) {
+            var fgModalClose = document.getElementById('add-field-group-modal-close');
+            var fgTabs = addFieldGroupModal.querySelectorAll('.field-group-modal-tab');
+            var fgPanes = addFieldGroupModal.querySelectorAll('.field-group-modal-pane');
+            var fgCreateLabel = document.getElementById('fg-create-label');
+            var fgCreateSubmit = document.getElementById('fg-create-submit');
+            var fgAttachList = document.getElementById('fg-attach-list');
+
+            function openFgModal() {
+                addFieldGroupModal.style.display = 'flex';
+                addFieldGroupModal.setAttribute('aria-hidden', 'false');
+                if (fgCreateLabel) {
+                    fgCreateLabel.value = '';
+                    setTimeout(function () { try { fgCreateLabel.focus(); } catch (_) {} }, 50);
+                }
+                renderAttachList();
+            }
+            function closeFgModal() {
+                addFieldGroupModal.style.display = 'none';
+                addFieldGroupModal.setAttribute('aria-hidden', 'true');
+            }
+            function switchTab(name) {
+                fgTabs.forEach(function (b) {
+                    var isOn = b.getAttribute('data-fg-tab') === name;
+                    b.classList.toggle('is-active', isOn);
+                    b.setAttribute('aria-selected', isOn ? 'true' : 'false');
+                });
+                fgPanes.forEach(function (p) {
+                    var isOn = p.getAttribute('data-fg-pane') === name;
+                    p.classList.toggle('is-active', isOn);
+                    p.style.display = isOn ? '' : 'none';
+                });
+            }
+            function renderAttachList() {
+                if (!fgAttachList) return;
+                var fixed = (window.MODULAR_FIXED_GROUPS || []).slice();
+                var shared = (window.MODULAR_SHARED_GROUPS_INDEX || []).slice();
+                if (!fixed.length && !shared.length) {
+                    fgAttachList.innerHTML = '<p class="help-text" style="opacity:0.7;">No field groups defined yet. Create one in the &ldquo;Create new&rdquo; tab.</p>';
+                    return;
+                }
+                var html = '';
+                if (fixed.length) {
+                    html += '<div class="fg-attach-section"><h4>Fixed for this post type</h4>';
+                    fixed.forEach(function (g) {
+                        html += '<button type="button" class="fg-attach-item" data-fg-kind="fixed_pt" data-fg-ref="' + encodeURIComponent(String(g.id)) + '">'
+                            + '<strong>' + escapeHtml(g.label || g.id) + '</strong>'
+                            + '<span class="fg-attach-meta">' + (g.items ? g.items.length : 0) + ' fields</span>'
+                            + '</button>';
+                    });
+                    html += '</div>';
+                }
+                if (shared.length) {
+                    html += '<div class="fg-attach-section"><h4>Shared across post types</h4>';
+                    shared.forEach(function (g) {
+                        html += '<button type="button" class="fg-attach-item" data-fg-kind="shared" data-fg-ref="' + encodeURIComponent(String(g.id)) + '">'
+                            + '<strong>' + escapeHtml(g.label || g.name || g.id) + '</strong>'
+                            + '<span class="fg-attach-meta">' + (g.items ? g.items.length : 0) + ' fields</span>'
+                            + '</button>';
+                    });
+                    html += '</div>';
+                }
+                fgAttachList.innerHTML = html;
+                fgAttachList.querySelectorAll('.fg-attach-item').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var kind = btn.getAttribute('data-fg-kind');
+                        var ref = decodeURIComponent(btn.getAttribute('data-fg-ref') || '');
+                        if (api && typeof api.attachFieldGroup === 'function') {
+                            api.attachFieldGroup(kind, ref);
+                        }
+                        closeFgModal();
+                    });
+                });
+            }
+            function escapeHtml(s) {
+                return String(s).replace(/[&<>"']/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                });
+            }
+
+            addFieldGroupBtn.addEventListener('click', openFgModal);
+            if (fgModalClose) fgModalClose.addEventListener('click', closeFgModal);
+            addFieldGroupModal.addEventListener('click', function (e) {
+                if (e.target === addFieldGroupModal) closeFgModal();
+            });
+            fgTabs.forEach(function (b) {
+                b.addEventListener('click', function () { switchTab(b.getAttribute('data-fg-tab')); });
+            });
+            if (fgCreateSubmit) {
+                fgCreateSubmit.addEventListener('click', function () {
+                    var label = (fgCreateLabel && fgCreateLabel.value || '').trim();
+                    if (!label) label = 'Field Group';
+                    if (api && typeof api.addFieldGroup === 'function') {
+                        api.addFieldGroup({ label: label, source: { kind: 'local' } });
+                    }
+                    closeFgModal();
+                });
+            }
+
+            // Promote a local field group to fixed/shared via API
+            window.ModularPromoteFieldGroup = function (blockId, kind) {
+                if (!api || typeof api.getLayout !== 'function') return;
+                var layout = api.getLayout();
+                var block = null;
+                (layout.layoutBlocks || []).some(function (b) {
+                    if (b && b.id === blockId) { block = b; return true; }
+                    return false;
+                });
+                if (!block || block.type !== 'field_group') return;
+                var items = (block.columns && block.columns[0]) || [];
+                var base = (window.MODULAR_BASE_URL || '/modular').replace(/\/$/, '');
+                var body = new URLSearchParams();
+                body.append('action', kind === 'shared' ? 'create_shared' : 'create_local_fixed');
+                body.append('post_type_id', String(window.MODULAR_POST_TYPE_ID || 0));
+                body.append('label', block.label || 'Field Group');
+                body.append('items', JSON.stringify(items));
+                if (window.MODULAR_CSRF_TOKEN) body.append('csrf_token', window.MODULAR_CSRF_TOKEN);
+                fetch(base + '/admin/post-types/field-group-api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Accept': 'application/json' },
+                    body: body.toString(),
+                    credentials: 'same-origin'
+                }).then(function (r) { return r.json(); }).then(function (resp) {
+                    if (!resp || resp.error) {
+                        window.alert((resp && resp.error) || 'Could not promote field group.');
+                        return;
+                    }
+                    var inst = window.ModularFieldRendererApp && window.ModularFieldRendererApp._instance;
+                    if (!inst || !inst.layoutBlocks) return;
+                    var def = {
+                        id: resp.id,
+                        label: resp.label || block.label || 'Field Group',
+                        items: items.slice()
+                    };
+                    if (kind === 'shared') {
+                        window.MODULAR_SHARED_GROUPS_INDEX = (window.MODULAR_SHARED_GROUPS_INDEX || []).concat([Object.assign({}, def, { name: resp.name || def.label })]);
+                    } else {
+                        window.MODULAR_FIXED_GROUPS = (window.MODULAR_FIXED_GROUPS || []).concat([def]);
+                    }
+                    inst.layoutBlocks.value = (inst.layoutBlocks.value || []).map(function (b) {
+                        if (b.id !== blockId) return b;
+                        return Object.assign({}, b, {
+                            source: { kind: kind === 'shared' ? 'shared' : 'fixed_pt', ref: String(resp.id) }
+                        });
+                    });
+                    try { document.dispatchEvent(new CustomEvent('modular-layout-changed')); } catch (e) {}
+                }).catch(function () {
+                    window.alert('Network error promoting field group.');
+                });
+            };
         }
 
         // Remove-field confirmation modal (when field has content)

@@ -105,6 +105,7 @@ if ($postId) {
             $postData = $post;
             $postData['component_data'] = json_decode($post['component_data'] ?? '[]', true);
             $postData['data'] = isset($post['data']) && $post['data'] !== '' ? json_decode($post['data'], true) : null;
+            $postData['meta_data'] = isset($post['meta_data']) && $post['meta_data'] !== '' ? json_decode($post['meta_data'], true) : null;
             $postData['layout'] = isset($post['layout']) && $post['layout'] !== '' ? json_decode($post['layout'], true) : null;
             $postTypeId = $post['post_type_id'];
             $postTypeName = $post['post_type_name'] ?? '';
@@ -190,7 +191,18 @@ if ($postTypeId) {
     }
 }
 
-$schemaFields = ($postTypeSchema && isset($postTypeSchema['fields']) && is_array($postTypeSchema['fields'])) ? $postTypeSchema['fields'] : [];
+$schemaFields = [];
+if (is_array($postTypeSchema)) {
+    if (isset($postTypeSchema['fields']) && is_array($postTypeSchema['fields'])) {
+        $schemaFields = $postTypeSchema['fields'];
+    } else {
+        $isList = array_keys($postTypeSchema) === array_keys(array_values($postTypeSchema));
+        if ($isList) {
+            $schemaFields = $postTypeSchema;
+            $postTypeSchema = ['fields' => $schemaFields];
+        }
+    }
+}
 $useSchemaForm = !empty($schemaFields);
 
 // Current layout (array of instances or field names) if stored
@@ -205,9 +217,144 @@ if ($useSchemaForm) {
     $normalizedSchema = \Modular\Fields\FieldSchemaMap::normalizeSchema(['fields' => $schemaFields]);
     $schemaFields = $normalizedSchema['fields'];
 
-    // If there is no saved per-post layout yet, derive initial layout for modular mode
-    // from fields that are marked \"show_on_creation\". If none are marked, fall back
-    // to including all fields (backwards compatible).
+    $metaData = isset($postData['meta_data']) && is_array($postData['meta_data']) ? $postData['meta_data'] : [];
+    $hydrateLegacyField = static function (array $fieldDef, array $metaData) {
+        $fieldName = (string) ($fieldDef['name'] ?? $fieldDef['key'] ?? '');
+        if ($fieldName === '') {
+            return null;
+        }
+        $fieldType = (string) ($fieldDef['type'] ?? '');
+        if ($fieldType === 'repeater') {
+            $subFields = isset($fieldDef['sub_fields']) && is_array($fieldDef['sub_fields']) ? $fieldDef['sub_fields'] : [];
+            if (empty($subFields)) {
+                return array_key_exists($fieldName, $metaData) ? $metaData[$fieldName] : null;
+            }
+            $rowCount = 0;
+            if (isset($metaData[$fieldName]) && is_scalar($metaData[$fieldName])) {
+                $rowCount = max(0, (int) $metaData[$fieldName]);
+            }
+            if ($rowCount <= 0) {
+                foreach ($metaData as $k => $v) {
+                    if (preg_match('/^' . preg_quote($fieldName, '/') . '_(\d+)_/i', (string) $k, $m)) {
+                        $rowCount = max($rowCount, ((int) $m[1]) + 1);
+                    }
+                }
+            }
+            if ($rowCount <= 0) {
+                return null;
+            }
+            $rows = [];
+            for ($i = 0; $i < $rowCount; $i++) {
+                $row = [];
+                foreach ($subFields as $subField) {
+                    $subName = (string) ($subField['name'] ?? $subField['key'] ?? '');
+                    if ($subName === '') {
+                        continue;
+                    }
+                    $metaKey = $fieldName . '_' . $i . '_' . $subName;
+                    if (array_key_exists($metaKey, $metaData)) {
+                        $row[$subName] = $metaData[$metaKey];
+                    }
+                }
+                if (!empty($row)) {
+                    $rows[] = $row;
+                }
+            }
+            return !empty($rows) ? $rows : null;
+        }
+        if ($fieldType === 'flexible_content') {
+            $layoutsRaw = $metaData[$fieldName] ?? null;
+            if (is_string($layoutsRaw)) {
+                $decoded = json_decode($layoutsRaw, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $layoutsRaw = $decoded;
+                }
+            }
+            if (!is_array($layoutsRaw) || empty($layoutsRaw)) {
+                return null;
+            }
+            $rows = [];
+            foreach (array_values($layoutsRaw) as $i => $layoutName) {
+                $layoutKey = is_scalar($layoutName) ? (string) $layoutName : '';
+                if ($layoutKey === '') {
+                    continue;
+                }
+                $row = ['acf_fc_layout' => $layoutKey];
+                $prefix = $fieldName . '_' . $i . '_';
+                foreach ($metaData as $k => $v) {
+                    if (strpos((string) $k, $prefix) !== 0) {
+                        continue;
+                    }
+                    $subKey = substr((string) $k, strlen($prefix));
+                    if ($subKey !== '') {
+                        $row[$subKey] = $v;
+                    }
+                }
+                $rows[] = $row;
+            }
+            return !empty($rows) ? $rows : null;
+        }
+        return array_key_exists($fieldName, $metaData) ? $metaData[$fieldName] : null;
+    };
+
+    $isSchemaValueEmpty = static function (array $fieldDef, $value): bool {
+        if ($value === null || $value === '') {
+            return true;
+        }
+        $type = (string) ($fieldDef['type'] ?? '');
+        if ($type === 'flexible_content') {
+            if (!is_array($value)) {
+                return true;
+            }
+            if (isset($value['blocks']) && is_array($value['blocks'])) {
+                return count($value['blocks']) === 0;
+            }
+            if ($value === []) {
+                return true;
+            }
+
+            return false;
+        }
+        if ($type === 'repeater' || $type === 'gallery') {
+            return !is_array($value) || count($value) === 0;
+        }
+        if ($type === 'group') {
+            if (!is_array($value)) {
+                return true;
+            }
+            foreach ($value as $v) {
+                if ($v !== null && $v !== '' && !(is_array($v) && $v === [])) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        if ($type === 'true_false') {
+            return false;
+        }
+
+        return false;
+    };
+
+    if (!empty($metaData)) {
+        foreach ($schemaFields as $f) {
+            $fieldName = (string) ($f['name'] ?? $f['key'] ?? '');
+            if ($fieldName === '') {
+                continue;
+            }
+            $hydrated = $hydrateLegacyField($f, $metaData);
+            if ($hydrated === null) {
+                continue;
+            }
+            if (!array_key_exists($fieldName, $fieldData) || $isSchemaValueEmpty($f, $fieldData[$fieldName])) {
+                $fieldData[$fieldName] = $hydrated;
+            }
+        }
+    }
+
+    // Modular layout: \"show_on_creation\" applies to NEW posts (first editor screen), not
+    // to the admin when editing an existing post — editors must see every schema field.
     if (empty($currentLayout) && $postTypeMode === 'modular') {
         $showOnCreationNames = [];
         $allNames = [];
@@ -221,11 +368,12 @@ if ($useSchemaForm) {
                 $showOnCreationNames[] = $name;
             }
         }
-        // If at least one field was explicitly/implicitly marked, use that subset;
-        // otherwise default to all field names.
-        $baseNames = !empty($showOnCreationNames) ? $showOnCreationNames : $allNames;
+        if ($postId) {
+            $baseNames = $allNames;
+        } else {
+            $baseNames = !empty($showOnCreationNames) ? $showOnCreationNames : $allNames;
+        }
 
-        // Convert list of names to instance objects expected by the renderer.
         $currentLayout = [];
         $i = 0;
         foreach ($baseNames as $n) {
@@ -234,6 +382,115 @@ if ($useSchemaForm) {
                 'id' => 'fi-init-' . $i . '-' . $n,
                 'name' => $n,
             ];
+        }
+    } elseif ($postTypeMode === 'modular' && $postId && !empty($currentLayout) && is_array($currentLayout)) {
+        $collectLayoutNames = static function (array $layout): array {
+            $names = [];
+            $walk = static function ($inst) use (&$names) {
+                if (is_array($inst) && !empty($inst['name'])) {
+                    $names[$inst['name']] = true;
+                }
+            };
+            if (isset($layout['blocks']) && is_array($layout['blocks'])) {
+                if (isset($layout['top']) && is_array($layout['top'])) {
+                    foreach ($layout['top'] as $inst) {
+                        $walk($inst);
+                    }
+                }
+                foreach ($layout['blocks'] as $block) {
+                    if (!is_array($block) || empty($block['columns']) || !is_array($block['columns'])) {
+                        continue;
+                    }
+                    foreach ($block['columns'] as $col) {
+                        if (!is_array($col)) {
+                            continue;
+                        }
+                        foreach ($col as $inst) {
+                            $walk($inst);
+                        }
+                    }
+                }
+                return $names;
+            }
+            if (isset($layout['columns']) && is_array($layout['columns'])) {
+                foreach ($layout['columns'] as $col) {
+                    if (!is_array($col)) {
+                        continue;
+                    }
+                    foreach ($col as $inst) {
+                        $walk($inst);
+                    }
+                }
+                return $names;
+            }
+            $keys = array_keys($layout);
+            if ($keys === range(0, count($layout) - 1)) {
+                foreach ($layout as $inst) {
+                    $walk($inst);
+                }
+            }
+            return $names;
+        };
+        $present = $collectLayoutNames($currentLayout);
+        $missing = [];
+        foreach ($schemaFields as $f) {
+            $name = $f['name'] ?? ($f['key'] ?? null);
+            if ($name && empty($present[$name])) {
+                $missing[] = $name;
+            }
+        }
+        if ($missing !== []) {
+            if (isset($currentLayout['blocks']) && is_array($currentLayout['blocks'])) {
+                if (!isset($currentLayout['blocks'][0]) || !is_array($currentLayout['blocks'][0])) {
+                    array_unshift($currentLayout['blocks'], [
+                        'id' => 'block-admin-' . str_replace('.', '', uniqid('', true)),
+                        'numCols' => 1,
+                        'label' => 'Layout 1 Column',
+                        'collapsed' => false,
+                        'columns' => [[], [], []],
+                    ]);
+                }
+                $b0 = &$currentLayout['blocks'][0];
+                if (!isset($b0['columns']) || !is_array($b0['columns'])) {
+                    $b0['columns'] = [[], [], []];
+                }
+                if (!isset($b0['columns'][0]) || !is_array($b0['columns'][0])) {
+                    $b0['columns'][0] = [];
+                }
+                $mi = 0;
+                foreach ($missing as $name) {
+                    $mi++;
+                    $b0['columns'][0][] = [
+                        'id' => 'fi-admin-merge-' . $mi . '-' . $name,
+                        'name' => $name,
+                    ];
+                }
+                unset($b0);
+            } elseif (isset($currentLayout['columns']) && is_array($currentLayout['columns']) && array_key_exists(0, $currentLayout['columns'])) {
+                if (!is_array($currentLayout['columns'][0])) {
+                    $currentLayout['columns'][0] = [];
+                }
+                $mi = 0;
+                foreach ($missing as $name) {
+                    $mi++;
+                    $currentLayout['columns'][0][] = [
+                        'id' => 'fi-admin-merge-' . $mi . '-' . $name,
+                        'name' => $name,
+                    ];
+                }
+            } else {
+                $keys = array_keys($currentLayout);
+                if ($keys === range(0, count($currentLayout) - 1)) {
+                    $mi = 0;
+                    foreach ($missing as $name) {
+                        $mi++;
+                        $currentLayout[] = [
+                            'id' => 'fi-admin-merge-' . $mi . '-' . $name,
+                            'name' => $name,
+                        ];
+                    }
+                }
+            }
         }
     }
 }
@@ -300,6 +557,12 @@ require_once ADMIN_PATH . '/templates/header.php';
 
 $base_url = rtrim(SITE_URL ?? '', '/') . '/public/';
 $preview_slug = $postData['slug'] ?? '';
+$post_view_url = '';
+$post_preview_url = '';
+if ($postId && trim((string) ($postData['slug'] ?? '')) !== '') {
+    $post_view_url = function_exists('get_permalink') ? get_permalink((int) $postId) : '';
+    $post_preview_url = function_exists('get_post_preview_url') ? get_post_preview_url((int) $postId) : '';
+}
 // Build parent options for hierarchical post types
 $parentOptions = [];
 if ($postTypeId && $isHierarchicalPostType) {
@@ -395,6 +658,13 @@ if ($postTypeId && $isHierarchicalPostType) {
                 <button type="button" id="slug-inline-done" class="btn btn-primary btn-sm">OK</button>
             </span>
         </div>
+        <?php if ($postId && $post_view_url !== '' && $post_preview_url !== ''): ?>
+        <div class="post-edit-public-links">
+            <a href="<?php echo htmlspecialchars($post_view_url, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">View</a>
+            <span class="post-edit-public-links-sep" aria-hidden="true">|</span>
+            <a href="<?php echo htmlspecialchars($post_preview_url, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Preview</a>
+        </div>
+        <?php endif; ?>
 
     <div class="post-edit-body">
         <main class="post-edit-main">
@@ -420,15 +690,54 @@ if ($postTypeId && $isHierarchicalPostType) {
                                     <button type="button" class="add-layout-opt" data-cols="3">3 columns</button>
                                 </div>
                             </div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="add-field-group-btn">
+                                <i class="fas fa-layer-group"></i> Add field group
+                            </button>
                         </div>
                         <?php endif; ?>
                     </div>
                     <input type="hidden" name="use_schema_form" value="1">
                     <input type="hidden" name="field_data_json" id="field_data_json" value="">
+                    <?php
+                    $fixedFieldGroups = [];
+                    if (is_array($postTypeSchema) && isset($postTypeSchema['field_groups']) && is_array($postTypeSchema['field_groups'])) {
+                        foreach ($postTypeSchema['field_groups'] as $fg) {
+                            if (!is_array($fg)) continue;
+                            $gid = isset($fg['id']) ? (string) $fg['id'] : '';
+                            if ($gid === '') continue;
+                            $fixedFieldGroups[] = [
+                                'id' => $gid,
+                                'label' => isset($fg['label']) ? (string) $fg['label'] : 'Field Group',
+                                'items' => isset($fg['items']) && is_array($fg['items']) ? array_values($fg['items']) : [],
+                                'shared_id' => isset($fg['shared_id']) ? (int) $fg['shared_id'] : null,
+                                'locked' => isset($fg['locked']) ? (bool) $fg['locked'] : true,
+                            ];
+                        }
+                    }
+                    $sharedFieldGroupsIndex = [];
+                    try {
+                        $stmtShared = $db->query("SELECT id, name, definition FROM shared_fields WHERE type = 'field_group' AND deleted_at IS NULL ORDER BY name");
+                        if ($stmtShared) {
+                            foreach ($stmtShared->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+                                $def = json_decode((string) ($row['definition'] ?? '[]'), true);
+                                $items = (is_array($def) && isset($def['items']) && is_array($def['items'])) ? $def['items'] : [];
+                                $label = (is_array($def) && isset($def['label'])) ? (string) $def['label'] : (string) ($row['name'] ?? 'Field Group');
+                                $sharedFieldGroupsIndex[] = [
+                                    'id' => (int) $row['id'],
+                                    'name' => (string) $row['name'],
+                                    'label' => $label,
+                                    'items' => $items,
+                                ];
+                            }
+                        }
+                    } catch (\Throwable $e) { /* ignore */ }
+                    ?>
                     <div class="post-edit-fields-area <?php echo $postTypeMode === 'modular' ? 'post-edit-fields-draggable' : ''; ?>" id="post-edit-fields-area" data-fixed="<?php echo $postTypeMode === 'fixed' ? '1' : '0'; ?>">
                         <script type="application/json" id="modular-field-schema-json"><?php echo json_encode(['fields' => $schemaFields]); ?></script>
                         <script type="application/json" id="modular-field-data-json"><?php echo json_encode($fieldData); ?></script>
                         <script type="application/json" id="modular-field-layout-json"><?php echo json_encode($currentLayout); ?></script>
+                        <script type="application/json" id="modular-fixed-field-groups-json"><?php echo json_encode($fixedFieldGroups); ?></script>
+                        <script type="application/json" id="modular-shared-field-groups-json"><?php echo json_encode($sharedFieldGroupsIndex); ?></script>
                         <div id="post-edit-fields-vue-app" class="modular-field-renderer-container">
                             <noscript>
                                 <p class="help-text">JavaScript is required for the field editor. Please enable it and refresh.</p>
@@ -448,10 +757,13 @@ if ($postTypeId && $isHierarchicalPostType) {
                         window.MODULAR_FIELD_SCHEMA = parseJsonScript('modular-field-schema-json', { fields: [] });
                         window.MODULAR_FIELD_DATA = parseJsonScript('modular-field-data-json', {});
                         window.MODULAR_FIELD_LAYOUT = parseJsonScript('modular-field-layout-json', null);
+                        window.MODULAR_FIXED_GROUPS = parseJsonScript('modular-fixed-field-groups-json', []);
+                        window.MODULAR_SHARED_GROUPS_INDEX = parseJsonScript('modular-shared-field-groups-json', []);
                         window.MODULAR_BASE_URL = '<?php echo defined("BASE_PATH") ? BASE_PATH : "/modular"; ?>';
                         window.MODULAR_TINYMCE_BASE_URL = '<?php echo defined("ADMIN_URL") ? rtrim(ADMIN_URL, "/") . "/assets/vendor/tinymce" : "/modular/admin/assets/vendor/tinymce"; ?>';
                         window.MODULAR_CSRF_TOKEN = '<?php echo defined("BASE_PATH") && function_exists("csrf_token") ? csrf_token() : ""; ?>';
                         window.MODULAR_POST_ID = <?php echo (int)$postId; ?>;
+                        window.MODULAR_POST_TYPE_ID = <?php echo (int)$postTypeId; ?>;
                     })();
                     </script>
                     <script>
@@ -502,6 +814,21 @@ if ($postTypeId && $isHierarchicalPostType) {
         <aside class="post-edit-sidebar">
             <?php
             $availableTemplates = function_exists('get_theme_templates') ? get_theme_templates() : [ '' => 'Default' ];
+            $templateSelectedValue = isset($postData['template']) ? trim((string) $postData['template']) : '';
+            if (
+                $templateSelectedValue === ''
+                && ($postTypeSlug ?? '') === 'page'
+                && !empty($postData['slug'])
+                && function_exists('resolve_page_template_key_for_slug')
+            ) {
+                $slugTemplate = resolve_page_template_key_for_slug((string) $postData['slug']);
+                if ($slugTemplate !== '') {
+                    $templateSelectedValue = $slugTemplate;
+                    if (!array_key_exists($slugTemplate, $availableTemplates)) {
+                        $availableTemplates[$slugTemplate] = ucfirst(str_replace(['_', '-'], ' ', $slugTemplate));
+                    }
+                }
+            }
             $pubDate = $postData['published_at'] ?? null;
             $pubDateLocal = $pubDate ? date('Y-m-d\TH:i', strtotime($pubDate)) : '';
             $vis = $postData['visibility'] ?? 'public';
@@ -527,7 +854,7 @@ if ($postTypeId && $isHierarchicalPostType) {
                     <label for="template">Template</label>
                     <select name="template" id="template" class="form-control" aria-label="Page template">
                         <?php foreach ($availableTemplates as $tplKey => $tplLabel): ?>
-                        <option value="<?php echo htmlspecialchars($tplKey); ?>" <?php echo (isset($postData['template']) && (string)$postData['template'] === (string)$tplKey) ? 'selected' : ''; ?>><?php echo htmlspecialchars($tplLabel); ?></option>
+                        <option value="<?php echo htmlspecialchars($tplKey); ?>" <?php echo ((string) $templateSelectedValue === (string) $tplKey) ? 'selected' : ''; ?>><?php echo htmlspecialchars($tplLabel); ?></option>
                         <?php endforeach; ?>
                     </select>
                     <div class="help-text">Templates are theme PHP files with <code>Template Name: …</code> in a comment block.</div>
@@ -609,6 +936,46 @@ if ($postTypeId && $isHierarchicalPostType) {
             <p class="help-text" style="margin-top:0.75rem;">
                 To change which field types are available for this post type, use Configure fields in the Post Type editor.
             </p>
+        </div>
+    </div>
+</div>
+
+<!-- Add field group modal -->
+<div id="add-field-group-modal" class="post-edit-modal-overlay" style="display: none;" aria-hidden="true">
+    <div class="post-edit-modal-panel">
+        <div class="post-edit-modal-header">
+            <h3>Add field group</h3>
+            <button type="button" class="btn btn-secondary btn-sm" id="add-field-group-modal-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="post-edit-modal-body">
+            <div class="field-group-modal-tabs" role="tablist">
+                <button type="button" class="field-group-modal-tab is-active" data-fg-tab="create" role="tab" aria-selected="true">Create new</button>
+                <button type="button" class="field-group-modal-tab" data-fg-tab="attach" role="tab" aria-selected="false">Attach existing</button>
+            </div>
+
+            <div class="field-group-modal-pane is-active" data-fg-pane="create">
+                <div class="form-group">
+                    <label for="fg-create-label">Label</label>
+                    <input type="text" id="fg-create-label" class="form-control" placeholder="e.g. Brand &amp; status">
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-primary btn-sm" id="fg-create-submit">
+                        <i class="fas fa-plus"></i> Create field group
+                    </button>
+                    <p class="help-text" style="margin-top: 0.5rem;">
+                        The new group starts <strong>local</strong> (only on this post). Drag existing fields in and add tabs to organize.
+                        Use the <i class="fas fa-lock" style="font-size:0.85em;"></i> Promote menu on the group header to make it
+                        <strong>Fixed for this post type</strong> or <strong>Share across post types</strong>.
+                    </p>
+                </div>
+            </div>
+
+            <div class="field-group-modal-pane" data-fg-pane="attach" style="display: none;">
+                <p class="help-text">Field groups already defined for this post type or shared across the studio.</p>
+                <div class="field-group-modal-list" id="fg-attach-list">
+                    <p class="help-text" style="opacity: 0.7;">Loading…</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>

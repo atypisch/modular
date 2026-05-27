@@ -10,6 +10,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Load configuration
 require_once __DIR__ . '/config/config.php';
+require_once CORE_PATH . '/functions/database.php';
 
 // Check if already installed
 $installedFile = __DIR__ . '/config/installed.php';
@@ -22,67 +23,33 @@ $output = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install'])) {
     try {
+        if (!isset($GLOBALS['db'])) {
+            throw new Exception('Database connection not available.');
+        }
         $db = $GLOBALS['db'];
         $output = '';
         $errors = [];
-        
-        // Read the SQL from the migration file
-        $migrationFile = CORE_PATH . '/migrations/001_core_schema.php';
-        
-        if (!file_exists($migrationFile)) {
-            throw new Exception("Migration file not found: {$migrationFile}");
-        }
-        
-        $migrationContent = file_get_contents($migrationFile);
-        
-        // Extract SQL from the migration file - handle multi-line strings with escaped quotes
-        $sql = null;
-        
-        // Try double quotes first (most common)
-        if (preg_match('/\$sql\s*=\s*"((?:[^"\\\\]|\\\\.)*)"/s', $migrationContent, $matches)) {
-            $sql = $matches[1];
-            // Unescape
-            $sql = str_replace('\\"', '"', $sql);
-            $sql = str_replace('\\n', "\n", $sql);
-        } 
-        // Try single quotes
-        elseif (preg_match("/\$sql\s*=\s*'((?:[^'\\\\]|\\\\.)*)'/s", $migrationContent, $matches)) {
-            $sql = $matches[1];
-            $sql = str_replace("\\'", "'", $sql);
-            $sql = str_replace('\\n', "\n", $sql);
-        }
-        // Fallback to simpler regex
-        elseif (preg_match('/\$sql\s*=\s*["\']([^"\']+)["\']/s', $migrationContent, $matches)) {
-            $sql = $matches[1];
-        }
-        
-        if ($sql === null) {
-            throw new Exception("Could not extract SQL from migration file. Please use direct install method at /modular/admin/install-tables-direct.php");
-        }
-        
-        // Remove comment lines
-        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
-        
-        // Split into individual statements
-        $statements = array_filter(array_map('trim', explode(';', $sql)));
-        
-        foreach ($statements as $statement) {
-            if (!empty($statement) && !preg_match('/^\s*--/', $statement)) {
-                try {
-                    $db->exec($statement);
-                    // Extract table name from CREATE TABLE statement
-                    if (preg_match('/CREATE TABLE (?:IF NOT EXISTS )?`?(\w+)`?/i', $statement, $tableMatch)) {
-                        $output .= "✓ Created table: {$tableMatch[1]}\n";
-                    }
-                } catch (\PDOException $e) {
-                    // If table already exists, that's okay
-                    if (strpos($e->getMessage(), 'already exists') === false && 
-                        strpos($e->getMessage(), 'Duplicate') === false) {
-                        $errors[] = $e->getMessage();
-                        $output .= "✗ Error: " . $e->getMessage() . "\n";
-                    }
-                }
+        $tableStatusBeforeInstall = check_database_tables();
+        $migrationResult = run_pending_migrations();
+        if (!empty($migrationResult['error'])) {
+            $errors[] = $migrationResult['error'];
+            $output .= "✗ Migration error: " . $migrationResult['error'] . "\n";
+        } elseif (!empty($migrationResult['ran'])) {
+            foreach ($migrationResult['ran'] as $migrationName) {
+                $output .= "✓ Ran migration: {$migrationName}\n";
             }
+        } else {
+            $output .= "✓ No pending migrations. Existing schema is up to date.\n";
+        }
+
+        $tableStatusAfterInstall = check_database_tables();
+        $newTables = array_values(array_diff($tableStatusAfterInstall['exists'] ?? [], $tableStatusBeforeInstall['exists'] ?? []));
+        foreach ($newTables as $tableName) {
+            $output .= "✓ Available table: {$tableName}\n";
+        }
+        if (!empty($tableStatusAfterInstall['error'])) {
+            $errors[] = $tableStatusAfterInstall['error'];
+            $output .= "✗ Table check error: " . $tableStatusAfterInstall['error'] . "\n";
         }
         
         // Create default roles and capabilities
@@ -180,26 +147,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install'])) {
     }
 }
 
-// Check which tables exist
-$existingTables = [];
-if (isset($GLOBALS['db'])) {
-    try {
-        $stmt = $GLOBALS['db']->query("SHOW TABLES");
-        $existingTables = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    } catch (Exception $e) {
-        // Ignore errors
-    }
-}
-
-$requiredTables = [
-    'users', 'roles', 'capabilities', 'role_capabilities', 'user_roles',
-    'post_types', 'posts', 'component_definitions', 'media', 'relationships',
-    'taxonomies', 'terms', 'post_terms', 'post_type_taxonomies',
-    'forms', 'form_submissions', 'actions', 'action_queue', 'settings',
-    'post_revisions', 'activity_log', 'schema_migrations'
-];
-
-$missingTables = array_diff($requiredTables, $existingTables);
+$tableStatus = function_exists('check_database_tables')
+    ? check_database_tables()
+    : ['exists' => [], 'missing' => [], 'all_exist' => false, 'error' => 'Database table helper is not available'];
+$existingTables = $tableStatus['exists'] ?? [];
+$missingTables = $tableStatus['missing'] ?? [];
+$tableCheckError = $tableStatus['error'] ?? null;
 
 ?>
 <!DOCTYPE html>
@@ -306,6 +259,9 @@ $missingTables = array_diff($requiredTables, $existingTables);
             <p><strong>Database:</strong> <?php echo DB_NAME; ?></p>
             <p><strong>Host:</strong> <?php echo DB_HOST; ?>:<?php echo DB_PORT; ?></p>
             <p><strong>Connection:</strong> <?php echo isset($GLOBALS['db']) ? '✓ Connected' : '✗ Not Connected'; ?></p>
+            <?php if ($tableCheckError): ?>
+                <p><strong>Table Check:</strong> <?php echo htmlspecialchars($tableCheckError); ?></p>
+            <?php endif; ?>
         </div>
         
         <?php if (!empty($existingTables) || !empty($missingTables)): ?>

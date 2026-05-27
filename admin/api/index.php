@@ -10,19 +10,19 @@ require_once CORE_PATH . '/functions/database.php';
 if (function_exists('run_pending_migrations') && isset($GLOBALS['db'])) {
     run_pending_migrations();
 }
-require_once __DIR__ . '/../../../core/classes/APIRouter.php';
-require_once __DIR__ . '/../../../core/classes/AuthController.php';
-require_once __DIR__ . '/../../../core/classes/PostTypesController.php';
-require_once __DIR__ . '/../../../core/classes/PostsController.php';
+require_once __DIR__ . '/../../core/classes/APIRouter.php';
+require_once __DIR__ . '/../../core/classes/AuthController.php';
+require_once __DIR__ . '/../../core/classes/PostTypesController.php';
+require_once __DIR__ . '/../../core/classes/PostsController.php';
 require_once CORE_PATH . '/PostTypeResolver.php';
 require_once CORE_PATH . '/fields/FieldRegistry.php';
 require_once CORE_PATH . '/fields/FieldInterface.php';
-require_once __DIR__ . '/../../../core/classes/FormsController.php';
-require_once __DIR__ . '/../../../core/classes/MediaController.php';
-require_once __DIR__ . '/../../../core/classes/SearchController.php';
-require_once __DIR__ . '/../../../core/classes/ActionsController.php';
-require_once __DIR__ . '/../../../core/classes/RateLimiter.php';
-require_once __DIR__ . '/../../../core/classes/JWT.php';
+require_once __DIR__ . '/../../core/classes/FormsController.php';
+require_once __DIR__ . '/../../core/classes/MediaController.php';
+require_once __DIR__ . '/../../core/classes/SearchController.php';
+require_once __DIR__ . '/../../core/classes/ActionsController.php';
+require_once __DIR__ . '/../../core/classes/RateLimiter.php';
+require_once __DIR__ . '/../../core/classes/JWT.php';
 
 use Modular\API\Router;
 use Modular\API\AuthController;
@@ -75,7 +75,7 @@ $router->addMiddleware('rate_limit', function() {
 });
 
 // Auth middleware: JWT (Bearer or cookie) or PHP session (same-origin admin)
-$router->addMiddleware('auth', function() use ($GLOBALS) {
+$router->addMiddleware('auth', function() {
     $token = null;
     $headers = function_exists('getallheaders') ? getallheaders() : [];
     if (isset($headers['Authorization'])) {
@@ -105,7 +105,7 @@ $router->addMiddleware('auth', function() use ($GLOBALS) {
 });
 
 // Auth routes (no auth required, but rate limited)
-$router->addRoute('POST', '/api/v1/auth/login', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/auth/login', function() {
     $identifier = ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . '_login';
     if (!RateLimiter::check($identifier, 5, 900)) { // 5 attempts per 15 minutes
         return ['error' => 'Too many login attempts. Please try again later.', 'code' => 429];
@@ -120,7 +120,7 @@ $router->addRoute('POST', '/api/v1/auth/login', function() use ($GLOBALS) {
     return $result;
 }, ['rate_limit']);
 
-$router->addRoute('POST', '/api/v1/auth/register', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/auth/register', function() {
     $controller = new AuthController($GLOBALS['db']);
     $result = $controller->login();
     if (isset($result['code'])) {
@@ -130,7 +130,7 @@ $router->addRoute('POST', '/api/v1/auth/register', function() use ($GLOBALS) {
     return $result;
 });
 
-$router->addRoute('POST', '/api/v1/auth/register', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/auth/register', function() {
     $controller = new AuthController($GLOBALS['db']);
     $result = $controller->register();
     if (isset($result['code'])) {
@@ -140,7 +140,7 @@ $router->addRoute('POST', '/api/v1/auth/register', function() use ($GLOBALS) {
     return $result;
 }, ['rate_limit']);
 
-$router->addRoute('POST', '/api/v1/auth/forgot', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/auth/forgot', function() {
     $controller = new AuthController($GLOBALS['db']);
     $result = $controller->forgotPassword();
     if (isset($result['code'])) {
@@ -150,7 +150,7 @@ $router->addRoute('POST', '/api/v1/auth/forgot', function() use ($GLOBALS) {
     return $result;
 });
 
-$router->addRoute('POST', '/api/v1/auth/reset', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/auth/reset', function() {
     $controller = new AuthController($GLOBALS['db']);
     $result = $controller->resetPassword();
     if (isset($result['code'])) {
@@ -161,7 +161,7 @@ $router->addRoute('POST', '/api/v1/auth/reset', function() use ($GLOBALS) {
 });
 
 // Protected routes
-$router->addRoute('GET', '/api/v1/me', function() use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/me', function() {
     $userId = $GLOBALS['current_user']['user_id'] ?? null;
     if (!$userId) {
         return ['error' => 'Unauthorized', 'code' => 401];
@@ -175,12 +175,12 @@ $router->addRoute('GET', '/api/v1/me', function() use ($GLOBALS) {
 }, ['auth']);
 
 // Post Types routes
-$router->addRoute('GET', '/api/v1/post-types', function() use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/post-types', function() {
     $controller = new PostTypesController($GLOBALS['db']);
     return $controller->index();
 }, ['auth']);
 
-$router->addRoute('GET', '/api/v1/post-types/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/post-types/{id}', function($id) {
     $controller = new PostTypesController($GLOBALS['db']);
     $result = $controller->show($id);
     if (isset($result['code'])) {
@@ -190,7 +190,7 @@ $router->addRoute('GET', '/api/v1/post-types/{id}', function($id) use ($GLOBALS)
     return $result;
 }, ['auth']);
 
-$router->addRoute('POST', '/api/v1/post-types', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/post-types', function() {
     $controller = new PostTypesController($GLOBALS['db']);
     $result = $controller->create();
     if (isset($result['code'])) {
@@ -200,7 +200,7 @@ $router->addRoute('POST', '/api/v1/post-types', function() use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('PUT', '/api/v1/post-types/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('PUT', '/api/v1/post-types/{id}', function($id) {
     $controller = new PostTypesController($GLOBALS['db']);
     $result = $controller->update($id);
     if (isset($result['code'])) {
@@ -210,7 +210,7 @@ $router->addRoute('PUT', '/api/v1/post-types/{id}', function($id) use ($GLOBALS)
     return $result;
 }, ['auth']);
 
-$router->addRoute('DELETE', '/api/v1/post-types/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('DELETE', '/api/v1/post-types/{id}', function($id) {
     $controller = new PostTypesController($GLOBALS['db']);
     return $controller->delete($id);
 }, ['auth']);
@@ -222,7 +222,7 @@ $router->addRoute('GET', '/api/v1/fields', function() {
 }, ['auth']);
 
 // Schema validation
-$router->addRoute('POST', '/api/v1/schema/validate', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/schema/validate', function() {
     $input = json_decode(file_get_contents('php://input'), true);
     $schema = $input['schema'] ?? $input;
     if (empty($schema) || !is_array($schema)) {
@@ -233,13 +233,13 @@ $router->addRoute('POST', '/api/v1/schema/validate', function() use ($GLOBALS) {
 }, ['auth']);
 
 // Posts routes
-$router->addRoute('GET', '/api/v1/posts', function() use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/posts', function() {
     $controller = new PostsController($GLOBALS['db']);
     $postTypeId = $_GET['post_type_id'] ?? null;
     return $controller->index($postTypeId);
 }, ['auth']);
 
-$router->addRoute('GET', '/api/v1/posts/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/posts/{id}', function($id) {
     $controller = new PostsController($GLOBALS['db']);
     $result = $controller->show($id);
     if (isset($result['code'])) {
@@ -249,7 +249,7 @@ $router->addRoute('GET', '/api/v1/posts/{id}', function($id) use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('POST', '/api/v1/posts', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/posts', function() {
     $controller = new PostsController($GLOBALS['db']);
     $result = $controller->create();
     if (isset($result['code'])) {
@@ -259,7 +259,7 @@ $router->addRoute('POST', '/api/v1/posts', function() use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('PUT', '/api/v1/posts/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('PUT', '/api/v1/posts/{id}', function($id) {
     $controller = new PostsController($GLOBALS['db']);
     $result = $controller->update($id);
     if (isset($result['code'])) {
@@ -269,18 +269,18 @@ $router->addRoute('PUT', '/api/v1/posts/{id}', function($id) use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('DELETE', '/api/v1/posts/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('DELETE', '/api/v1/posts/{id}', function($id) {
     $controller = new PostsController($GLOBALS['db']);
     return $controller->delete($id);
 }, ['auth']);
 
 // Forms routes
-$router->addRoute('GET', '/api/v1/forms', function() use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/forms', function() {
     $controller = new FormsController($GLOBALS['db']);
     return $controller->index();
 }, ['auth']);
 
-$router->addRoute('GET', '/api/v1/forms/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/forms/{id}', function($id) {
     $controller = new FormsController($GLOBALS['db']);
     $result = $controller->show($id);
     if (isset($result['code'])) {
@@ -290,7 +290,7 @@ $router->addRoute('GET', '/api/v1/forms/{id}', function($id) use ($GLOBALS) {
     return $result;
 });
 
-$router->addRoute('POST', '/api/v1/forms', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/forms', function() {
     $controller = new FormsController($GLOBALS['db']);
     $result = $controller->create();
     if (isset($result['code'])) {
@@ -300,7 +300,7 @@ $router->addRoute('POST', '/api/v1/forms', function() use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('PUT', '/api/v1/forms/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('PUT', '/api/v1/forms/{id}', function($id) {
     $controller = new FormsController($GLOBALS['db']);
     $result = $controller->update($id);
     if (isset($result['code'])) {
@@ -310,12 +310,12 @@ $router->addRoute('PUT', '/api/v1/forms/{id}', function($id) use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('DELETE', '/api/v1/forms/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('DELETE', '/api/v1/forms/{id}', function($id) {
     $controller = new FormsController($GLOBALS['db']);
     return $controller->delete($id);
 }, ['auth']);
 
-$router->addRoute('POST', '/api/v1/forms/{id}/submit', function($id) use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/forms/{id}/submit', function($id) {
     $controller = new FormsController($GLOBALS['db']);
     $result = $controller->submit($id);
     if (isset($result['code'])) {
@@ -326,12 +326,12 @@ $router->addRoute('POST', '/api/v1/forms/{id}/submit', function($id) use ($GLOBA
 });
 
 // Media routes
-$router->addRoute('GET', '/api/v1/media', function() use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/media', function() {
     $controller = new MediaController($GLOBALS['db']);
     return $controller->index();
 }, ['auth']);
 
-$router->addRoute('GET', '/api/v1/media/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/media/{id}', function($id) {
     $controller = new MediaController($GLOBALS['db']);
     $result = $controller->show($id);
     if (isset($result['code'])) {
@@ -341,7 +341,7 @@ $router->addRoute('GET', '/api/v1/media/{id}', function($id) use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('POST', '/api/v1/media/upload', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/media/upload', function() {
     $controller = new MediaController($GLOBALS['db']);
     $result = $controller->upload();
     if (isset($result['code'])) {
@@ -351,13 +351,13 @@ $router->addRoute('POST', '/api/v1/media/upload', function() use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('DELETE', '/api/v1/media/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('DELETE', '/api/v1/media/{id}', function($id) {
     $controller = new MediaController($GLOBALS['db']);
     return $controller->delete($id);
 }, ['auth']);
 
 // Search routes
-$router->addRoute('GET', '/api/v1/search', function() use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/search', function() {
     $controller = new SearchController($GLOBALS['db']);
     $result = $controller->search();
     if (isset($result['code'])) {
@@ -367,18 +367,18 @@ $router->addRoute('GET', '/api/v1/search', function() use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('GET', '/api/v1/search/autocomplete', function() use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/search/autocomplete', function() {
     $controller = new SearchController($GLOBALS['db']);
     return $controller->autocomplete();
 }, ['auth']);
 
 // Actions routes
-$router->addRoute('GET', '/api/v1/actions', function() use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/actions', function() {
     $controller = new ActionsController($GLOBALS['db']);
     return $controller->index();
 }, ['auth']);
 
-$router->addRoute('GET', '/api/v1/actions/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/actions/{id}', function($id) {
     $controller = new ActionsController($GLOBALS['db']);
     $result = $controller->show($id);
     if (isset($result['code'])) {
@@ -388,7 +388,7 @@ $router->addRoute('GET', '/api/v1/actions/{id}', function($id) use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('POST', '/api/v1/actions', function() use ($GLOBALS) {
+$router->addRoute('POST', '/api/v1/actions', function() {
     $controller = new ActionsController($GLOBALS['db']);
     $result = $controller->create();
     if (isset($result['code'])) {
@@ -398,7 +398,7 @@ $router->addRoute('POST', '/api/v1/actions', function() use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('PUT', '/api/v1/actions/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('PUT', '/api/v1/actions/{id}', function($id) {
     $controller = new ActionsController($GLOBALS['db']);
     $result = $controller->update($id);
     if (isset($result['code'])) {
@@ -408,13 +408,13 @@ $router->addRoute('PUT', '/api/v1/actions/{id}', function($id) use ($GLOBALS) {
     return $result;
 }, ['auth']);
 
-$router->addRoute('DELETE', '/api/v1/actions/{id}', function($id) use ($GLOBALS) {
+$router->addRoute('DELETE', '/api/v1/actions/{id}', function($id) {
     $controller = new ActionsController($GLOBALS['db']);
     return $controller->delete($id);
 }, ['auth']);
 
 // Public read-only API (no auth): resolved posts for frontend/themes
-$router->addRoute('GET', '/api/v1/public/posts', function() use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/public/posts', function() {
     $type = $_GET['type'] ?? $_GET['post_type'] ?? null;
     if (empty($type)) {
         http_response_code(400);
@@ -439,7 +439,7 @@ $router->addRoute('GET', '/api/v1/public/posts', function() use ($GLOBALS) {
     return ['post_type' => $type, 'posts' => $list];
 });
 
-$router->addRoute('GET', '/api/v1/public/posts/{slug}', function($slug) use ($GLOBALS) {
+$router->addRoute('GET', '/api/v1/public/posts/{slug}', function($slug) {
     $type = $_GET['type'] ?? $_GET['post_type'] ?? null;
     if (empty($type)) {
         $result = ['error' => 'Query parameter "type" (post type slug) is required', 'code' => 400];
