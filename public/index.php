@@ -833,7 +833,19 @@ if ($pathInfo === '' || $pathInfo === '/') {
             $resolved = $resolver->resolvePost($frontId, ['resolve_relations' => true, 'include_author' => true]);
             if (!isset($resolved['error'])) {
                 $post = $resolved;
+                // Attach raw data column so templates can read field values directly
+                if (!isset($post['data'])) {
+                    try {
+                        $rawStmt = $GLOBALS['db']->prepare("SELECT data FROM posts WHERE id = ? LIMIT 1");
+                        $rawStmt->execute([$frontId]);
+                        $rawRow = $rawStmt->fetch(\PDO::FETCH_ASSOC);
+                        $post['data'] = ($rawRow && !empty($rawRow['data'])) ? json_decode($rawRow['data'], true) : [];
+                    } catch (\Throwable $e) {
+                        $post['data'] = [];
+                    }
+                }
                 $page_title = isset($post['title']) ? $post['title'] : 'Home';
+                $front_page_template = isset($post['template']) ? trim((string) $post['template']) : '';
 
                 // Build simple HTML content from component_data or excerpt/body,
                 // similar to the single.php template but rendered into $content.
@@ -891,6 +903,10 @@ if (!isset($content)) {
     ';
 }
 $theme_path = THEMES_PATH . '/' . $activeTheme;
+if (isset($front_page_template) && $front_page_template !== '' && is_file($theme_path . '/' . $front_page_template . '.php')) {
+    require $theme_path . '/' . $front_page_template . '.php';
+    exit;
+}
 if (is_file($theme_path . '/index.php')) {
     require $theme_path . '/index.php';
 } else {

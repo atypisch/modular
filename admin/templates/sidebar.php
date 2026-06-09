@@ -50,8 +50,8 @@ $profile_active = $profile_active ?? false;
             if (isset($GLOBALS['db'])) {
                 try {
                     require_once CORE_PATH . '/classes/PostType.php';
-                    $postType = new PostType();
-                    $allPostTypes = $postType->getAll();
+                    $_sidebarPtHelper = new PostType();
+                    $allPostTypes = $_sidebarPtHelper->getAll();
 
                     foreach ($allPostTypes as $pt) {
                         $showInMenu = isset($pt['show_in_menu']) ? (bool)$pt['show_in_menu'] : true;

@@ -71,8 +71,12 @@ if (!function_exists('sanitize_field_data_from_schema')) {
             }
 
             $value = $raw[$name] ?? null;
+            // Field types that natively accept array values — skip multi-instance detection
+            $arrayValueTypes = ['relationship', 'relation', 'gallery', 'checkbox', 'taxonomy', 'post_object'];
+            if (in_array($type, $arrayValueTypes, true)) {
+                $out[$name] = $field->sanitize($value, $fieldDef);
             // Modular mode: multiple instances per field name (array of values)
-            if (is_array($value) && array_keys($value) === array_keys(array_values($value))) {
+            } elseif (is_array($value) && array_keys($value) === array_keys(array_values($value))) {
                 $out[$name] = array_map(function ($v) use ($field, $fieldDef) {
                     return $field->sanitize($v, $fieldDef);
                 }, $value);

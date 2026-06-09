@@ -133,12 +133,6 @@
     flex: 0 0 260px;
     width: 260px;
     align-self: flex-start;
-    position: sticky;
-    top: 0.75rem;
-    max-height: calc(100vh - var(--toolbar-height) - 2.5rem);
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
 }
 
 .post-edit-sidebar .card {

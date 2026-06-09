@@ -1,177 +1,228 @@
-# Modular CMS - Modules System
+# Modular CMS — Modulesysteem
 
-## Overview
+Het modulesysteem breidt Modular uit zonder core-bestanden te wijzigen. Het volgt een **WordPress-achtig** patroon (hooks, `module.php`-header), maar modules draaien in **`/public/modules/`** en **systeemmodules** in **`/core/system/`**.
 
-The Modules system allows you to extend Modular CMS functionality with WordPress-style plugins. Modules are stored in `/public/modules/` and can be activated/deactivated through the admin interface.
+---
 
-## Features
+## Twee soorten modules
 
-- **WordPress-style Plugin System**: Similar to WordPress plugins
-- **Hook System**: Actions and filters for extensibility
-- **Easy Installation**: Just place modules in `/public/modules/`
-- **Admin Interface**: Manage modules through the admin panel
-- **Database Integration**: Module settings stored in database
-- **Activation/Deactivation Hooks**: Modules can run code on activation/deactivation
+| | Systeemmodule | Publieke module |
+|---|---------------|-----------------|
+| **Pad** | `core/system/{slug}/` | `public/modules/{slug}/` |
+| **Manifest** | `module.json` | `module.php` (comment-header) |
+| **Bootstrap** | `bootstrap.php` (verplicht voor laden) | `module.php` (hoofdlogica) |
+| **Actief** | Altijd | Alleen als `modules.active = 1` |
+| **Admin UI** | Niet zichtbaar in modulelijst | `/admin/modules/` |
+| **DB `module_type`** | `system` | `module` |
 
-## Module Structure
+Laadvolgorde (`ModuleManager`):
 
-Each module should be in its own folder under `/public/modules/`:
+1. Alle systeemmodules (`loadSystemModules` → `bootstrap.php`)
+2. Discover publieke modules (`module.php` header parsen)
+3. Laad actieve publieke modules uit database
+
+---
+
+## Systeemmodules (ingebouwd)
+
+Huidige modules onder `core/system/`:
+
+| Slug | Doel (indicatief) |
+|------|-------------------|
+| `activity` | Activity-log integratie |
+| `media` | Media-gerelateerde hooks/routes |
+| `notifications` | Notificaties |
+| `search` | Zoekfunctionaliteit |
+| `seo` | SEO-metadata/routes |
+| `users` | Gebruikersbeheer-integratie |
+
+Voorbeeld `module.json`:
+
+```json
+{
+    "name": "Users",
+    "slug": "users",
+    "type": "system",
+    "version": "1.0.0",
+    "description": "Core user management: authentication, roles, and profile handling.",
+    "autoload": true,
+    "author": "Modular CMS"
+}
+```
+
+Na bootstrap wordt o.a. `do_action('system_module_loaded', 'users')` uitgevoerd.
+
+---
+
+## Publieke module-structuur
 
 ```
-/public/modules/
-  └── my-module/
-      ├── module.php          (Required - main module file)
-      ├── migrations/         (Optional - database migrations)
-      │   └── 001_create_tables.php
-      └── assets/             (Optional - CSS, JS, images)
-          ├── css/
-          ├── js/
-          └── images/
+public/modules/
+└── mijn-module/
+    ├── module.php          # Verplicht — header + code
+    ├── includes/           # Optioneel — PHP-klassen
+    ├── templates/          # Optioneel — frontend-templates
+    ├── assets/             # Optioneel — css/, js/, images/
+    └── migrations/         # Optioneel — alleen als niet in full_schema
 ```
 
-## Creating a Module
+**Let op:** Voor Simuze hoort schema in **`core/migrations/full_schema_simuze.sql`**, niet in losse migratiebestanden (projectregel).
 
-### 1. Create Module Folder
+---
 
-Create a folder in `/public/modules/` (e.g., `/public/modules/my-module/`)
-
-### 2. Create module.php
-
-Create a `module.php` file with a header comment:
+## module.php-header
 
 ```php
 <?php
 /**
- * Module Name: My Module
+ * Module Name: Mijn Module
+ * Module URI: https://example.com
  * Version: 1.0.0
- * Description: This is my custom module
- * Author: Your Name
+ * Description: Korte beschrijving
+ * Author: Naam
  * Author URI: https://example.com
- * Text Domain: my-module
+ * Text Domain: mijn-module
  * Requires PHP: 8.1
  * Requires Modular: 1.0
  */
 
-// Your module code here
+if (!defined('MODULAR_PATH')) {
+    return;
+}
+
+// Modulecode…
 ```
 
-### 3. Use Hooks
+`Modular\Module::loadFromFile()` leest deze header en synchroniseert metadata naar de `modules`-tabel.
 
-Modules can use actions and filters:
+---
+
+## Hooks gebruiken
 
 ```php
-// Actions (do something)
-add_action('init', function() {
-    // Run on initialization
+add_action('init', function () {
+    // Na bootstrap, modules geladen
 });
 
-add_action('module_activate', function($slug) {
-    if ($slug === 'my-module') {
-        // Run when module is activated
+add_action('module_activate', function ($slug) {
+    if ($slug === 'mijn-module') {
+        // Eenmalig bij activatie
     }
 });
 
-// Filters (modify something)
-add_filter('the_title', function($title) {
-    return $title . ' - Modified';
+add_filter('admin_menu_items', function ($items) {
+    $items[] = ['label' => 'Mijn module', 'url' => '…'];
+    return $items;
 });
 ```
 
-## Available Hooks
+### Veelgebruikte actions
 
-### Actions
+| Hook | Wanneer |
+|------|---------|
+| `init` | Na `ModuleManager` + actieve modules |
+| `system_modules_loaded` | Alle systeemmodules gebootstrap |
+| `system_module_loaded` | Per systeemmodule (`$slug`) |
+| `module_activate` / `module_deactivate` | Activatie in admin |
+| `admin_init` | Admin-omgeving |
+| `admin_menu` | Admin-menu opbouw |
+| `wp_ajax_{action}` | AJAX via `public/api/simezu-ajax.php` |
+| `wp_ajax_nopriv_{action}` | AJAX zonder login |
 
-- `init` - Run on system initialization
-- `module_activate` - Run when a module is activated
-- `module_deactivate` - Run when a module is deactivated
-- `admin_init` - Run on admin initialization
-- `admin_menu` - Run when admin menu is built
+### Veelgebruikte filters
 
-### Filters
+| Hook | Doel |
+|------|------|
+| `the_title` | Titel aanpassen |
+| `the_content` | Content aanpassen |
+| `admin_menu_items` | Admin-menu-items |
 
-- `the_title` - Filter post/page title
-- `the_content` - Filter post/page content
-- `admin_menu_items` - Filter admin menu items
+Alternatief met `md_*`-prefix: `md_hook_action`, `md_filter_apply` in `core/functions/hooks.php`.
 
-## Module Manager
+---
 
-The `ModuleManager` class handles all module operations:
+## ModuleManager (PHP API)
 
 ```php
-$moduleManager = new \Modular\ModuleManager($db);
+$moduleManager = $GLOBALS['module_manager']
+    ?? new \Modular\ModuleManager($GLOBALS['db']);
 
-// Get all modules
-$modules = $moduleManager->getModules();
-
-// Get active modules
-$activeModules = $moduleManager->getActiveModules();
-
-// Activate a module
-$moduleManager->activateModule('my-module');
-
-// Deactivate a module
-$moduleManager->deactivateModule('my-module');
+$moduleManager->getModules();        // Alle publieke modules
+$moduleManager->getSystemModules();  // Systeemmodules
+$moduleManager->getActiveModules();  // Actieve publieke modules
+$moduleManager->activateModule('mijn-module');
+$moduleManager->deactivateModule('mijn-module');
+$moduleManager->isModuleActive('mijn-module');
 ```
 
-## Database
+Instantie wordt gezet in `admin/bootstrap.php` als de `modules`-tabel bestaat.
 
-Modules are stored in the `modules` table:
+---
 
-- `name` - Module name
-- `slug` - Module slug (unique)
-- `version` - Module version
-- `description` - Module description
-- `author` - Author name
-- `active` - Whether module is active (0 or 1)
-- `settings` - JSON settings
+## Database: `modules`-tabel
 
-## Admin Interface
+| Kolom | Beschrijving |
+|-------|----------------|
+| `name` | Weergavenaam |
+| `slug` | Unieke mapnaam |
+| `version` | Versie uit header/json |
+| `description`, `author`, `author_url`, `module_url` | Metadata |
+| `text_domain` | Vertaaldomain |
+| `requires_php`, `requires_modular` | Vereisten |
+| `active` | 0/1 (publiek); systeem altijd 1 |
+| `module_type` | `system` of `module` |
+| `settings` | JSON-instellingen |
 
-Access modules management at `/modular/admin/modules`
+---
 
-Features:
-- View all installed modules
-- Activate/Deactivate modules
-- See module information (version, author, description)
-- Development guide
+## Admin-interface
 
-## Example Module
+- URL: **`/admin/modules/`** (relatief aan je `BASE_PATH`)
+- Activeren/deactiveren werkt op publieke modules
+- Voorbeeldmodule: `public/modules/example-module/`
 
-See `/public/modules/example-module/` for a complete example.
+**Installatie:** Zorg dat `modules`-tabel bestaat (onderdeel van `full_schema_simuze.sql` of setup). Zonder tabel slaat bootstrap het laden van modules over (geen fatale error).
 
-## Installation
+---
 
-1. Run the database migration to create the `modules` table:
-   - Visit `/modular/admin/install-modules-table.php`
-   - Or run the main install script: `/modular/admin/install.php`
+## Referentie: simuze-community
 
-2. Place your modules in `/public/modules/`
+De productie-module voor Simuze:
 
-3. Go to `/modular/admin/modules` to manage them
+- Pad: `public/modules/simuze-community/`
+- Entry: `module.php` laadt `includes/` (auth, groups, events, commerce, …)
+- Constanten: `SIMUZE_COMMUNITY_PATH`, `SIMUZE_DB_PREFIX` (`simuze_`), `SIMUZE_MODULAR_RUN`
+- AJAX: registreert `wp_ajax_*`-handlers; dispatch via `public/api/simezu-ajax.php`
 
-## Best Practices
+`simuze-community-wp` is een aparte WordPress-port en niet de Modular-runtime.
 
-1. **Use Namespaces**: Avoid conflicts with other modules
-2. **Check Dependencies**: Use `Requires PHP` and `Requires Modular` headers
-3. **Handle Errors**: Use try-catch blocks for database operations
-4. **Use Hooks**: Don't modify core files, use hooks instead
-5. **Version Control**: Keep track of module versions
-6. **Documentation**: Document your module's functionality
+---
+
+## Best practices
+
+1. **Geen core-patches** — gebruik hooks en eigen modulemap.
+2. **Namespaces** — voorkom collisions in grotere modules.
+3. **Guard** — `if (!defined('MODULAR_PATH')) return;` bovenaan `module.php`.
+4. **Schema** — wijzigingen in `core/migrations/full_schema_simuze.sql` (idempotent).
+5. **Helpers** — `md_db_*`, `md_home_url`, `md_esc_*` i.p.v. WordPress-functies in nieuwe code.
+6. **Privacy** — geen e-mail in publieke templates/API-responses.
+
+---
 
 ## Troubleshooting
 
-### Module not appearing
-- Check that `module.php` exists in the module folder
-- Verify the module header is correctly formatted
-- Check file permissions
+| Probleem | Controle |
+|----------|----------|
+| Module niet in lijst | Map onder `public/modules/`, `module.php` + geldige header |
+| Module laadt niet | `modules.active = 1` en `module_type = 'module'` |
+| Hooks werken niet | Module actief? Hook vóór `do_action` geregistreerd? |
+| Fout bij activatie | PHP error log; syntax in `module.php` |
+| Systeemmodule | Geen activatie nodig; check `bootstrap.php` en `module.json` |
 
-### Module not activating
-- Check PHP errors in error log
-- Verify database connection
-- Check module syntax errors
+---
 
-### Hooks not working
-- Ensure module is activated
-- Verify hook names are correct
-- Check that hooks are registered before they're called
+## Zie ook
 
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [structure.md](./structure.md) — schema & mappen
+- [system_overview.md](./system_overview.md)
