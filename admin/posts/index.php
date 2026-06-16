@@ -192,6 +192,24 @@ if ($isHierarchicalListing && !empty($posts)) {
     $walkTree(0, 0);
 }
 
+// Detect the front page post ID so we can label it in the list
+$frontPageId = 0;
+if (function_exists('get_setting')) {
+    $frontPageId = (get_setting('front_page_type', 'index') === 'page') ? (int) get_setting('front_page_id', 0) : 0;
+} else {
+    try {
+        $fpStmt = $db->prepare("SELECT option_value FROM settings WHERE option_name = 'front_page_type' LIMIT 1");
+        $fpStmt->execute();
+        $fpRow = $fpStmt->fetch(\PDO::FETCH_ASSOC);
+        if ($fpRow && $fpRow['option_value'] === 'page') {
+            $fpStmt2 = $db->prepare("SELECT option_value FROM settings WHERE option_name = 'front_page_id' LIMIT 1");
+            $fpStmt2->execute();
+            $fpRow2 = $fpStmt2->fetch(\PDO::FETCH_ASSOC);
+            $frontPageId = $fpRow2 ? (int) $fpRow2['option_value'] : 0;
+        }
+    } catch (\Throwable $e) { /* ignore */ }
+}
+
 require_once ADMIN_PATH . '/templates/header.php';
 
 $postsListAllUrl = admin_posts_index_url($postTypeId);
@@ -386,6 +404,9 @@ $pageHeading = $listPageTitles[$listStatus] ?? 'Posts';
                                 <strong class="post-title-label" style="display: inline-block; padding-left: <?php echo $depth * 14; ?>px;">
                                     <?php echo htmlspecialchars($titlePrefix . ($post['title'] ?? 'Untitled')); ?>
                                 </strong>
+                                <?php if ($frontPageId > 0 && $pid === $frontPageId): ?>
+                                    <span class="badge badge-info" style="font-size:0.7rem;vertical-align:middle;margin-left:0.35rem;">Homepage</span>
+                                <?php endif; ?>
                                 <?php if (!$isTrashView): ?>
                                 <div class="post-row-actions">
                                     <a href="<?php echo htmlspecialchars(admin_url('posts/edit.php?id=' . $pid), ENT_QUOTES, 'UTF-8'); ?>">Edit</a>

@@ -671,7 +671,7 @@ if ($postTypeId && $isHierarchicalPostType) {
         <?php endif; ?>
 
     <div class="post-edit-body">
-        <main class="post-edit-main">
+        <div class="post-edit-main">
             <div class="card" id="post-edit">
                 <?php if ($useSchemaForm): ?>
                     <div class="post-edit-fields-head">
@@ -813,7 +813,7 @@ if ($postTypeId && $isHierarchicalPostType) {
                 <?php endif; ?>
 
             </div>
-        </main>
+        </div>
 
         <aside class="post-edit-sidebar">
             <?php
@@ -1085,5 +1085,44 @@ $additional_scripts = $useSchemaForm
     . '<script src="' . htmlspecialchars($admin_assets) . '/js/field-renderer/field-renderer-app.js?v=7"></script>'
     . '<script src="' . htmlspecialchars($admin_assets) . '/js/post-edit-fields-draggable.js?v=6"></script>'
     : '<script src="' . htmlspecialchars($admin_assets) . '/js/primevue-fields.js?v=3"></script>';
+$additional_scripts .= '
+<script>
+(function () {
+    var sidebar = document.querySelector(".post-edit-sidebar");
+    var scroller = document.querySelector(".main-content");
+    if (!sidebar || !scroller) return;
+    var body = sidebar.parentElement;
+    var raf = null;
+    function update() {
+        raf = null;
+        var scrollTop = scroller.scrollTop;
+        var bodyRect = body.getBoundingClientRect();
+        var scrollerRect = scroller.getBoundingClientRect();
+        var offset = bodyRect.top - scrollerRect.top + scrollTop;
+        var gap = 12;
+        var sidebarH = sidebar.offsetHeight;
+        var bodyH = body.offsetHeight;
+        var viewH = scroller.clientHeight;
+        var desired = scrollTop - offset + gap;
+        var maxTop = bodyH - sidebarH;
+        if (desired < 0) desired = 0;
+        if (desired > maxTop) desired = maxTop;
+        if (sidebarH < viewH - gap * 2) {
+            sidebar.style.position = "relative";
+            sidebar.style.top = desired + "px";
+        } else {
+            sidebar.style.position = "";
+            sidebar.style.top = "";
+        }
+    }
+    scroller.addEventListener("scroll", function () {
+        if (!raf) raf = requestAnimationFrame(update);
+    }, { passive: true });
+    window.addEventListener("resize", function () {
+        if (!raf) raf = requestAnimationFrame(update);
+    });
+    update();
+})();
+</script>';
 require_once ADMIN_PATH . '/templates/footer.php';
 ?>
