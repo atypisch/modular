@@ -113,6 +113,13 @@
   const initial = (location.hash || '').replace(/^#/, '');
   if (initial && SCREEN[initial]) route.name = initial;
 
+  // Deep-link to a post editor: /admin/?edit=<id> (used by the themed front-end's
+  // "Edit" links now that the legacy /admin/posts/edit.php is gone).
+  try {
+    const editId = new URLSearchParams(location.search).get('edit');
+    if (editId) { route.name = 'editor'; route.params = { postId: editId }; }
+  } catch (e) {}
+
   const app = createApp({
     provide() { return { route, go, tweaks, ui, api }; },
     data() { return { route, tweaks }; },

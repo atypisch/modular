@@ -16,3 +16,4 @@ core/models/
 public/themes/
 dist/
 .playwright-mcp/
+admin/node_modules/

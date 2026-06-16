@@ -307,10 +307,10 @@
     methods: {
       async initTiptap() {
         try {
-          const core = await import('https://esm.sh/@tiptap/core@2');
-          const skMod = await import('https://esm.sh/@tiptap/starter-kit@2');
-          const StarterKit = skMod.default || skMod.StarterKit;
-          this.tiptap = new core.Editor({ element: this.$refs.tt, extensions: [StarterKit], content: this.modelValue || '', onUpdate: ({ editor }) => this.$emit('update:modelValue', editor.getHTML()) });
+          const vbase = (window.__MDLR && window.__MDLR.baseUrl || '') + '/admin/assets/vendor';
+          const tt = await import(vbase + '/tiptap/tiptap.bundle.js');   // vendored locally — no external deps
+          const StarterKit = tt.StarterKit;
+          this.tiptap = new tt.Editor({ element: this.$refs.tt, extensions: [StarterKit], content: this.modelValue || '', onUpdate: ({ editor }) => this.$emit('update:modelValue', editor.getHTML()) });
           this.useTT = true;
         } catch (e) { console.warn('[wysiwyg] Tiptap load failed; using basic editor', e); this.useTT = false; }
       },
@@ -402,9 +402,10 @@
     methods: {
       async init() {
         try {
-          const CM = await import('https://esm.sh/codemirror@6.0.1');
+          const vbase = (window.__MDLR && window.__MDLR.baseUrl || '') + '/admin/assets/vendor';
+          const CM = await import(vbase + '/codemirror/codemirror.bundle.js');   // vendored locally — no external deps
           let langExt = [];
-          try { const js = await import('https://esm.sh/@codemirror/lang-javascript@6'); if (js && js.javascript) langExt = [js.javascript({ jsx: false, typescript: false })]; } catch (_) {}
+          try { if (CM.javascript) langExt = [CM.javascript({ jsx: false, typescript: false })]; } catch (_) {}
           const listener = CM.EditorView.updateListener.of((u) => { if (u.docChanged && this._view) this.set(this._view.state.doc.toString()); });
           this._view = new CM.EditorView({ doc: this.modelValue || '', extensions: [CM.basicSetup, ...langExt, listener], parent: this.$refs.cm });
           this.ready = true;

@@ -74,25 +74,19 @@ if (!headers_sent()) {
     $simezuEmbed = defined('SIMEZU_EMBED_URL') ? rtrim(SIMEZU_EMBED_URL, '/') : 'https://simezu.com';
     $simezuHost  = parse_url($simezuEmbed, PHP_URL_SCHEME) . '://' . parse_url($simezuEmbed, PHP_URL_HOST);
 
-    // Allow unpkg for Leaflet/MarkerCluster when used by themes/modules
-    $leafletCdn = 'https://unpkg.com';
-
+    // Zero external runtime dependencies: every library/font is vendored locally
+    // (Chart.js, Tiptap, CodeMirror, fonts, FontAwesome, Vue). No CDN script origins.
     $scriptSrc = [
         "'self'",
         "'unsafe-inline'",
         "'unsafe-eval'",
-        $leafletCdn,
-        "https://esm.sh",            // CodeMirror 6 / Tiptap ESM (admin field editors)
-        "https://cdn.jsdelivr.net",  // Chart.js (admin charts)
         $simezuHost,
     ];
 
     $styleSrc = [
         "'self'",
         "'unsafe-inline'",
-        $leafletCdn,
         $simezuHost,
-        "https://fonts.googleapis.com",
     ];
 
     $imgSrc = [
@@ -105,7 +99,7 @@ if (!headers_sent()) {
 
     $fontSrc = [
         "'self'",
-        "https://fonts.gstatic.com",
+        "data:",
     ];
 
     // Embeds: allow YouTube/Vimeo players to be framed by the admin editor.

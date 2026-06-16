@@ -23,7 +23,7 @@
     inject: ['go', 'route', 'ui'],
     data() {
       return {
-        post: { id: null, title: '', slug: '', status: 'draft', type: '' },
+        post: { id: null, title: '', slug: '', status: 'draft', type: '', url: '' },
         schema: [],            // post-type fields (prov type) + shared-group fields (prov shared, _group)
         fieldGroups: [],       // matched shared groups [{id,name,icon}]
         perPostGroups: [],     // per-post field-group containers (prov post), drag fields between them
@@ -102,7 +102,7 @@
           api.get('/posts/' + rp.postId + '/resolved-fieldset').then(rf => {
             this.loading = false;
             if (rf && rf.post) {
-              this.post = { id: rf.post.id, title: rf.post.title || '', slug: rf.post.slug || '', status: rf.post.status || 'draft', type: (rf.post.post_type && rf.post.post_type.slug) || '' };
+              this.post = { id: rf.post.id, title: rf.post.title || '', slug: rf.post.slug || '', status: rf.post.status || 'draft', type: (rf.post.post_type && rf.post.post_type.slug) || '', url: rf.post.url || '' };
               this.schema = ((rf.schema && rf.schema.fields) || []).map(f => Object.assign({ prov: 'type' }, f));
               this.fieldGroups = rf.field_groups || [];
               this.values = reactive(rf.values && typeof rf.values === 'object' ? rf.values : {});
@@ -178,12 +178,23 @@
         const body = { title: this.post.title, slug: this.post.slug, status: this.post.status, data: this.values, layout };
         const isNew = !this.post.id || rp.postId === 'new';
         const req = isNew ? api.post('/posts', Object.assign({ post_type_id: this.ptDbId() }, body)) : api.put('/posts/' + this.post.id, body);
-        req.then((saved) => {
+        return req.then((saved) => {
           this.saving = false;
-          if (saved && saved.id) { this.post.id = saved.id; if (saved.slug) this.post.slug = saved.slug; if (saved.status) this.post.status = saved.status; }
+          if (saved && saved.id) { this.post.id = saved.id; if (saved.slug) this.post.slug = saved.slug; if (saved.status) this.post.status = saved.status; if (saved.url) this.post.url = saved.url; }
           if (isNew && saved && saved.id) this.go('editor', { postId: saved.id, type: this.post.type, flash: 'Created' });
           else this.flash('Updated');
+          return saved;
         }).catch(e => { this.saving = false; console.error('[editor] save failed', e); alert('Saving the post failed. Check the console.'); });
+      },
+      // Open the post's public page in a new tab.
+      viewPost() {
+        const u = this.post.url || ((window.__MDLR && window.__MDLR.baseUrl || '') + '/' + this.post.type + '/' + this.post.slug);
+        window.open(u, '_blank', 'noopener');
+      },
+      // Save the current edits first, then open the public page so the preview reflects them.
+      previewChanges() {
+        const r = this.save();
+        if (r && typeof r.then === 'function') r.then(() => this.viewPost()); else this.viewPost();
       },
     },
     template: `
@@ -195,6 +206,7 @@
           <transition name="fade"><span v-if="savedMsg" class="badge badge--ok ed-saved"><Icon name="check" :size="12"/> {{ savedMsg }}</span></transition>
           <span class="badge" :class="statusClass"><span class="badge--dot" style="margin-right:2px"></span>{{ post.status }}</span>
           <button class="btn btn--ghost btn--sm" @click="jsonOpen=true" title="View API output"><Icon name="code" :size="15"/> <span class="hide-sm">JSON</span></button>
+          <button class="btn btn--ghost btn--sm" @click="viewPost" title="Open the public page"><Icon name="external" :size="15"/> <span class="hide-sm">View</span></button>
           <button class="btn" :disabled="saving" @click="save"><Icon name="save" :size="15"/> {{ saving ? 'Saving…' : 'Save' }}</button>
         </div>
       </div>
@@ -207,6 +219,8 @@
               <span class="t-meta">Permalink</span>
               <span class="ed-permalink-url"><span class="muted">/{{ post.type }}/</span><template v-if="!editingSlug"><span class="ed-slug-val">{{ post.slug || '…' }}</span></template><input v-else class="ed-slug-input mono" v-model="post.slug" @keydown.enter="editingSlug=false" @blur="editingSlug=false"></span>
               <button class="ed-permalink-btn" @click="editingSlug=!editingSlug">{{ editingSlug ? 'Done' : 'Edit' }}</button>
+              <button class="ed-permalink-btn" @click="previewChanges" title="Save changes and open the public page"><Icon name="eye" :size="12"/> Preview changes</button>
+              <a class="ed-permalink-btn" :href="post.url || '#'" target="_blank" rel="noopener" @click="!post.url && $event.preventDefault()"><Icon name="external" :size="12"/> View</a>
             </div>
           </div>
 

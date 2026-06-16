@@ -263,7 +263,7 @@
             id: p.id, title: p.title || '(untitled)',
             slug: p.slug || '', status: p.status || 'draft',
             date: (p.published_at || p.created_at || '').slice(0, 10),
-            type: pt.id, author: p.author_name || '',
+            type: pt.id, author: p.author_name || '', url: p.url || '',
             _trash: p.status === 'trash' || !!p.deleted_at,
           }));
         }).catch((e) => { console.warn('[content] load posts failed', e && e.status); this.items = []; });
@@ -278,7 +278,7 @@
       duplicate(p){ const i=this.items.indexOf(p); const c=JSON.parse(JSON.stringify(p)); c.id='n'+Math.random().toString(36).slice(2,7); c.title=p.title+' copy'; c.slug=c.slug+'-copy'; c.status='draft'; c._trash=false; this.items.splice(i+1,0,c); },
       restore(p){ p._trash = false; },
       destroy(p){ this.items = this.items.filter(x => x.id !== p.id); },
-      view(p){ window.open('about:blank','_blank'); },
+      view(p){ const u = (p && p.url) || ((window.__MDLR&&window.__MDLR.baseUrl||'') + '/' + this.pt.id + '/' + (p&&p.slug||'')); window.open(u, '_blank', 'noopener'); },
       toggle(id){ const i=this.sel.indexOf(id); if(i>=0)this.sel.splice(i,1); else this.sel.push(id); },
       toggleAll(){ this.sel = this.allOn ? [] : this.filtered.map(p=>p.id); },
       bulkTrash(){ this.items.forEach(p=>{ if(this.sel.includes(p.id)) p._trash=true; }); this.sel=[]; },

@@ -42,14 +42,10 @@
     'Source Sans 3':'Source+Sans+3:wght@400;500;600;700',
     'IBM Plex Sans':'IBM+Plex+Sans:wght@400;500;600;700',
   };
-  const loadedFonts = new Set();
-  function ensureFont(fam) {
-    if (!GF[fam] || loadedFonts.has(fam)) return;
-    loadedFonts.add(fam);
-    const l = document.createElement('link'); l.rel = 'stylesheet';
-    l.href = 'https://fonts.googleapis.com/css2?family=' + GF[fam] + '&display=swap';
-    document.head.appendChild(l);
-  }
+  // Fonts are vendored locally (zero external dependencies). The design-system font
+  // picker no longer fetches Google Fonts at runtime; non-vendored choices fall back
+  // to a system font. Vendor a font under admin/assets/vendor/fonts to make it render.
+  function ensureFont(fam) { /* no external font loading */ }
 
   // ---- colour helpers ----
   const clamp = n => Math.max(0, Math.min(255, n));

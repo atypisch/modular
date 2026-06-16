@@ -56,12 +56,22 @@ class ResolveController {
         if (!is_array($values)) $values = json_decode($post['component_data'] ?? 'null', true) ?: [];
         $layout = json_decode($post['layout'] ?? 'null', true);
 
+        // Public front-end URL (so the editor's View / Preview links work).
+        if (!function_exists('get_post_permalink')) {
+            $core = defined('CORE_PATH') ? CORE_PATH : dirname(__DIR__);
+            foreach (['/functions/permalinks.php', '/functions/template-helpers.php'] as $f) {
+                if (is_file($core . $f)) { require_once $core . $f; }
+            }
+        }
+        $url = function_exists('get_post_permalink') ? get_post_permalink($post['post_type_slug'], $post['slug']) : '';
+
         return [
             'post' => [
                 'id' => (int)$post['id'],
                 'title' => $post['title'],
                 'slug' => $post['slug'],
                 'status' => $post['status'],
+                'url' => $url,
                 'post_type' => ['id' => (int)$post['post_type_id'], 'name' => $post['post_type_name'], 'slug' => $post['post_type_slug'], 'mode' => $post['post_type_mode'] ?? 'fixed'],
             ],
             'schema' => ['fields' => $fields],

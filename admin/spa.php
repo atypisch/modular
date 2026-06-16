@@ -104,8 +104,8 @@ $spaAsset = function (string $file) use ($assetsBase) {
   <!-- Vendored Vue 3 global build (no bundler) -->
   <script src="<?= md_esc_attr($vueSrc) ?>"></script>
 
-  <!-- Chart.js (analytics) — CDN UMD global (CSP allows unpkg) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- Chart.js (analytics) — vendored locally, no external deps -->
+  <script src="<?= md_esc_attr($base) ?>/admin/assets/vendor/chartjs/chart.umd.min.js"></script>
 
   <!-- SPA foundation (load order matters: Vue → data → screens → boot) -->
   <script src="<?= $spaAsset('icons.js') ?>"></script>

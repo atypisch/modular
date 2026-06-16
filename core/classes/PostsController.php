@@ -12,7 +12,23 @@ class PostsController {
     public function __construct($db) {
         $this->db = $db;
     }
-    
+
+    /** Ensure get_post_permalink() (permalink structure builder) is available. */
+    private function loadPermalinks() {
+        if (function_exists('get_post_permalink')) { return; }
+        $core = defined('CORE_PATH') ? CORE_PATH : dirname(__DIR__);
+        foreach (['/functions/permalinks.php', '/functions/template-helpers.php'] as $f) {
+            if (is_file($core . $f)) { require_once $core . $f; }
+        }
+    }
+
+    /** Public front-end URL for a post row (joined with post_type_slug). */
+    private function permalinkFor(array $row): string {
+        return function_exists('get_post_permalink')
+            ? get_post_permalink($row['post_type_slug'] ?? '', $row['slug'] ?? '')
+            : '';
+    }
+
     public function index($postTypeId = null) {
         $sql = "
             SELECT p.*, 
@@ -35,12 +51,14 @@ class PostsController {
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        
+
+        $this->loadPermalinks();
         foreach ($posts as &$post) {
             $post['component_data'] = json_decode($post['component_data'], true);
             $post['meta_data'] = json_decode($post['meta_data'], true);
+            $post['url'] = $this->permalinkFor($post);
         }
-        
+
         return $posts;
     }
     
@@ -63,10 +81,12 @@ class PostsController {
         
         $post['component_data'] = json_decode($post['component_data'], true);
         $post['meta_data'] = json_decode($post['meta_data'], true);
-        
+        $this->loadPermalinks();
+        $post['url'] = $this->permalinkFor($post);
+
         return $post;
     }
-    
+
     public function create() {
         $input = json_decode(file_get_contents('php://input'), true);
         $userId = $GLOBALS['current_user']['user_id'] ?? 1;

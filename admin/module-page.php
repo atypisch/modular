@@ -43,7 +43,7 @@ if (!is_file($file)) {
 }
 
 $page_title = ucfirst(str_replace('-', ' ', $page));
-$embed = isset($_GET['embed']);   // rendered inside the Atelier SPA (no old chrome)
+$embed = true;   // always Atelier-styled (the legacy admin chrome has been removed)
 
 // In embed mode, keep module-page redirects within embed mode (after add/edit/delete).
 if ($embed && function_exists('header_register_callback')) {
