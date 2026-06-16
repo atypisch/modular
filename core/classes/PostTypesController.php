@@ -87,28 +87,30 @@ class PostTypesController {
         if (!in_array($mode, ['fixed', 'modular'], true)) {
             $mode = 'fixed';
         }
+        $icon = $input['icon'] ?? 'file';
+        $hierarchical = !empty($input['hierarchical']) ? 1 : 0;
         $schema = isset($input['schema']) ? json_encode($input['schema']) : null;
-        
+
         if (empty($name) || empty($slug)) {
             return ['error' => 'Name and slug are required', 'code' => 400];
         }
-        
+
         // Check if slug exists
         $stmt = $this->db->prepare("SELECT id FROM post_types WHERE slug = ?");
         $stmt->execute([$slug]);
         if ($stmt->fetch()) {
             return ['error' => 'Slug already exists', 'code' => 409];
         }
-        
+
         $stmt = $this->db->prepare("
-            INSERT INTO post_types 
-            (name, slug, description, public, show_in_menu, supports, settings, mode, `schema`,
+            INSERT INTO post_types
+            (name, slug, description, icon, hierarchical, public, show_in_menu, supports, settings, mode, `schema`,
              created_by, updated_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
-        
+
         $stmt->execute([
-            $name, $slug, $description, $public, $showInMenu, $supports, $settings, $mode, $schema,
+            $name, $slug, $description, $icon, $hierarchical, $public, $showInMenu, $supports, $settings, $mode, $schema,
             $userId, $userId
         ]);
         
@@ -136,11 +138,13 @@ class PostTypesController {
         if (!in_array($mode, ['fixed', 'modular'], true)) {
             $mode = 'fixed';
         }
+        $icon = $input['icon'] ?? ($existing['icon'] ?? 'file');
+        $hierarchical = array_key_exists('hierarchical', $input) ? (!empty($input['hierarchical']) ? 1 : 0) : ($existing['hierarchical'] ?? 0);
         $schema = array_key_exists('schema', $input) ? json_encode($input['schema']) : ($existing['schema'] ?? null);
         if ($schema === null && isset($existing['schema']) && is_array($existing['schema'])) {
             $schema = json_encode($existing['schema']);
         }
-        
+
         if ($slug !== $existing['slug']) {
             $stmt = $this->db->prepare("SELECT id FROM post_types WHERE slug = ? AND id != ?");
             $stmt->execute([$slug, $existing['id']]);
@@ -148,16 +152,16 @@ class PostTypesController {
                 return ['error' => 'Slug already exists', 'code' => 409];
             }
         }
-        
+
         $stmt = $this->db->prepare("
-            UPDATE post_types 
-            SET name = ?, slug = ?, description = ?, public = ?, show_in_menu = ?,
+            UPDATE post_types
+            SET name = ?, slug = ?, description = ?, icon = ?, hierarchical = ?, public = ?, show_in_menu = ?,
                 supports = ?, settings = ?, mode = ?, `schema` = ?, updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
-        
+
         $stmt->execute([
-            $name, $slug, $description, $public, $showInMenu, $supports, $settings, $mode, $schema,
+            $name, $slug, $description, $icon, $hierarchical, $public, $showInMenu, $supports, $settings, $mode, $schema,
             $userId, $existing['id']
         ]);
         

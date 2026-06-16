@@ -8,7 +8,7 @@ When a new coding rule or constraint is established during a session, add it her
 ## Project Stack
 
 - **Framework**: Modular PHP — no WordPress, no WP functions
-- **Database**: `mdlr-simuze` — credentials: root/root, MAMP mysql at `/Applications/MAMP/Library/bin/mysql80/bin/mysql`
+- **Database**: `modular` — credentials: root/root, MAMP mysql at `/Applications/MAMP/Library/bin/mysql80/bin/mysql`
 - **PHP helpers**: always use `md_db_*()`, `md_home_url()`, `md_asset_url()`, `md_esc_html/attr/url()`, `md_sanitize_text()` — never use WP equivalents
 - **Auth**: JWT cookie, handled via `core/functions/simezu_auth.php`
 - **Theme**: `public/themes/simuze/` — active theme constant `ACTIVE_THEME = 'simuze'`
@@ -18,8 +18,10 @@ When a new coding rule or constraint is established during a session, add it her
 
 ## Database & Schema
 
-- ONE schema file only: `core/migrations/full_schema_simuze.sql`
-- No separate migration files — all schema changes go into the single schema file
+- ONE core schema file only: `admin/sql/schema.sql` — the single source of truth for the Modular CORE database. It must always be kept up-to-date and in sync with the live system.
+- No other core SQL files. No separate core migration dump files — all core schema changes go into `admin/sql/schema.sql`.
+- `admin/sql/schema.sql` is core-only. Module/plugin tables (e.g. `simuze_*`) must NEVER appear in it. Each module/plugin owns its own schema under its `migrations/` folder (e.g. `public/modules/simuze-community/migrations/001_simuze_community_schema.sql`).
+- The core installer (`core/migrations/001_core_schema.php`) reads `admin/sql/schema.sql`. Keep it working when changing the schema.
 - All `CREATE TABLE` statements must use `IF NOT EXISTS`
 - Schema must be safely re-runnable without data loss or errors (idempotent)
 - Schema must be directly paste-able into phpMyAdmin

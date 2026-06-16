@@ -38,7 +38,7 @@ class Simuze_Database {
      */
     public function maybe_run_migrations() {
         if (defined('SIMUZE_MODULAR_RUN')) {
-            // In Modular, schema is in full_schema_simuze.sql and admin/sql/schema.sql.
+            // In Modular, simuze schema is in this module's migrations/001_simuze_community_schema.sql.
             // Ensure critical Simuze tables (like simuze_group_types) exist so
             // deactivating/activating the module repairs missing tables.
             if (isset($GLOBALS['db']) && $GLOBALS['db'] instanceof PDO) {
@@ -230,7 +230,7 @@ INSERT IGNORE INTO simuze_group_types (name, slug, icon) VALUES
      */
     public function create_tables() {
         if (defined('SIMUZE_MODULAR_RUN')) {
-            return; // Schema in full_schema_simuze.sql
+            return; // Schema in this module's migrations/001_simuze_community_schema.sql
         }
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         

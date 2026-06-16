@@ -102,7 +102,10 @@ class ModuleManager {
                 return;
             }
 
-            $stmt = $this->db->query("SELECT slug FROM modules WHERE active = 1 AND module_type = 'module'");
+            // NB: the `modules` table holds public modules only (system modules load
+            // from systemModulesDir), and has no `module_type` column — referencing it
+            // threw and silently aborted active-module loading.
+            $stmt = $this->db->query("SELECT slug FROM modules WHERE active = 1");
             $activeSlugs = $stmt->fetchAll(\PDO::FETCH_COLUMN);
 
             foreach ($activeSlugs as $slug) {

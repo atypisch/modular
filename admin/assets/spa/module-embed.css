@@ -1,0 +1,98 @@
+/* ============================================================
+   Atelier compatibility layer for legacy module admin pages.
+   Loaded in module-page.php embed mode INSTEAD of the old base.css,
+   so module pages (using .container/.card/.button/.admin-table/
+   .form-group/.alert/... and bare inputs/tables) render in the new
+   design system. No old admin styling is loaded.
+   ============================================================ */
+body.md-embed { background: var(--paper); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.md-embed * { box-sizing: border-box; }
+
+.md-embed .container { max-width: 1120px; margin: 0 auto; }
+.md-embed .page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.md-embed h1, .md-embed h2, .md-embed h3, .md-embed h4 { font-family: var(--font-display); font-weight: 600; color: var(--ink); letter-spacing: -0.015em; margin: 0 0 6px; }
+.md-embed h1 { font-size: 28px; letter-spacing: -0.02em; }
+.md-embed h2 { font-size: 21px; }
+.md-embed h3 { font-size: 17px; }
+.md-embed p { margin: 0 0 10px; color: var(--ink-2); }
+.md-embed a { color: var(--accent-deep); text-decoration: none; }
+.md-embed a:hover { text-decoration: underline; }
+
+.md-embed .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; box-shadow: var(--shadow-sm); }
+.md-embed .card-body { padding: 0; }
+
+/* forms */
+.md-embed .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.md-embed .form-row { margin-bottom: 14px; }
+.md-embed label, .md-embed .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.md-embed input[type="text"], .md-embed input[type="email"], .md-embed input[type="number"],
+.md-embed input[type="password"], .md-embed input[type="search"], .md-embed input[type="url"],
+.md-embed input[type="date"], .md-embed input[type="time"], .md-embed input[type="datetime-local"],
+.md-embed input:not([type]), .md-embed select, .md-embed textarea, .md-embed .form-control {
+  width: 100%; max-width: 420px; height: var(--row-h); padding: 0 var(--field-pad-x);
+  border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--surface-2);
+  color: var(--ink); font: inherit; font-size: 14px; outline: none;
+}
+.md-embed .form-row .form-control, .md-embed .form-row input, .md-embed .form-row select, .md-embed .form-row textarea { max-width: none; }
+.md-embed textarea, .md-embed textarea.form-control { height: auto; min-height: 90px; padding: 10px var(--field-pad-x); max-width: 640px; }
+.md-embed input:focus, .md-embed select:focus, .md-embed textarea:focus, .md-embed .form-control:focus { box-shadow: 0 0 0 2px var(--ring); border-color: var(--line-3); }
+.md-embed .help-text, .md-embed .form-text { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+
+/* buttons — legacy .button-* and bootstrap-ish .btn-* conventions */
+.md-embed .button, .md-embed button, .md-embed input[type="submit"], .md-embed .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: var(--row-h);
+  padding: 0 16px; border: 1px solid transparent; border-radius: var(--r-sm); background: var(--btn); color: var(--on-btn);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; line-height: 1;
+}
+.md-embed .button:hover, .md-embed button:hover, .md-embed input[type="submit"]:hover, .md-embed .btn:hover { background: var(--btn-hover); text-decoration: none; }
+.md-embed .button-sm, .md-embed .button.button-sm, .md-embed .btn-sm { height: 30px; padding: 0 11px; font-size: 12px; }
+.md-embed .button-danger, .md-embed .button.button-danger, .md-embed .btn-danger { background: var(--danger); border-color: transparent; color: #fff; }
+.md-embed .button-danger:hover, .md-embed .btn-danger:hover { filter: brightness(0.94); background: var(--danger); }
+.md-embed .button-primary, .md-embed .button-accent, .md-embed .btn-primary { background: var(--btn); color: var(--on-btn); }
+.md-embed .button-secondary, .md-embed .button-ghost, .md-embed .btn-secondary { background: var(--surface-2); color: var(--ink); border-color: var(--line-2); }
+.md-embed .button-secondary:hover, .md-embed .btn-secondary:hover { background: var(--paper-2); }
+.md-embed .btn-outline { background: transparent; color: var(--ink); border-color: var(--line-2); }
+.md-embed .btn-outline:hover { background: var(--paper-2); }
+/* link-style button (e.g. inline Delete) */
+.md-embed .btn-link { height: auto; padding: 0; background: transparent; border: 0; color: var(--accent-deep); font-weight: 600; }
+.md-embed .btn-link:hover { background: transparent; text-decoration: underline; }
+.md-embed .btn-link.text-danger, .md-embed .text-danger { color: var(--danger); }
+.md-embed .btn-link.text-danger:hover { color: var(--danger); }
+/* icon-only buttons */
+.md-embed .btn-icon { min-width: var(--row-h); padding: 0; }
+.md-embed .btn-icon .fas, .md-embed .btn-icon .fa, .md-embed .btn-icon i { margin: 0; }
+.md-embed .btn-icon-danger { background: var(--surface-2); color: var(--danger); border-color: var(--line-2); }
+.md-embed .btn-icon-danger:hover { background: var(--danger-soft); color: var(--danger); }
+
+/* alerts / notices */
+.md-embed .alert, .md-embed .notice { padding: 10px 14px; border-radius: var(--r-sm); font-size: 13px; margin-bottom: 14px; border: 1px solid transparent; }
+.md-embed .alert-success { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 28%, transparent); }
+.md-embed .alert-error, .md-embed .alert-danger { background: var(--danger-soft); color: var(--danger); }
+.md-embed .alert-info { background: var(--info-soft); color: var(--info); }
+.md-embed .alert-warning { background: var(--warn-soft); color: var(--warn); }
+
+/* tables */
+.md-embed table, .md-embed .admin-table { width: 100%; border-collapse: collapse; }
+.md-embed th, .md-embed .admin-table th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.md-embed td, .md-embed .admin-table td { padding: 11px 12px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink); }
+.md-embed tr:hover td { background: var(--paper-2); }
+
+/* misc */
+.md-embed .badge, .md-embed .tag, .md-embed .pill { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: var(--r-pill); font-size: 12px; background: var(--paper-2); color: var(--ink-2); }
+.md-embed .muted, .md-embed .text-muted { color: var(--ink-3); }
+.md-embed .text-success { color: var(--ok); }
+.md-embed hr { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+.md-embed code, .md-embed .mono { font-family: var(--font-mono); font-size: 0.92em; }
+.md-embed .h5 { font-family: var(--font-display); font-weight: 600; font-size: 16px; color: var(--ink); }
+
+/* utilities used by module markup */
+.md-embed .d-inline { display: inline; }
+.md-embed .d-block { display: block; }
+.md-embed .flex { display: flex; }
+.md-embed .items-center { align-items: center; }
+.md-embed .justify-between { justify-content: space-between; }
+.md-embed .list-unstyled { list-style: none; margin: 0; padding: 0; }
+.md-embed .p-0 { padding: 0 !important; }
+.md-embed .mt-4 { margin-top: 1.5rem; }
+.md-embed .mb-4 { margin-bottom: 1.5rem; }
+.md-embed .table-sm td, .md-embed .table-sm th { padding: 7px 10px; }

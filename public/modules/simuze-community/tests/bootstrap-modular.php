@@ -51,7 +51,7 @@ if (empty($errors) && isset($GLOBALS['db'])) {
         $stmt = $GLOBALS['db']->query("SELECT COUNT(*) FROM simuze_users WHERE deleted_at IS NULL");
         $count = $stmt ? (int) $stmt->fetchColumn() : 0;
         if ($count === 0) {
-            $errors[] = 'No simuze_users rows (run full_schema_simuze.sql section 8 for demo data)';
+            $errors[] = 'No simuze_users rows (seed demo data manually)';
         }
     } catch (Throwable $e) {
         $errors[] = 'simuze_users table check: ' . $e->getMessage();

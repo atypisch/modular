@@ -14,3 +14,5 @@ admin/config/config.local.php
 # Models and themes have their own repos
 core/models/
 public/themes/
+dist/
+.playwright-mcp/

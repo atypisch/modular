@@ -77,7 +77,9 @@ class PostsController {
         $status = $input['status'] ?? 'draft';
         $componentData = json_encode($input['component_data'] ?? []);
         $metaData = json_encode($input['meta_data'] ?? []);
-        
+        $dataJson = json_encode($input['data'] ?? new \stdClass());
+        $layoutJson = json_encode($input['layout'] ?? new \stdClass());
+
         if (empty($postTypeId) || empty($title)) {
             return ['error' => 'Post type ID and title are required', 'code' => 400];
         }
@@ -99,14 +101,14 @@ class PostsController {
         $publishedAt = ($status === 'published') ? date('Y-m-d H:i:s') : null;
         
         $stmt = $this->db->prepare("
-            INSERT INTO posts 
-            (post_type_id, slug, title, status, component_data, meta_data,
+            INSERT INTO posts
+            (post_type_id, slug, title, status, `data`, `layout`, component_data, meta_data,
              author_id, created_by, updated_by, published_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
-        
+
         $stmt->execute([
-            $postTypeId, $slug, $title, $status, $componentData, $metaData,
+            $postTypeId, $slug, $title, $status, $dataJson, $layoutJson, $componentData, $metaData,
             $userId, $userId, $userId, $publishedAt
         ]);
         
@@ -128,7 +130,10 @@ class PostsController {
         $status = $input['status'] ?? $existing['status'];
         $componentData = json_encode($input['component_data'] ?? $existing['component_data']);
         $metaData = json_encode($input['meta_data'] ?? $existing['meta_data']);
-        
+        // `data` is the canonical field-value store; keep existing raw JSON when not supplied.
+        $dataJson = array_key_exists('data', $input) ? json_encode($input['data']) : ($existing['data'] ?? json_encode(new \stdClass()));
+        $layoutJson = array_key_exists('layout', $input) ? json_encode($input['layout']) : ($existing['layout'] ?? json_encode(new \stdClass()));
+
         // Check slug uniqueness if changed
         if ($slug !== $existing['slug']) {
             $stmt = $this->db->prepare("SELECT id FROM posts WHERE slug = ? AND post_type_id = ? AND id != ?");
@@ -146,14 +151,14 @@ class PostsController {
         }
         
         $stmt = $this->db->prepare("
-            UPDATE posts 
-            SET slug = ?, title = ?, status = ?, component_data = ?, meta_data = ?,
+            UPDATE posts
+            SET slug = ?, title = ?, status = ?, `data` = ?, `layout` = ?, component_data = ?, meta_data = ?,
                 published_at = ?, updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
-        
+
         $stmt->execute([
-            $slug, $title, $status, $componentData, $metaData, $publishedAt, $userId, $id
+            $slug, $title, $status, $dataJson, $layoutJson, $componentData, $metaData, $publishedAt, $userId, $id
         ]);
         
         // Create revision

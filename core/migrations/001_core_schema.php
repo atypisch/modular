@@ -1,14 +1,14 @@
 <?php
 /**
  * Core schema migration – creates users, roles, post_types, posts, media, etc.
- * Uses full_schema.sql as source; ensures default admin user exists before post_types/taxonomies inserts.
+ * Uses admin/sql/schema.sql as source; ensures default admin user exists before post_types/taxonomies inserts.
  */
 $db = $GLOBALS['db'] ?? null;
 if (!$db instanceof PDO) {
     throw new RuntimeException('Database connection not available.');
 }
 
-$schemaFile = __DIR__ . '/full_schema.sql';
+$schemaFile = __DIR__ . '/../../admin/sql/schema.sql';
 if (!is_readable($schemaFile)) {
     throw new RuntimeException('Core schema file not found: ' . $schemaFile);
 }

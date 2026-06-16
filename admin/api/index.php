@@ -21,6 +21,13 @@ require_once __DIR__ . '/../../core/classes/FormsController.php';
 require_once __DIR__ . '/../../core/classes/MediaController.php';
 require_once __DIR__ . '/../../core/classes/SearchController.php';
 require_once __DIR__ . '/../../core/classes/ActionsController.php';
+require_once __DIR__ . '/../../core/classes/TaxonomiesController.php';
+require_once __DIR__ . '/../../core/classes/SettingsController.php';
+require_once __DIR__ . '/../../core/classes/SystemController.php';
+require_once __DIR__ . '/../../core/classes/ResolveController.php';
+require_once __DIR__ . '/../../core/classes/FieldGroupsController.php';
+require_once __DIR__ . '/../../core/classes/ComponentsController.php';
+require_once __DIR__ . '/../../core/classes/UpdateController.php';
 require_once __DIR__ . '/../../core/classes/RateLimiter.php';
 require_once __DIR__ . '/../../core/classes/JWT.php';
 
@@ -32,6 +39,13 @@ use Modular\API\FormsController;
 use Modular\API\MediaController;
 use Modular\API\SearchController;
 use Modular\API\ActionsController;
+use Modular\API\TaxonomiesController;
+use Modular\API\SettingsController;
+use Modular\API\SystemController;
+use Modular\API\ResolveController;
+use Modular\API\FieldGroupsController;
+use Modular\API\ComponentsController;
+use Modular\API\UpdateController;
 use Modular\RateLimiter;
 use Modular\Auth\JWT;
 use Modular\PostTypeResolver;
@@ -167,10 +181,10 @@ $router->addRoute('GET', '/api/v1/me', function() {
         return ['error' => 'Unauthorized', 'code' => 401];
     }
     
-    $stmt = $GLOBALS['db']->prepare("SELECT id, username, email, first_name, last_name, avatar FROM users WHERE id = ?");
+    $stmt = $GLOBALS['db']->prepare("SELECT id, username, email, first_name, last_name, avatar, role, status, bio, last_login, created_at FROM users WHERE id = ?");
     $stmt->execute([$userId]);
     $user = $stmt->fetch(\PDO::FETCH_ASSOC);
-    
+
     return $user ?: ['error' => 'User not found', 'code' => 404];
 }, ['auth']);
 
@@ -469,6 +483,72 @@ $router->addRoute('GET', '/api/v1/public/posts/{slug}', function($slug) {
     }
     return $resolved;
 });
+
+// ---------------------------------------------------------------------------
+// Fase 2 — admin SPA endpoints (taxonomies, settings/theme, system, resolve)
+// ---------------------------------------------------------------------------
+$mkResult = function ($result) {
+    if (is_array($result) && isset($result['code'])) {
+        http_response_code($result['code']);
+        unset($result['code']);
+    }
+    return $result;
+};
+
+// Taxonomies + terms
+$router->addRoute('GET', '/api/v1/taxonomies', function() { return (new TaxonomiesController($GLOBALS['db']))->index(); }, ['auth']);
+$router->addRoute('POST', '/api/v1/taxonomies', function() use ($mkResult) { return $mkResult((new TaxonomiesController($GLOBALS['db']))->create()); }, ['auth']);
+$router->addRoute('GET', '/api/v1/taxonomies/{id}', function($id) use ($mkResult) { return $mkResult((new TaxonomiesController($GLOBALS['db']))->show($id)); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/taxonomies/{id}', function($id) use ($mkResult) { return $mkResult((new TaxonomiesController($GLOBALS['db']))->update($id)); }, ['auth']);
+$router->addRoute('DELETE', '/api/v1/taxonomies/{id}', function($id) use ($mkResult) { return $mkResult((new TaxonomiesController($GLOBALS['db']))->delete($id)); }, ['auth']);
+$router->addRoute('GET', '/api/v1/taxonomies/{id}/terms', function($id) { return (new TaxonomiesController($GLOBALS['db']))->terms($id); }, ['auth']);
+$router->addRoute('POST', '/api/v1/taxonomies/{id}/terms', function($id) use ($mkResult) { return $mkResult((new TaxonomiesController($GLOBALS['db']))->createTerm($id)); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/taxonomies/{id}/terms/reorder', function($id) { return (new TaxonomiesController($GLOBALS['db']))->reorderTerms($id); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/taxonomies/{id}/terms/{termId}', function($id, $termId) use ($mkResult) { return $mkResult((new TaxonomiesController($GLOBALS['db']))->updateTerm($id, $termId)); }, ['auth']);
+$router->addRoute('DELETE', '/api/v1/taxonomies/{id}/terms/{termId}', function($id, $termId) { return (new TaxonomiesController($GLOBALS['db']))->deleteTerm($id, $termId); }, ['auth']);
+
+// Settings + theme persistence
+$router->addRoute('GET', '/api/v1/settings', function() { return (new SettingsController($GLOBALS['db']))->index(); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/settings', function() use ($mkResult) { return $mkResult((new SettingsController($GLOBALS['db']))->update()); }, ['auth']);
+$router->addRoute('GET', '/api/v1/settings/theme', function() { return (new SettingsController($GLOBALS['db']))->getTheme(); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/settings/theme', function() { return (new SettingsController($GLOBALS['db']))->setTheme(); }, ['auth']);
+
+// System: users, roles, capabilities, modules
+$router->addRoute('GET', '/api/v1/users', function() { return (new SystemController($GLOBALS['db']))->users(); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/users/{id}', function($id) use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->updateUser($id)); }, ['auth']);
+$router->addRoute('GET', '/api/v1/roles', function() { return (new SystemController($GLOBALS['db']))->roles(); }, ['auth']);
+$router->addRoute('POST', '/api/v1/roles', function() use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->createRole()); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/roles/{id}/capabilities', function($id) use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->updateRoleCapabilities($id)); }, ['auth']);
+$router->addRoute('DELETE', '/api/v1/roles/{id}', function($id) use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->deleteRole($id)); }, ['auth']);
+$router->addRoute('GET', '/api/v1/capabilities', function() { return (new SystemController($GLOBALS['db']))->capabilities(); }, ['auth']);
+$router->addRoute('GET', '/api/v1/modules', function() { return (new SystemController($GLOBALS['db']))->modules(); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/modules/{id}', function($id) use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->toggleModule($id)); }, ['auth']);
+
+// System update — one central upgrade point (version check + run core update)
+$router->addRoute('GET', '/api/v1/system/update', function() { return (new UpdateController($GLOBALS['db']))->status(); }, ['auth']);
+$router->addRoute('POST', '/api/v1/system/update', function() use ($mkResult) { return $mkResult((new UpdateController($GLOBALS['db']))->run()); }, ['auth']);
+
+// Resolve: effective fieldset + revisions per post
+$router->addRoute('GET', '/api/v1/posts/{id}/resolved-fieldset', function($id) use ($mkResult) { return $mkResult((new ResolveController($GLOBALS['db']))->resolvedFieldset($id)); }, ['auth']);
+$router->addRoute('GET', '/api/v1/posts/{id}/revisions', function($id) { return (new ResolveController($GLOBALS['db']))->revisions($id); }, ['auth']);
+
+// Field groups (WHERE/binding layer)
+$router->addRoute('GET', '/api/v1/field-groups', function() { return (new FieldGroupsController($GLOBALS['db']))->index(); }, ['auth']);
+$router->addRoute('POST', '/api/v1/field-groups', function() use ($mkResult) { return $mkResult((new FieldGroupsController($GLOBALS['db']))->create()); }, ['auth']);
+$router->addRoute('GET', '/api/v1/field-groups/{id}', function($id) use ($mkResult) { return $mkResult((new FieldGroupsController($GLOBALS['db']))->show($id)); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/field-groups/{id}/location', function($id) use ($mkResult) { return $mkResult((new FieldGroupsController($GLOBALS['db']))->updateLocation($id)); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/field-groups/{id}', function($id) use ($mkResult) { return $mkResult((new FieldGroupsController($GLOBALS['db']))->update($id)); }, ['auth']);
+$router->addRoute('DELETE', '/api/v1/field-groups/{id}', function($id) use ($mkResult) { return $mkResult((new FieldGroupsController($GLOBALS['db']))->delete($id)); }, ['auth']);
+
+// Components (versioned blocks)
+$router->addRoute('GET', '/api/v1/components', function() { return (new ComponentsController($GLOBALS['db']))->index(); }, ['auth']);
+$router->addRoute('POST', '/api/v1/components', function() use ($mkResult) { return $mkResult((new ComponentsController($GLOBALS['db']))->create()); }, ['auth']);
+$router->addRoute('GET', '/api/v1/components/{id}/versions', function($id) { return (new ComponentsController($GLOBALS['db']))->versions($id); }, ['auth']);
+$router->addRoute('POST', '/api/v1/components/{id}/versions', function($id) use ($mkResult) { return $mkResult((new ComponentsController($GLOBALS['db']))->createVersion($id)); }, ['auth']);
+$router->addRoute('GET', '/api/v1/components/{id}/usage', function($id) { return (new ComponentsController($GLOBALS['db']))->usage($id); }, ['auth']);
+$router->addRoute('GET', '/api/v1/components/{id}', function($id) use ($mkResult) { return $mkResult((new ComponentsController($GLOBALS['db']))->show($id)); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/components/{id}', function($id) use ($mkResult) { return $mkResult((new ComponentsController($GLOBALS['db']))->update($id)); }, ['auth']);
+$router->addRoute('DELETE', '/api/v1/components/{id}', function($id) use ($mkResult) { return $mkResult((new ComponentsController($GLOBALS['db']))->delete($id)); }, ['auth']);
 
 // Handle request: normalize path so /modular/admin/api/index.php/api/v1/forms -> /api/v1/forms
 $method = $_SERVER['REQUEST_METHOD'];

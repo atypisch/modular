@@ -108,18 +108,19 @@ $is_auth_page = strpos($current_path, (defined('ADMIN_BASE_PATH') ? ADMIN_BASE_P
     <title><?php echo isset($page_title) ? $page_title . ' - Modular CMS' : 'Modular CMS'; ?></title>
     <link rel="icon" href="<?php echo ADMIN_URL; ?>/assets/images/favicon_modular.svg" type="image/svg+xml">
     
+    <?php if ($is_auth_page): ?>
+    <!-- Atelier design system for the pre-SPA auth screens (no old admin CSS) -->
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/spa/styles.css">
+    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/spa/auth.css">
+    <?php else: ?>
     <!-- Base CSS -->
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/base.css">
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/form.css">
-    <?php if (!$is_auth_page): ?>
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/layout.css">
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/components.css">
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/modal.css">
-    <?php endif; ?>
-    <?php if ($is_auth_page): ?>
-    <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/auth.css">
-    <?php endif; ?>
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/responsive.css">
+    <?php endif; ?>
     <?php if (!empty($dashboard_active)): ?>
     <link rel="stylesheet" href="<?php echo ADMIN_URL; ?>/assets/css/dashboard.css">
     <?php endif; ?>

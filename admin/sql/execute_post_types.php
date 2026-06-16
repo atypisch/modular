@@ -16,7 +16,7 @@ try {
     }
 
     // Get SQL content
-    $sql = file_get_contents(__DIR__ . '/post_types.sql');
+    $sql = file_get_contents(__DIR__ . '/schema.sql');
     
     // Split into individual statements
     $statements = array_filter(array_map('trim', explode(';', $sql)));

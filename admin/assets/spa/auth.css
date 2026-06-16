@@ -1,0 +1,60 @@
+/* ============================================================
+   Atelier auth pages (login / register / forgot / reset).
+   Loaded by templates/header.php for $is_auth_page instead of the
+   old base.css + auth.css, so the pre-SPA screens match the new design.
+   ============================================================ */
+body.auth-page {
+  margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: var(--paper); color: var(--ink); font-family: var(--font-ui); font-size: 14px;
+  -webkit-font-smoothing: antialiased; padding: 24px;
+}
+body.auth-page * { box-sizing: border-box; }
+.auth-page .main-container, .auth-page .main-body, .auth-page .main-content { display: contents; }
+
+.auth-page .auth-container { width: 100%; max-width: 400px; }
+.auth-page .auth-card, .auth-page .auth-box {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md, 0 12px 40px rgba(0,0,0,.08)); padding: 32px 28px;
+}
+.auth-page .auth-title {
+  font-family: var(--font-display); font-weight: 600; font-size: 24px; letter-spacing: -0.02em;
+  color: var(--ink); margin: 0 0 20px; text-align: center;
+}
+.auth-page .auth-form { display: flex; flex-direction: column; gap: 0; }
+
+.auth-page .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.auth-page .form-label, .auth-page label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.auth-page .form-input, .auth-page .form-control,
+.auth-page input[type="text"], .auth-page input[type="email"], .auth-page input[type="password"] {
+  width: 100%; height: var(--row-h); padding: 0 var(--field-pad-x);
+  border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--surface-2);
+  color: var(--ink); font: inherit; font-size: 14px; outline: none;
+}
+.auth-page input:focus, .auth-page .form-input:focus, .auth-page .form-control:focus {
+  box-shadow: 0 0 0 2px var(--ring); border-color: var(--line-3);
+}
+.auth-page input.invalid, .auth-page .invalid { border-color: var(--danger); }
+
+.auth-page .btn, .auth-page button[type="submit"] {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: var(--row-h);
+  padding: 0 18px; border: 0; border-radius: var(--r-sm); background: var(--btn); color: var(--on-btn);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.auth-page .btn:hover, .auth-page button[type="submit"]:hover { background: var(--btn-hover); }
+.auth-page .btn-primary, .auth-page .btn-accent { background: var(--accent); }
+.auth-page .btn-primary:hover { filter: brightness(0.96); }
+.auth-page .w-full { width: 100%; }
+
+.auth-page .alert { padding: 10px 14px; border-radius: var(--r-sm); font-size: 13px; margin-bottom: 16px; border: 1px solid transparent; }
+.auth-page .alert-success { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 28%, transparent); }
+.auth-page .alert-error, .auth-page .alert-danger { background: var(--danger-soft); color: var(--danger); }
+
+.auth-page .auth-links { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; font-size: 13px; }
+.auth-page .auth-links a { color: var(--accent-deep); text-decoration: none; }
+.auth-page .auth-links a:hover { text-decoration: underline; }
+
+.auth-page .password-requirements { margin: 4px 0 14px; padding: 0; list-style: none; }
+.auth-page .requirement { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-3); margin: 4px 0; }
+.auth-page .requirement.text-success, .auth-page .requirement .text-success { color: var(--ok); }
+.auth-page .password-match { font-size: 12px; margin-top: 4px; }
+.auth-page .text-blue-600, .auth-page .text-blue-800 { color: var(--accent-deep); }

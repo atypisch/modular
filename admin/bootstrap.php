@@ -82,6 +82,8 @@ if (!headers_sent()) {
         "'unsafe-inline'",
         "'unsafe-eval'",
         $leafletCdn,
+        "https://esm.sh",            // CodeMirror 6 / Tiptap ESM (admin field editors)
+        "https://cdn.jsdelivr.net",  // Chart.js (admin charts)
         $simezuHost,
     ];
 
@@ -106,12 +108,21 @@ if (!headers_sent()) {
         "https://fonts.gstatic.com",
     ];
 
+    // Embeds: allow YouTube/Vimeo players to be framed by the admin editor.
+    $frameSrc = [
+        "'self'",
+        "https://www.youtube.com",
+        "https://www.youtube-nocookie.com",
+        "https://player.vimeo.com",
+    ];
+
     $csp = sprintf(
-        "default-src 'self'; script-src %s; style-src %s; img-src %s; font-src %s; frame-ancestors 'self';",
+        "default-src 'self'; script-src %s; style-src %s; img-src %s; font-src %s; frame-src %s; frame-ancestors 'self';",
         implode(' ', array_unique($scriptSrc)),
         implode(' ', array_unique($styleSrc)),
         implode(' ', array_unique($imgSrc)),
-        implode(' ', array_unique($fontSrc))
+        implode(' ', array_unique($fontSrc)),
+        implode(' ', array_unique($frameSrc))
     );
 
     header("Content-Security-Policy: " . $csp);

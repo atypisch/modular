@@ -14,6 +14,21 @@ if (!is_logged_in()) {
     exit;
 }
 
+// Atelier SPA: when the `admin_spa` flag is on, serve the new Vue SPA for every
+// admin page (the old server-rendered views are superseded). Setup is exempt;
+// real files (api/, auth/, assets/, spa.php) are served by Apache directly.
+if (isset($GLOBALS['db']) && strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/setup') === false) {
+    $spaOn = false;
+    try {
+        $stmt = $GLOBALS['db']->prepare("SELECT option_value FROM settings WHERE option_name = 'admin_spa' LIMIT 1");
+        $stmt->execute();
+        $spaOn = in_array((string) $stmt->fetchColumn(), ['1', 'true', 'on', 'yes'], true);
+    } catch (Throwable $e) {
+        $spaOn = false;
+    }
+    if ($spaOn) { require __DIR__ . '/spa.php'; exit; }
+}
+
 // Get the requested page from URL (uses BASE_PATH from config / config.local.php)
 $request_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $base_admin_path = (defined('BASE_PATH') ? rtrim(BASE_PATH, '/') : '') . '/admin';
