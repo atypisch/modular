@@ -72,11 +72,14 @@ class MediaController {
             return ['error' => 'File type not allowed', 'code' => 400];
         }
         
-        // Generate unique filename
+        // Generate unique filename, stored under uploads/{year}/{month}/ (WordPress-style)
         $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+        $subDir = date('Y') . '/' . date('m');
+        $destDir = $this->uploadDir . '/' . $subDir;
+        if (!is_dir($destDir)) { mkdir($destDir, 0755, true); }
         $filename = uniqid() . '_' . time() . '.' . $extension;
-        $filePath = $this->uploadDir . '/' . $filename;
-        
+        $filePath = $destDir . '/' . $filename;
+
         // Move uploaded file
         if (!move_uploaded_file($file['tmp_name'], $filePath)) {
             return ['error' => 'Failed to save file', 'code' => 500];
@@ -99,7 +102,7 @@ class MediaController {
                 $height = $imageInfo[1];
                 
                 // Generate variants
-                $variants = $this->generateImageVariants($filePath, $filename);
+                $variants = $this->generateImageVariants($filePath, $filename, $subDir);
             }
         }
         
@@ -111,7 +114,8 @@ class MediaController {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         
-        $relativePath = (defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') . '/' : '/public/uploads/') . $filename;
+        $webBase = defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') : '/public/uploads';
+        $relativePath = $webBase . '/' . $subDir . '/' . $filename;
         $variantsJson = json_encode($variants);
         
         $stmt->execute([
@@ -123,8 +127,9 @@ class MediaController {
         return $this->show($id);
     }
     
-    private function generateImageVariants($sourcePath, $baseFilename) {
+    private function generateImageVariants($sourcePath, $baseFilename, $subDir = '') {
         $variants = [];
+        $subPath = $subDir !== '' ? '/' . trim($subDir, '/') : '';
 
         // Load dynamic image size configuration
         if (!function_exists('media_get_image_settings')) {
@@ -149,12 +154,13 @@ class MediaController {
             $crop = !empty($cfg['crop']);
 
             $variantFilename = $baseName . '_' . $name . '.' . $extension;
-            $variantPath = $this->uploadDir . '/' . $variantFilename;
-            
+            $variantPath = $this->uploadDir . $subPath . '/' . $variantFilename;
+
             if ($this->resizeImage($sourcePath, $variantPath, $maxW, $maxH, $crop, $format, $quality)) {
+                $webBase = defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') : '/public/uploads';
                 $variants[$name] = [
                     'filename' => $variantFilename,
-                    'path' => (defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') . '/' : '/public/uploads/') . $variantFilename,
+                    'path' => $webBase . $subPath . '/' . $variantFilename,
                     'width' => $maxW,
                     'height' => $maxH
                 ];
