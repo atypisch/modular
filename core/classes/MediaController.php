@@ -263,23 +263,43 @@ class MediaController {
         return $result;
     }
     
+    /** Map a stored web path (.../uploads/2026/06/file.png) to the physical file under uploadDir.
+     *  Handles both the year/month layout and legacy flat files. */
+    private function physicalPath($webPath): ?string {
+        $p = (string) $webPath;
+        if ($p === '') return null;
+        $pos = strrpos($p, '/uploads/');
+        $rel = $pos !== false ? substr($p, $pos + strlen('/uploads/')) : basename($p);
+        $rel = ltrim(str_replace('..', '', $rel), '/');   // keep it inside uploadDir
+        return $rel !== '' ? $this->uploadDir . '/' . $rel : null;
+    }
+
     public function delete($id) {
-        $userId = $GLOBALS['current_user']['user_id'] ?? 1;
-        
         $media = $this->show($id);
         if (isset($media['error'])) {
             return $media;
         }
-        
-        // Soft delete
-        $stmt = $this->db->prepare("
-            UPDATE media 
-            SET deleted_at = NOW(), updated_by = ?, updated_at = NOW()
-            WHERE id = ?
-        ");
-        $stmt->execute([$userId, $id]);
-        
-        return ['message' => 'Media deleted'];
+
+        // Hard delete: remove the original file AND every generated variant/format.
+        $paths = [];
+        if (!empty($media['file_path'])) $paths[] = $media['file_path'];
+        $variants = $media['variants'];
+        if (is_string($variants)) $variants = json_decode($variants, true);
+        if (is_array($variants)) {
+            foreach ($variants as $v) {
+                if (is_array($v) && !empty($v['path'])) $paths[] = $v['path'];
+            }
+        }
+        foreach ($paths as $webPath) {
+            $abs = $this->physicalPath($webPath);
+            if ($abs && is_file($abs)) @unlink($abs);
+        }
+
+        // Remove the database row.
+        $stmt = $this->db->prepare("DELETE FROM media WHERE id = ?");
+        $stmt->execute([$id]);
+
+        return ['message' => 'Media deleted', 'hard_deleted' => true];
     }
 }
 
