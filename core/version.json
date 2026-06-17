@@ -1,5 +1,6 @@
 {
-    "version": "1.01",
+    "version": "1.02",
     "name": "Modular CMS",
-    "description": "Modular CMS core"
+    "description": "Modular CMS core",
+    "build_date": "2026-06-17"
 }
