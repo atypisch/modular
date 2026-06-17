@@ -30,27 +30,31 @@ class PostsController {
     }
 
     public function index($postTypeId = null) {
-        $sql = "
-            SELECT p.*, 
-                   pt.name as post_type_name, pt.slug as post_type_slug,
-                   COALESCE(u.username, u.email, 'Unknown') as author_name
-            FROM posts p
-            INNER JOIN post_types pt ON p.post_type_id = pt.id
-            LEFT JOIN users u ON p.author_id = u.id
-            WHERE p.deleted_at IS NULL
-        ";
-        
+        // Lightweight mode (?fields=light): id/title/slug/status only, optional title
+        // search (?q=) and a higher row cap (?limit=) — used by the relationship field
+        // picker so it can search across all items and lazy-render without payload bloat.
+        $light = (($_GET['fields'] ?? '') === 'light');
+        $limit = isset($_GET['limit']) ? max(1, min(2000, (int) $_GET['limit'])) : 100;
+        $q = trim((string) ($_GET['q'] ?? ''));
+
+        $cols = $light
+            ? "p.id, p.title, p.slug, p.status, pt.name as post_type_name, pt.slug as post_type_slug"
+            : "p.*, pt.name as post_type_name, pt.slug as post_type_slug, COALESCE(u.username, u.email, 'Unknown') as author_name";
+        $join = $light ? "" : "LEFT JOIN users u ON p.author_id = u.id";
+
+        $sql = "SELECT $cols FROM posts p INNER JOIN post_types pt ON p.post_type_id = pt.id $join WHERE p.deleted_at IS NULL";
         $params = [];
-        if ($postTypeId) {
-            $sql .= " AND p.post_type_id = ?";
-            $params[] = $postTypeId;
-        }
-        
-        $sql .= " ORDER BY p.created_at DESC LIMIT 100";
-        
+        if ($postTypeId) { $sql .= " AND p.post_type_id = ?"; $params[] = $postTypeId; }
+        if ($q !== '') { $sql .= " AND p.title LIKE ?"; $params[] = '%' . $q . '%'; }
+        $sql .= " ORDER BY p.created_at DESC LIMIT " . (int) $limit;
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if ($light) {
+            return $posts; // no JSON decode / permalink work — keep it cheap
+        }
 
         $this->loadPermalinks();
         foreach ($posts as &$post) {

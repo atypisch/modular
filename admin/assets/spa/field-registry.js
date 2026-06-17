@@ -487,7 +487,7 @@
   // relationship / post_object — ACF-style two-pane picker (search + filter + select).
   C.MdRelation = base({
     name: 'MdRelation',
-    data() { return { search: '', ptFilter: '', available: [], resolvedById: {}, loading: false, dragI: null, dropAt: null }; },
+    data() { return { search: '', ptFilter: '', available: [], resolvedById: {}, loading: false, dragI: null, dropAt: null, renderN: 30 }; },
     computed: {
       single() { return this.definition.type === 'post_object' || this.definition.single; },
       allowedTypes() { return this.definition.post_type || this.definition.postType || []; },
@@ -509,20 +509,28 @@
         const q = this.search.trim().toLowerCase();
         return this.available.filter(p => !this.selectedIds.includes(p.id) && (!this.ptFilter || p.type === this.ptFilter) && (!q || (p.title || '').toLowerCase().includes(q)));
       },
+      // Only render a window of the filtered list (grows on scroll) so a 100+ list
+      // doesn't bloat the DOM. Search still runs over the full `filtered` set above.
+      visible() { return this.filtered.slice(0, this.renderN); },
       ptChips() {
         const seen = {}; this.available.forEach(p => { if (p.type) seen[p.type] = p.typeName || p.type; });
         return Object.keys(seen).map(k => ({ value: k, label: seen[k] }));
       },
     },
     mounted() { this.load(); },
-    watch: { modelValue() { this.resolveMissing(); } },
+    watch: {
+      modelValue() { this.resolveMissing(); },
+      search() { this.renderN = 30; },
+      ptFilter() { this.renderN = 30; },
+    },
     methods: {
       load() {
         const pts = (M.data.POST_TYPES || []).filter(p => !this.allowedTypes.length || this.allowedTypes.includes(p.id) || this.allowedTypes.includes(p.slug));
         const list = pts.map(p => ({ pt: p, id: p._dbId })).filter(x => x.id);
         if (!M.api || !list.length) { this.available = []; return; }
         this.loading = true;
-        Promise.all(list.map(x => M.api.get('/posts?post_type_id=' + x.id).catch(() => [])))
+        // Lightweight + high cap so 100+ items are available for search without payload bloat.
+        Promise.all(list.map(x => M.api.get('/posts?post_type_id=' + x.id + '&fields=light&limit=1000').catch(() => [])))
           .then(results => {
             this.loading = false;
             const flat = [];
@@ -530,6 +538,13 @@
             this.available = flat;
             this.resolveMissing();
           }).catch(() => { this.loading = false; });
+      },
+      // Grow the rendered window as the list scrolls near the bottom (lazy render).
+      onScroll(e) {
+        const el = e.target;
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 60 && this.renderN < this.filtered.length) {
+          this.renderN = Math.min(this.renderN + 30, this.filtered.length);
+        }
       },
       // Fetch titles for any stored ids not present in `available` (e.g. a type
       // with >100 posts), so the selected pane never falls back to "#id".
@@ -583,12 +598,13 @@
             <button type="button" class="acf-rel-chip" :class="{'is-on':!ptFilter}" @click="ptFilter=''">All</button>
             <button type="button" v-for="c in ptChips" :key="c.value" class="acf-rel-chip" :class="{'is-on':ptFilter===c.value}" @click="ptFilter=c.value">{{ c.label }}</button>
           </div>
-          <div class="acf-rel-list">
+          <div class="acf-rel-list" @scroll="onScroll">
             <div v-if="loading" class="t-meta" style="padding:10px;text-align:center">Loading…</div>
-            <button type="button" v-for="p in filtered" :key="p.id" class="acf-rel-item" @click="add(p)" :disabled="single && selected.length">
+            <button type="button" v-for="p in visible" :key="p.id" class="acf-rel-item" @click="add(p)" :disabled="single && selected.length">
               <div class="rel-item-main"><strong>{{ p.title }}</strong><span class="t-meta">{{ p.typeName }} · {{ p.status }}</span></div>
               <Icon name="plus" :size="15" class="muted"/>
             </button>
+            <div v-if="!loading && visible.length < filtered.length" class="t-meta" style="padding:8px;text-align:center">Showing {{ visible.length }} of {{ filtered.length }} — scroll for more</div>
             <div v-if="!loading && !filtered.length" class="t-meta" style="padding:10px;text-align:center">No matches.</div>
           </div>
         </div>
