@@ -5,6 +5,20 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
 require_once CORE_PATH . '/functions/csrf.php';
 
+// Registration toggle (settings → allow_registration). Off by default; when off,
+// the sign-up link is hidden here and the register page itself is blocked.
+$registrationAllowed = false;
+if (isset($GLOBALS['db'])) {
+    try {
+        $stmt = $GLOBALS['db']->prepare("SELECT option_value FROM settings WHERE option_name = 'allow_registration' LIMIT 1");
+        $stmt->execute();
+        $registrationAllowed = in_array((string) $stmt->fetchColumn(), ['1', 'true', 'on', 'yes'], true);
+    } catch (Throwable $e) { $registrationAllowed = false; }
+}
+$registerLink = $registrationAllowed
+    ? '<a href="' . (function_exists('admin_url') ? admin_url('auth/register.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/register.php' : '/modular/admin/auth/register.php')) . '">Create an account</a>'
+    : '';
+
 $page_title = 'Login';
 $content = '
     <div class="auth-container">
@@ -28,7 +42,7 @@ $content = '
             </form>
             <div class="auth-links" style="clear: both;">
                 <a href="' . (function_exists('admin_url') ? admin_url('auth/forgot_password.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/forgot_password.php' : '/modular/admin/auth/forgot_password.php')) . '">Forgot Password?</a>
-                <a href="' . (function_exists('admin_url') ? admin_url('auth/register.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/register.php' : '/modular/admin/auth/register.php')) . '">Create an account</a>
+                ' . $registerLink . '
             </div>
         </div>
     </div>

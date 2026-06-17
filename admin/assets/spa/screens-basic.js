@@ -206,6 +206,7 @@
         gen: {
           title:'Atypisch', tagline:'EU-hosted web platforms', url:'https://atypisch.nl',
           email:'marten@atypisch.nl', delivery:'themed', language:'English', timezone:'Europe/Amsterdam',
+          allowRegistration:false,
         },
         editPreset: null,
         flags: {
@@ -232,6 +233,7 @@
         if (s.admin_email != null) this.gen.email = s.admin_email;
         if (s.default_language) this.gen.language = s.default_language;
         if (s.timezone) this.gen.timezone = s.timezone;
+        if (s.allow_registration != null) this.gen.allowRegistration = ['1', 'true', 'on', 'yes', true, 1].includes(s.allow_registration);
       }).catch(() => {});
     },
     computed: {
@@ -256,7 +258,7 @@
       saveSettings() {
         if (!window.__mdlr.api) return;
         this.saving = true;
-        const options = { site_title: this.gen.title, site_tagline: this.gen.tagline, site_url: this.gen.url, admin_email: this.gen.email, default_language: this.gen.language, timezone: this.gen.timezone };
+        const options = { site_title: this.gen.title, site_tagline: this.gen.tagline, site_url: this.gen.url, admin_email: this.gen.email, default_language: this.gen.language, timezone: this.gen.timezone, allow_registration: this.gen.allowRegistration ? '1' : '0' };
         window.__mdlr.api.put('/settings', { options })
           .then(() => { this.saving = false; this.saved = true; setTimeout(() => { this.saved = false; }, 2200); })
           .catch(e => { this.saving = false; console.error('[settings] save failed', e); alert('Saving settings failed.'); });
@@ -283,7 +285,8 @@
             <div class="field"><label class="field-label">Tagline</label><input class="inp" v-model="gen.tagline"></div>
             <div class="field"><label class="field-label">Site URL</label><input class="inp mono" v-model="gen.url"></div>
             <div class="field"><label class="field-label">Admin email</label><input class="inp mono" v-model="gen.email"></div>
-            <div class="field">
+            <div class="opt-row"><div><strong>Allow registration</strong><div class="field-hint">Let people create an account from the login screen. When off, the sign-up link is hidden and the registration page is blocked.</div></div><UiSwitch v-model="gen.allowRegistration"/></div>
+            <div class="field" style="margin-top:14px">
               <label class="field-label">Delivery mode</label>
               <div class="seg seg--fill">
                 <button :class="{'is-on':gen.delivery==='themed'}" @click="gen.delivery='themed'"><Icon name="image" :size="14"/> Themed</button>

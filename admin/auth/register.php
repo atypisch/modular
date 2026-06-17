@@ -14,6 +14,22 @@ unset($_SESSION['success']);
 $page_title = 'Register';
 $loginUrl = (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin');
 $loginUrl = rtrim((string) $loginUrl, '/') . '/auth/login.php';
+
+// Block registration unless explicitly enabled (settings → allow_registration).
+$registrationAllowed = false;
+if (isset($GLOBALS['db'])) {
+    try {
+        $stmt = $GLOBALS['db']->prepare("SELECT option_value FROM settings WHERE option_name = 'allow_registration' LIMIT 1");
+        $stmt->execute();
+        $registrationAllowed = in_array((string) $stmt->fetchColumn(), ['1', 'true', 'on', 'yes'], true);
+    } catch (Throwable $e) { $registrationAllowed = false; }
+}
+if (!$registrationAllowed) {
+    $_SESSION['error'] = 'Registration is disabled.';
+    header('Location: ' . $loginUrl);
+    exit;
+}
+
 $content = '
     <div class="auth-container">
         <div class="auth-card">

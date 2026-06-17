@@ -6,6 +6,21 @@ require_once dirname(dirname(__FILE__)) . '/config/config.php';
 require_once CORE_PATH . '/functions/csrf.php';
 require_once CORE_PATH . '/classes/RateLimiter.php';
 
+// Block registration unless explicitly enabled (settings → allow_registration).
+$registrationAllowed = false;
+if (isset($GLOBALS['db'])) {
+    try {
+        $stmt = $GLOBALS['db']->prepare("SELECT option_value FROM settings WHERE option_name = 'allow_registration' LIMIT 1");
+        $stmt->execute();
+        $registrationAllowed = in_array((string) $stmt->fetchColumn(), ['1', 'true', 'on', 'yes'], true);
+    } catch (Throwable $e) { $registrationAllowed = false; }
+}
+if (!$registrationAllowed) {
+    $_SESSION['error'] = 'Registration is disabled.';
+    header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '') . '/auth/login.php');
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!function_exists('csrf_verify') || !csrf_verify()) {
         $_SESSION['error'] = 'Invalid security token. Please try again.';
