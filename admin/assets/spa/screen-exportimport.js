@@ -16,19 +16,80 @@
         importMode: 'skip',
         dryRun: false,
         fileName: '',
+        file: null,
+        running: false,
+        result: null,
+        error: '',
         sourceFilter: 'all',
+        exportProfile: 'full',
+        exportPostType: '',
       };
     },
     computed: {
       tab() { return (this.route.params || {}).tab || 'export'; },
       tables() { return D().EXPORT_TABLES; },
       history() { return D().IMPORT_HISTORY; },
+      postTypes() { return D().POST_TYPES || []; },
+      effectivePostType() {
+        const pts = this.postTypes;
+        if (!pts.length) return '';
+        if (this.exportPostType && pts.some(p => p.id === this.exportPostType)) return this.exportPostType;
+        return pts[0].id;
+      },
+      selectedPostTypeLabel() {
+        const pt = this.postTypes.find(p => p.id === this.effectivePostType);
+        return pt ? pt.name : this.effectivePostType;
+      },
+      exportScopeLabel() {
+        if (this.exportProfile === 'post_type' && this.effectivePostType) {
+          return 'post type ' + this.effectivePostType + (this.selectedPostTypeLabel ? ' (' + this.selectedPostTypeLabel + ')' : '');
+        }
+        return 'all registered tables';
+      },
       sources() { return ['all', ...new Set(this.tables.map(t => t.source))]; },
       shownTables() { return this.sourceFilter === 'all' ? this.tables : this.tables.filter(t => t.source === this.sourceFilter); },
       totalRows() { return this.tables.reduce((n, t) => n + t.rows, 0).toLocaleString(); },
+      resultRows() {
+        if (!this.result || !this.result.summary) return [];
+        return Object.keys(this.result.summary)
+          .filter(k => k.charAt(0) !== '_')
+          .map(k => Object.assign({ table: k }, this.result.summary[k]));
+      },
+      resultErrors() { return (this.result && this.result.summary && this.result.summary._errors) || []; },
     },
     methods: {
       sourceClass(s) { return s === 'core' ? '' : 'badge--info'; },
+      onFile(e) {
+        this.file = (e.target.files && e.target.files[0]) || null;
+        this.fileName = this.file ? this.file.name : '';
+        this.result = null; this.error = '';
+      },
+      downloadBundle() {
+        const base = (window.__mdlr.api && window.__mdlr.api.base) || '/api/v1';
+        const q = new URLSearchParams();
+        if (this.includeMedia) q.set('include_media', '1');
+        if (this.exportProfile === 'post_type' && this.effectivePostType) {
+          q.set('profile', 'post_type');
+          q.set('post_type', this.effectivePostType);
+        }
+        const qs = q.toString();
+        window.location.href = base + '/export' + (qs ? '?' + qs : '');
+      },
+      async runImport() {
+        if (!this.file || this.running) return;
+        this.running = true; this.result = null; this.error = '';
+        try {
+          const fd = new FormData();
+          fd.append('bundle', this.file);
+          fd.append('mode', this.dryRun ? 'dryrun' : this.importMode);
+          fd.append('duplicate_policy', this.importMode === 'overwrite' ? 'overwrite' : 'skip');
+          this.result = await window.__mdlr.api.upload('/import', fd);
+        } catch (err) {
+          this.error = (err && err.data && err.data.error) ? err.data.error : (err.message || 'Import failed');
+        } finally {
+          this.running = false;
+        }
+      },
     },
     template: `
     <div class="page page--wide fade-up">
@@ -49,16 +110,37 @@
       <template v-if="tab==='export'">
         <div class="card card-pad" style="margin-bottom:18px">
           <h2 class="t-title t-h3" style="margin:0 0 8px">Download a content bundle</h2>
-          <p class="page-sub" style="max-width:70ch">Export all registered tables (core + active modules) into a single <span class="t-key">.zip</span> bundle that can be imported into another Modular install.</p>
+          <p class="page-sub" style="max-width:70ch">Export registered tables into a single <span class="t-key">.zip</span> bundle that can be imported into another Modular install.</p>
+
+          <label class="field-label" style="margin-top:16px">Export scope</label>
+          <div class="ei-modes" style="margin-top:8px">
+            <button class="ei-mode" :class="{'is-on': exportProfile==='full'}" @click="exportProfile='full'">
+              <span class="ei-radio" :class="{'is-on': exportProfile==='full'}"></span>
+              <span><strong>Full site</strong> — all registered tables (core + active modules).</span>
+            </button>
+            <button class="ei-mode" :class="{'is-on': exportProfile==='post_type'}" @click="exportProfile='post_type'">
+              <span class="ei-radio" :class="{'is-on': exportProfile==='post_type'}"></span>
+              <span><strong>Single post type</strong> — one content type and its posts, taxonomies, authors, featured images and revisions.</span>
+            </button>
+          </div>
+
+          <template v-if="exportProfile==='post_type'">
+            <label class="field-label" style="margin-top:14px">Post type</label>
+            <UiSelect v-model="exportPostType" style="max-width:320px;margin-top:6px">
+              <option v-if="!postTypes.length" value="" disabled>No post types loaded</option>
+              <option v-for="pt in postTypes" :key="pt.id" :value="pt.id">{{ pt.name }} ({{ pt.id }})</option>
+            </UiSelect>
+            <p class="t-meta" style="margin-top:8px;max-width:70ch">Exports the post type definition, its fields and all content rows for <span class="t-key">{{ effectivePostType || '…' }}</span>.</p>
+          </template>
 
           <label class="ei-check" :class="{'is-on': includeMedia}">
             <UiChk :modelValue="includeMedia" @update:modelValue="includeMedia=!includeMedia"/>
-            <span><strong>Include media files</strong> — bundle <span class="t-key">public/uploads/media/</span> into the zip (larger, but self-sufficient).</span>
+            <span><strong>Include media files</strong> — <template v-if="exportProfile==='post_type'">bundle featured images referenced by exported posts.</template><template v-else>bundle <span class="t-key">public/uploads/media/</span> into the zip (larger, but self-sufficient).</template></span>
           </label>
 
           <div class="flex items-center gap-3" style="margin-top:18px">
-            <button class="btn btn--accent"><Icon name="upload" :size="15"/> Download bundle</button>
-            <span class="t-meta">{{ tables.length }} tables · {{ totalRows }} rows{{ includeMedia ? ' · + 236 media files' : '' }}</span>
+            <button class="btn btn--accent" @click="downloadBundle"><Icon name="upload" :size="15"/> Download bundle</button>
+            <span class="t-meta">{{ exportScopeLabel }}{{ includeMedia ? ' · + media files' : '' }}</span>
           </div>
         </div>
 
@@ -97,7 +179,7 @@
           <label class="ei-file">
             <span class="btn btn--soft btn--sm"><Icon name="folder" :size="14"/> Browse…</span>
             <span class="t-meta">{{ fileName || 'No file selected.' }}</span>
-            <input type="file" hidden @change="fileName=($event.target.files[0]||{}).name||''">
+            <input type="file" accept=".zip" hidden @change="onFile">
           </label>
 
           <div class="ei-modes" style="margin-top:18px">
@@ -117,8 +199,31 @@
           </label>
 
           <div class="flex items-center gap-3" style="margin-top:20px">
-            <button class="btn btn--accent" :disabled="!fileName"><Icon name="upload" :size="15"/> Run import</button>
-            <span class="t-meta" v-if="!fileName">Choose a bundle to enable import.</span>
+            <button class="btn btn--accent" :disabled="!file || running" @click="runImport"><Icon name="upload" :size="15"/> {{ running ? 'Running…' : 'Run import' }}</button>
+            <span class="t-meta" v-if="!file">Choose a bundle to enable import.</span>
+          </div>
+
+          <div v-if="error" class="badge badge--warn" style="margin-top:18px;display:block;padding:12px">{{ error }}</div>
+
+          <div v-if="result" style="margin-top:18px">
+            <h3 class="t-title t-h4" style="margin:0 0 8px">
+              {{ result.mode === 'dryrun' ? 'Dry run — nothing was written' : 'Import complete' }}
+            </h3>
+            <table class="tbl">
+              <thead><tr><th>Table</th><th style="width:90px">Created</th><th style="width:90px">Updated</th><th style="width:90px">Skipped</th></tr></thead>
+              <tbody>
+                <tr v-for="r in resultRows" :key="r.table">
+                  <td><span class="t-key">{{ r.table }}</span></td>
+                  <td class="mono">{{ r.created || 0 }}</td>
+                  <td class="mono">{{ r.updated || 0 }}</td>
+                  <td class="mono muted">{{ r.skipped || 0 }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="resultErrors.length" class="badge badge--warn" style="margin-top:12px;display:block;padding:12px">
+              <strong>{{ resultErrors.length }} issue(s):</strong>
+              <div v-for="(e,i) in resultErrors" :key="i" class="mono" style="margin-top:4px">{{ e }}</div>
+            </div>
           </div>
         </div>
       </template>

@@ -550,6 +550,70 @@ $router->addRoute('GET', '/api/v1/components/{id}', function($id) use ($mkResult
 $router->addRoute('PUT', '/api/v1/components/{id}', function($id) use ($mkResult) { return $mkResult((new ComponentsController($GLOBALS['db']))->update($id)); }, ['auth']);
 $router->addRoute('DELETE', '/api/v1/components/{id}', function($id) use ($mkResult) { return $mkResult((new ComponentsController($GLOBALS['db']))->delete($id)); }, ['auth']);
 
+// Export / Import — content bundles (.zip) between Modular installs.
+$router->addRoute('GET', '/api/v1/export', function() {
+    require_once CORE_PATH . '/functions/export.php';
+    require_once CORE_PATH . '/classes/Exporter.php';
+    $profile = trim((string) ($_GET['profile'] ?? ''));
+    $postTypeSlug = trim((string) ($_GET['post_type'] ?? $_GET['post_type_slug'] ?? ''));
+    if ($profile === 'blog_posts') {
+        $profile = 'post_type';
+        if ($postTypeSlug === '') {
+            $postTypeSlug = 'post';
+        }
+    }
+    $exportProfile = null;
+    $exportPostType = null;
+    if ($profile === 'post_type' && $postTypeSlug !== '' && function_exists('md_export_register_post_type')) {
+        try {
+            if (function_exists('md_export_clear_registry')) {
+                md_export_clear_registry();
+            }
+            md_export_register_post_type($postTypeSlug);
+            $exportProfile = 'post_type';
+            $exportPostType = md_export_sanitize_post_type_slug($postTypeSlug);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => $e->getMessage()]);
+            exit;
+        }
+    } elseif (function_exists('md_export_register_core')) {
+        md_export_register_core();
+    }
+    $includeMedia = !empty($_GET['include_media']);
+    $exporter = new \Modular\Exporter($includeMedia, null, $exportProfile, $exportPostType);
+    $exporter->streamDownload(); // streams the zip and exit()s
+}, ['auth']);
+
+$router->addRoute('POST', '/api/v1/import', function() {
+    if (!isset($_FILES['bundle']) || $_FILES['bundle']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        return ['error' => 'No bundle file uploaded'];
+    }
+    if (strtolower(pathinfo($_FILES['bundle']['name'], PATHINFO_EXTENSION)) !== 'zip') {
+        http_response_code(400);
+        return ['error' => 'Bundle must be a .zip file'];
+    }
+    require_once CORE_PATH . '/functions/export.php';
+    require_once CORE_PATH . '/classes/Importer.php';
+    if (function_exists('md_export_register_core')) { md_export_register_core(); }
+
+    $mode = in_array($_POST['mode'] ?? '', ['skip', 'overwrite', 'dryrun'], true) ? $_POST['mode'] : 'skip';
+    $dup  = ($_POST['duplicate_policy'] ?? '') === 'overwrite' ? 'overwrite' : 'skip';
+    $userId = $_SESSION['cms_user_id'] ?? ($GLOBALS['current_user']['user_id'] ?? null);
+
+    try {
+        $importer = new \Modular\Importer($_FILES['bundle']['tmp_name']);
+        $importer->validate();
+        $summary = $importer->run($mode, $userId ? (int) $userId : null, $dup);
+        return ['success' => true, 'mode' => $mode, 'summary' => $summary];
+    } catch (\Throwable $e) {
+        http_response_code(422);
+        return ['error' => $e->getMessage()];
+    }
+}, ['auth']);
+
 // Handle request: normalize path so /modular/admin/api/index.php/api/v1/forms -> /api/v1/forms
 $method = $_SERVER['REQUEST_METHOD'];
 $path = $_SERVER['REQUEST_URI'];

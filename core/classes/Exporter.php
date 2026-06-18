@@ -14,10 +14,21 @@ class Exporter
     /** @var bool */
     private bool $includeMedia;
 
+    /** @var string|null e.g. post_type */
+    private ?string $profile;
+
+    /** @var string|null Post type slug when profile is post_type */
+    private ?string $postTypeSlug;
+
     /** @var string Absolute path to write the .zip to */
     private string $bundlePath;
 
-    public function __construct(bool $includeMedia = false, ?string $bundlePath = null)
+    public function __construct(
+        bool $includeMedia = false,
+        ?string $bundlePath = null,
+        ?string $profile = null,
+        ?string $postTypeSlug = null
+    )
     {
         if (!function_exists('md_export_registry')) {
             throw new \RuntimeException('Export registry not loaded — include core/functions/export.php first.');
@@ -27,6 +38,8 @@ class Exporter
         }
         $this->registry     = md_export_registry();
         $this->includeMedia = $includeMedia;
+        $this->profile      = $profile;
+        $this->postTypeSlug = $postTypeSlug;
 
         if ($bundlePath === null) {
             $host       = $_SERVER['HTTP_HOST'] ?? 'modular';
@@ -80,6 +93,12 @@ class Exporter
             'include_media'   => $this->includeMedia,
             'tables'          => $tables,
         ];
+        if ($this->profile !== null && $this->profile !== '') {
+            $manifest['profile'] = $this->profile;
+        }
+        if ($this->profile === 'post_type' && $this->postTypeSlug !== null && $this->postTypeSlug !== '') {
+            $manifest['post_type'] = $this->postTypeSlug;
+        }
         $zip->addFromString('manifest.json',
             json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
@@ -162,6 +181,10 @@ class Exporter
         if (!defined('UPLOADS_PATH')) {
             return;
         }
+        if ($this->profile === 'post_type') {
+            $this->addMediaFilesFromRegistry($zip);
+            return;
+        }
         $mediaDir = rtrim(UPLOADS_PATH, '/') . '/media';
         if (!is_dir($mediaDir)) {
             return;
@@ -176,6 +199,44 @@ class Exporter
             if (!$file->isFile()) continue;
             $abs = $file->getRealPath();
             $rel = ltrim(str_replace($base, '', $abs), '/');
+            $zip->addFile($abs, 'uploads/media/' . $rel);
+        }
+    }
+
+    private function addMediaFilesFromRegistry(\ZipArchive $zip): void
+    {
+        $cfg = $this->registry['media'] ?? null;
+        if ($cfg === null) {
+            return;
+        }
+        $rows = $this->dumpTable($cfg);
+        if ($rows === null || $rows === []) {
+            return;
+        }
+        $mediaDir = rtrim(UPLOADS_PATH, '/') . '/media';
+        $base = is_dir($mediaDir) ? realpath($mediaDir) : null;
+        foreach ($rows as $row) {
+            $filePath = trim((string) ($row['file_path'] ?? ''));
+            if ($filePath === '') {
+                continue;
+            }
+            $abs = null;
+            if ($base !== null && strpos($filePath, '/') !== 0) {
+                $candidate = $base . '/' . ltrim($filePath, '/');
+                if (is_file($candidate)) {
+                    $abs = realpath($candidate);
+                }
+            }
+            if ($abs === null && is_file($filePath)) {
+                $abs = realpath($filePath);
+            }
+            if ($abs === null || $base === null) {
+                continue;
+            }
+            $rel = ltrim(str_replace($base, '', $abs), '/');
+            if ($rel === '' || strpos($rel, '..') !== false) {
+                continue;
+            }
             $zip->addFile($abs, 'uploads/media/' . $rel);
         }
     }
