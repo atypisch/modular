@@ -428,15 +428,27 @@
   C.MdImage = base({
     name: 'MdImage',
     data() { return { cropOpen: false, pickOpen: false }; },
-    methods: { grad(h) { return 'linear-gradient(135deg, hsl(' + h + ' 30% 80%), hsl(' + (h - 8) + ' 24% 58%))'; } },
+    computed: {
+      // Resolve the live media item so the preview reflects the global crop
+      // (crop regenerates variants; we show the cropped variant, not the original).
+      media() { const v = this.modelValue; if (!v || v.id == null) return null; return (window.__mdlr.data.MEDIA || []).find(x => x.id === v.id) || null; },
+      imgBg() { const m = this.media; const u = (m && (m.preview || m.thumb)) || (this.modelValue && this.modelValue.url) || ''; return u; },
+      cropImg() { const v = this.modelValue || {}; const m = this.media; return Object.assign({}, v, { url: v.url || (m && m.url), crop: (m && m.crop) || v.crop || null, w: v.w || (m && m.w), h: v.h || (m && m.h) }); },
+      // Chosen image format (crop preset) name, shown as a preview hint on the post.
+      formatName() { const m = this.media; return (m && m.crop && m.crop.preset) || ''; },
+    },
+    methods: {
+      grad(h) { return 'linear-gradient(135deg, hsl(' + h + ' 30% 80%), hsl(' + (h - 8) + ' 24% 58%))'; },
+      onCrop(crop) { const v = this.modelValue; if (!v || v.id == null) return; window.__mdlr.store.saveMediaCrop(v.id, crop).catch(e => console.error('[image] save crop failed', e)); },
+    },
     template: `
       <div class="fc-img">
-        <div v-if="modelValue && modelValue.name" class="img-slot" :style="modelValue.url ? {background:'center/cover no-repeat url('+modelValue.url+')'} : {backgroundImage: grad(modelValue.hue||34)}">
+        <div v-if="modelValue && modelValue.name" class="img-slot" :style="imgBg ? {background:'center/cover no-repeat url('+imgBg+')'} : {backgroundImage: grad(modelValue.hue||34)}">
           <div class="img-slot-actions"><button class="btn btn--soft btn--xs" @click="cropOpen=true"><Icon name="crop" :size="13"/> Crop</button><button class="btn btn--soft btn--xs" @click="pickOpen=true"><Icon name="refresh" :size="13"/> Replace</button><button class="btn btn--soft btn--xs" @click="set(null)"><Icon name="x" :size="13"/> Remove</button></div>
-          <span class="img-slot-meta mono">{{ modelValue.name }}<template v-if="modelValue.w"> · {{ modelValue.w }}×{{ modelValue.h }}</template></span>
+          <span class="img-slot-meta mono">{{ modelValue.name }}<template v-if="modelValue.w"> · {{ modelValue.w }}×{{ modelValue.h }}</template><template v-if="formatName"> · {{ formatName }}</template></span>
         </div>
         <button v-else class="form-file" @click="pickOpen=true"><Icon name="image" :size="15"/> Choose image…</button>
-        <ImageCropper v-if="cropOpen" :img="modelValue" @close="cropOpen=false"/>
+        <ImageCropper v-if="cropOpen" :img="cropImg" @save="onCrop" @close="cropOpen=false"/>
         <MediaPicker v-if="pickOpen" :accept="'image'" @close="pickOpen=false" @pick="m=>{ set({id:m.id,hue:m.hue,name:m.name,w:m.w,h:m.h,url:m.url}); pickOpen=false }"/>
       </div>`,
   });

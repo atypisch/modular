@@ -15,10 +15,13 @@
     props: { img: Object },
     emits: ['close','save'],
     data() {
+      const saved = this.img && this.img.crop;
       return {
-        crop: { x: 12, y: 14, w: 62, h: 60 },
-        activeName: 'Free',
-        activeRatio: null,   // [w,h] derived from the chosen preset, or null = free
+        crop: (saved && saved.w && saved.h)
+          ? { x: Number(saved.x) || 0, y: Number(saved.y) || 0, w: Number(saved.w), h: Number(saved.h) }
+          : { x: 12, y: 14, w: 62, h: 60 },
+        activeName: (saved && saved.preset) || 'Free',
+        activeRatio: (saved && Array.isArray(saved.ratio)) ? saved.ratio : null,   // [w,h] derived from the chosen preset, or null = free
         drag: null,
         presets: D().IMAGE_PRESETS.map(p => ({ ...p, on: p.on })),
       };
@@ -117,7 +120,7 @@
       <div class="drawer-foot">
         <div class="flex items-center gap-2" style="margin-right:auto;color:var(--ink-3);font-size:12.5px"><Icon name="refresh" :size="14"/> {{ presets.filter(p=>p.on).length }} formats will regenerate</div>
         <button class="btn btn--ghost" @click="$emit('close')">Cancel</button>
-        <button class="btn" @click="$emit('save', crop); $emit('close')"><Icon name="check" :size="15"/> Save crops</button>
+        <button class="btn" @click="$emit('save', Object.assign({}, crop, { preset: activeName, ratio: activeRatio })); $emit('close')"><Icon name="check" :size="15"/> Save crops</button>
       </div>
     </UiModal>`,
   };
@@ -165,7 +168,7 @@
         <div class="mp-droptip" v-if="!items.length && !uploading"><Icon name="upload" :size="22"/><div>Drag files here or use Upload</div></div>
         <div class="media-grid" style="padding:0">
           <button v-for="m in items" :key="m.id" class="media-card" :class="{'is-picked':isPicked(m)}" @click="choose(m)">
-            <span class="media-thumb" :style="{background: m.url ? ('center/cover no-repeat url('+m.url+')') : grad(m.hue)}">
+            <span class="media-thumb" :style="{background: (m.thumb||m.url) ? ('center/cover no-repeat url('+(m.thumb||m.url)+')') : grad(m.hue)}">
               <span v-if="multiple && isPicked(m)" class="media-check"><Icon name="check" :size="14"/></span>
             </span>
             <span class="media-name">{{ m.name }}</span>
@@ -200,6 +203,7 @@
         this.renameOpen=false;
       },
       createFolder(){ const n=this.slug(this.newFolderName); if(n && !D().MEDIA_FOLDERS.includes(n)){ D().MEDIA_FOLDERS.push(n); this.folder=n; } this.newFolderOpen=false; this.newFolderName=''; },
+      onCrop(crop){ const m = this.cropping; if (!m || m.id == null) return; window.__mdlr.store.saveMediaCrop(m.id, crop).catch(e => { console.error('[media] save crop failed', e); alert('Saving the crop failed. Check the console.'); }); },
     },
     template: `
     <div class="page page--wide fade-up">
@@ -220,7 +224,7 @@
         </div>
         <div v-if="view==='grid'" class="media-grid">
           <div v-for="m in items" :key="m.id" class="media-card media-card--lib" @click="open(m)">
-            <span class="media-thumb" :style="{background: m.url ? ('center/cover no-repeat url('+m.url+')') : grad(m.hue)}">
+            <span class="media-thumb" :style="{background: (m.thumb||m.url) ? ('center/cover no-repeat url('+(m.thumb||m.url)+')') : grad(m.hue)}">
               <span class="media-hover">
                 <button class="btn btn--soft btn--xs" @click.stop="open(m)"><Icon name="pencil" :size="13"/> Edit</button>
                 <button class="btn btn--soft btn--xs" @click.stop="cropping=m"><Icon name="crop" :size="13"/> Crop</button>
@@ -237,7 +241,7 @@
             <tr v-for="m in items" :key="m.id">
               <td>
                 <div class="flex items-center gap-3">
-                  <span class="media-thumb-sm" :style="{background: m.url ? ('center/cover no-repeat url('+m.url+')') : grad(m.hue)}"></span>
+                  <span class="media-thumb-sm" :style="{background: (m.thumb||m.url) ? ('center/cover no-repeat url('+(m.thumb||m.url)+')') : grad(m.hue)}"></span>
                   <div>
                     <a class="ce-title" @click="open(m)">{{ m.name }}</a>
                     <div class="t-meta">{{ m.title }}</div>
@@ -258,7 +262,7 @@
       </div>
 
       <MediaDetail v-if="detail" :m="detail" @close="detail=null" @crop="cropping=detail"/>
-      <ImageCropper v-if="cropping" :img="cropping" @close="cropping=null"/>
+      <ImageCropper v-if="cropping" :img="cropping" @save="onCrop" @close="cropping=null"/>
 
       <!-- new folder -->
       <UiModal v-if="newFolderOpen" @close="newFolderOpen=false">
@@ -301,7 +305,7 @@
       <div class="drawer-body" style="padding:0">
         <div class="md-wrap">
           <div class="md-preview">
-            <div class="md-image" :style="{background: m.url ? ('center/cover no-repeat url('+m.url+')') : grad(m.hue)}"></div>
+            <div class="md-image" :style="{background: (m.preview||m.url) ? ('center/cover no-repeat url('+(m.preview||m.url)+')') : grad(m.hue)}"></div>
             <div class="md-preview-actions">
               <button class="btn btn--soft btn--sm" @click="$emit('crop')"><Icon name="crop" :size="14"/> Crop</button>
               <button class="btn btn--soft btn--sm"><Icon name="refresh" :size="14"/> Replace</button>

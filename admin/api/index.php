@@ -365,6 +365,16 @@ $router->addRoute('POST', '/api/v1/media/upload', function() {
     return $result;
 }, ['auth']);
 
+$router->addRoute('PUT', '/api/v1/media/{id}', function($id) {
+    $controller = new MediaController($GLOBALS['db']);
+    $result = $controller->update($id);
+    if (isset($result['code'])) {
+        http_response_code($result['code']);
+        unset($result['code']);
+    }
+    return $result;
+}, ['auth']);
+
 $router->addRoute('DELETE', '/api/v1/media/{id}', function($id) {
     $controller = new MediaController($GLOBALS['db']);
     return $controller->delete($id);

@@ -120,7 +120,7 @@
             </button>
             <button class="ei-mode" :class="{'is-on': exportProfile==='post_type'}" @click="exportProfile='post_type'">
               <span class="ei-radio" :class="{'is-on': exportProfile==='post_type'}"></span>
-              <span><strong>Single post type</strong> — one content type and its posts, taxonomies, authors, featured images and revisions.</span>
+              <span><strong>Single post type</strong> — one content type and its posts, taxonomies, featured images and revisions. Authors are linked by email to existing users on import, never exported as user records.</span>
             </button>
           </div>
 

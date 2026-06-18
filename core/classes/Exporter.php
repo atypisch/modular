@@ -170,7 +170,48 @@ class Exporter
         }
         unset($row);
 
+        // Post-type bundles carry author identity as email (not a users table),
+        // so posts relink to existing users on import. See Importer::importTable().
+        if ($this->profile === 'post_type' && $table === 'posts' && !empty($rows)) {
+            $this->attachAuthorEmails($rows);
+        }
+
         return $rows;
+    }
+
+    /**
+     * Replace author/creator user-id references with emails on exported posts.
+     * Adds _author_email / _created_by_email / _updated_by_email per row.
+     */
+    private function attachAuthorEmails(array &$rows): void
+    {
+        $ids = [];
+        foreach ($rows as $row) {
+            foreach (['author_id', 'created_by', 'updated_by'] as $col) {
+                if (!empty($row[$col])) { $ids[(int) $row[$col]] = true; }
+            }
+        }
+        if (!$ids) { return; }
+
+        $ids   = array_keys($ids);
+        $place = implode(',', array_fill(0, count($ids), '?'));
+        try {
+            $userRows = md_db_query('SELECT id, email FROM `users` WHERE id IN (' . $place . ')', $ids);
+        } catch (\Throwable $e) {
+            error_log('Exporter attachAuthorEmails error: ' . $e->getMessage());
+            return;
+        }
+        $emailById = [];
+        foreach ($userRows as $u) { $emailById[(int) $u['id']] = $u['email']; }
+
+        foreach ($rows as &$row) {
+            foreach (['author_id' => '_author_email', 'created_by' => '_created_by_email', 'updated_by' => '_updated_by_email'] as $col => $key) {
+                if (!empty($row[$col]) && isset($emailById[(int) $row[$col]])) {
+                    $row[$key] = $emailById[(int) $row[$col]];
+                }
+            }
+        }
+        unset($row);
     }
 
     /**

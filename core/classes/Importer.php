@@ -17,6 +17,10 @@ class Importer
     private array $manifest = [];
     /** @var array<string, array<int|string, int|string>> table => oldId => newId */
     private array $idMap = [];
+    /** User id to stamp on NOT NULL owner columns when a bundle omits them. */
+    private ?int $importUserId = null;
+    /** @var array<string, int|null> email => local user id (resolved lazily) */
+    private array $userIdByEmailCache = [];
 
     public function __construct(string $zipPath)
     {
@@ -140,6 +144,7 @@ class Importer
             throw new \RuntimeException('Invalid mode: ' . $mode);
         }
         if (empty($this->manifest)) $this->validate();
+        $this->importUserId = $importedByUserId;
 
         @$this->zip->close();
         if ($this->zip->open($this->zipPath) !== true) {
@@ -198,6 +203,17 @@ class Importer
         $deferredSelfFks = [];
         $this->idMap[$name] = [];
 
+        // Post-type bundles ship no `users` table — author/owner ids can't be
+        // remapped. Relink those columns by email (carried on the row) or to the
+        // importing user, and drop them from the FK map so they aren't skipped.
+        $emailKeyFor = ['author_id' => '_author_email', 'created_by' => '_created_by_email', 'updated_by' => '_updated_by_email'];
+        $userCols = [];
+        if (!$this->bundleHasTable('users')) {
+            foreach ($fkMap as $col => $target) {
+                if ($target === 'users') { $userCols[] = $col; unset($fkMap[$col]); }
+            }
+        }
+
         $effectiveDup = $mode === 'overwrite'
             ? 'overwrite'
             : (($mode === 'dryrun' && $duplicatePolicy === 'overwrite') ? 'overwrite' : 'skip');
@@ -215,11 +231,23 @@ class Importer
             ];
         }
 
+        $tableCols = $this->tableColumns($table);
+
         foreach ($rows as $row) {
             try {
                 $exportId = $row['_export_id'] ?? null;
                 unset($row['_export_id']);
                 if (array_key_exists('id', $row)) unset($row['id']);
+
+                // Relink user-owned columns from the carried email, else the importer.
+                foreach ($userCols as $col) {
+                    if (array_key_exists($col, $tableCols)) {
+                        $emailKey = $emailKeyFor[$col] ?? null;
+                        $uid = ($emailKey !== null && !empty($row[$emailKey])) ? $this->userIdByEmail((string) $row[$emailKey]) : null;
+                        $row[$col] = $uid ?: ($this->importUserId ?: 1);
+                    }
+                }
+                unset($row['_author_email'], $row['_created_by_email'], $row['_updated_by_email']);
 
                 $deferred       = [];
                 $fkUnresolvable = false;
@@ -246,6 +274,20 @@ class Importer
 
                 $row = $this->filterRowToTable($table, $row);
                 $row = $this->normalizeRowForDb($table, $row);
+
+                // Stamp NOT NULL owner columns the bundle omitted (e.g. a structure
+                // export that intentionally drops created_by/updated_by to stay
+                // user-agnostic). Attribute to the importing CMS user so brand-new
+                // rows insert cleanly instead of hitting "doesn't have a default".
+                // $tableCols is a column-name => index map (array_flip), so the
+                // column names are its KEYS.
+                $ownerFallback = $this->importUserId ?: 1;
+                foreach (['author_id', 'created_by', 'updated_by'] as $ownerCol) {
+                    if (array_key_exists($ownerCol, $tableCols)
+                        && (!array_key_exists($ownerCol, $row) || $row[$ownerCol] === null || $row[$ownerCol] === '')) {
+                        $row[$ownerCol] = $ownerFallback;
+                    }
+                }
 
                 $existingId = null;
                 if ($natural) {
@@ -424,6 +466,22 @@ class Importer
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    /** Resolve an email to an existing local user id, or null if none matches. */
+    private function userIdByEmail(string $email): ?int
+    {
+        if (array_key_exists($email, $this->userIdByEmailCache)) {
+            return $this->userIdByEmailCache[$email];
+        }
+        $id = null;
+        try {
+            $row = md_db_row('SELECT id FROM `users` WHERE email = ? LIMIT 1', [$email]);
+            if ($row) $id = (int) $row['id'];
+        } catch (\Throwable $e) {
+            $id = null;
+        }
+        return $this->userIdByEmailCache[$email] = $id;
     }
 
     private function readJson(string $entry): array

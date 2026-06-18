@@ -27,6 +27,7 @@
         rules: [],
         editRule: null,
         group: null, groupName: '', groupIcon: 'box', location: [],
+        pt: null, ptMode: false,
         allowedComps: ['cmp_hero','cmp_richtext','cmp_imgtext','cmp_features','cmp_quote','cmp_gallery'],
       };
     },
@@ -45,10 +46,12 @@
         this.location = JSON.parse(JSON.stringify(g.location || [[{param:'post_type',op:'==',value:'page'}]]));
       } else {
         const pt = DB.POST_TYPES.find(p => p.id === rp.type) || DB.POST_TYPES[4];
-        this.pt = pt; this.mode = pt.mode;
+        this.pt = pt; this.ptMode = true; this.mode = pt.mode;
         this.group = { id:'type_'+pt.id, name:pt.name+' fields', icon:pt.icon, active:true, order:1, position:'normal', style:'default', labelPlacement:'top', desc:'' };
         this.groupName = pt.name + ' fields'; this.groupIcon = pt.icon;
-        this.schema = JSON.parse(JSON.stringify(DB.PROJECT_SCHEMA));
+        const sc = pt._schema;
+        const ptFields = (sc && Array.isArray(sc.fields)) ? sc.fields : (Array.isArray(sc) ? sc : []);
+        this.schema = JSON.parse(JSON.stringify(ptFields.map(f => ({ ...f, mode: f.mode || 'fixed' }))));
         this.location = [[{ param:'post_type', op:'==', value:pt.id }]];
       }
       this.rules = JSON.parse(JSON.stringify(DB.RULES));
@@ -128,6 +131,13 @@
       newRule() { this.editRule = { id: D().uid(), target:{kind:'field', name:'', label:'Select…'}, action:'show', logic:'all', conds:[{ field:'', label:'', op:'is', value:'' }] }; },
       saveRule() { const i = this.rules.findIndex(r => r.id === this.editRule.id); if (i>=0) this.rules.splice(i,1,this.editRule); else this.rules.push(this.editRule); this.editRule = null; },
       saveGroup() {
+        this.saving = true;
+        if (this.ptMode && this.pt) {
+          window.__mdlr.store.savePostTypeSchema(this.pt._dbId, { fields: this.schema || [] })
+            .then(() => { this.saving = false; this.go('postTypes'); })
+            .catch((e) => { this.saving = false; console.error('[fieldbuilder] post type save failed', e); alert('Saving the post type fields failed. Check the console.'); });
+          return;
+        }
         const g = this.group || {};
         const payload = {
           id: g.id,
@@ -138,7 +148,6 @@
           active: g.active !== false, order: g.order || 0,
           location: this.location || [], fields: this.schema || [],
         };
-        this.saving = true;
         window.__mdlr.store.saveFieldGroup(payload)
           .then(() => { this.saving = false; this.go('binding'); })
           .catch((e) => { this.saving = false; console.error('[fieldbuilder] save failed', e); alert('Saving the field group failed. Check the console.'); });

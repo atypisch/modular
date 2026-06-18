@@ -249,11 +249,10 @@ if (!function_exists('md_export_register_post_type')) {
         $postTypeId = "(SELECT id FROM post_types WHERE slug = {$quotedSlug} AND deleted_at IS NULL LIMIT 1)";
         $postsFilter = "post_type_id = {$postTypeId} AND deleted_at IS NULL";
         $postIds = "(SELECT id FROM posts WHERE {$postsFilter})";
-        $userIds = "(SELECT uid FROM (
-            SELECT author_id AS uid FROM posts WHERE {$postsFilter}
-            UNION SELECT created_by AS uid FROM posts WHERE {$postsFilter}
-            UNION SELECT updated_by AS uid FROM posts WHERE {$postsFilter}
-        ) u WHERE uid IS NOT NULL AND uid > 0)";
+
+        // NOTE: post-type bundles deliberately do NOT ship the `users` table.
+        // Author identity travels as email on each post row (Exporter::attachAuthorEmails)
+        // and is relinked to existing users on import (Importer::importTable).
 
         md_export_register('post_types', [
             'table'       => 'post_types',
@@ -262,21 +261,17 @@ if (!function_exists('md_export_register_post_type')) {
         ]);
         md_export_register('taxonomies', [
             'table'       => 'taxonomies',
-            'depends_on'  => ['users'],
             'natural_key' => ['slug'],
             'where'       => "id IN (SELECT taxonomy_id FROM post_type_taxonomies WHERE post_type_id = {$postTypeId})",
-            'fk_map'      => ['created_by' => 'users', 'updated_by' => 'users'],
         ]);
         md_export_register('terms', [
             'table'       => 'terms',
-            'depends_on'  => ['taxonomies', 'users'],
+            'depends_on'  => ['taxonomies'],
             'natural_key' => ['taxonomy_id', 'slug'],
             'where'       => "taxonomy_id IN (SELECT taxonomy_id FROM post_type_taxonomies WHERE post_type_id = {$postTypeId})",
             'fk_map'      => [
                 'taxonomy_id' => 'taxonomies',
                 'parent_id'   => 'terms',
-                'created_by'  => 'users',
-                'updated_by'  => 'users',
             ],
         ]);
         md_export_register('post_type_taxonomies', [
@@ -288,13 +283,11 @@ if (!function_exists('md_export_register_post_type')) {
         ]);
         md_export_register('fields', [
             'table'       => 'fields',
-            'depends_on'  => ['post_types', 'users'],
+            'depends_on'  => ['post_types'],
             'natural_key' => ['post_type_id', 'slug'],
             'where'       => "post_type_id = {$postTypeId}",
             'fk_map'      => [
                 'post_type_id' => 'post_types',
-                'created_by'   => 'users',
-                'updated_by'   => 'users',
             ],
         ]);
         md_export_register('component_definitions', [
@@ -304,35 +297,20 @@ if (!function_exists('md_export_register_post_type')) {
             'where'       => "post_type_id = {$postTypeId}",
             'fk_map'      => ['post_type_id' => 'post_types'],
         ]);
-        md_export_register('users', [
-            'table'        => 'users',
-            'natural_key'  => ['email'],
-            'where'        => "id IN {$userIds}",
-            'skip_columns' => [
-                'reset_password_token', 'reset_password_expires',
-                'two_factor_secret', 'email_verification_token',
-                'last_login', 'last_ip',
-            ],
-        ]);
         md_export_register('media', [
             'table'       => 'media',
-            'depends_on'  => ['users'],
             'natural_key' => ['file_path'],
             'where'       => "id IN (SELECT DISTINCT featured_image FROM posts WHERE {$postsFilter} AND featured_image IS NOT NULL)",
-            'fk_map'      => ['uploaded_by' => 'users', 'created_by' => 'users', 'updated_by' => 'users'],
         ]);
         md_export_register('posts', [
             'table'       => 'posts',
-            'depends_on'  => ['post_types', 'users', 'media'],
+            'depends_on'  => ['post_types', 'media'],
             'natural_key' => ['post_type_id', 'slug'],
             'where'       => $postsFilter,
             'fk_map'      => [
                 'post_type_id'   => 'post_types',
                 'parent_id'      => 'posts',
                 'featured_image' => 'media',
-                'author_id'      => 'users',
-                'created_by'     => 'users',
-                'updated_by'     => 'users',
             ],
         ]);
         md_export_register('post_meta', [
@@ -351,10 +329,10 @@ if (!function_exists('md_export_register_post_type')) {
         ]);
         md_export_register('post_revisions', [
             'table'       => 'post_revisions',
-            'depends_on'  => ['posts', 'users'],
+            'depends_on'  => ['posts'],
             'natural_key' => null,
             'where'       => "post_id IN {$postIds}",
-            'fk_map'      => ['post_id' => 'posts', 'created_by' => 'users'],
+            'fk_map'      => ['post_id' => 'posts'],
         ]);
     }
 }

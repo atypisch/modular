@@ -102,17 +102,29 @@
     async loadMedia({ keepMockIfEmpty = true } = {}) {
       try {
         const rows = await api().get('/media');
-        const mapped = (rows || []).map(r => ({
-          id: r.id, name: r.filename, title: r.title || r.filename || '',
-          w: Number(r.width) || null, h: Number(r.height) || null,
-          kb: Math.round((Number(r.file_size) || 0) / 1024),
-          alt: r.alt_text || '', caption: r.caption || '', folder: r.folder_path || '',
-          hue: 30, uploaded: (r.created_at || '').slice(0, 10), usedIn: 0,
-          seoTitle: '', seoDesc: '', url: r.file_path || '', mime: r.mime_type || '',
-        }));
+        const mapped = (rows || []).map(r => {
+          const v = (r.variants && typeof r.variants === 'object') ? r.variants : {};
+          const thumb = (v.thumb && v.thumb.path) || (v.small && v.small.path) || r.file_path || '';
+          const preview = (v.large && v.large.path) || (v.medium && v.medium.path) || thumb;
+          const meta = (r.metadata && typeof r.metadata === 'object') ? r.metadata : {};
+          return {
+            id: r.id, name: r.filename, title: r.title || r.filename || '',
+            w: Number(r.width) || null, h: Number(r.height) || null,
+            kb: Math.round((Number(r.file_size) || 0) / 1024),
+            alt: r.alt_text || '', caption: r.caption || '', folder: r.folder_path || '',
+            hue: 30, uploaded: (r.created_at || '').slice(0, 10), usedIn: 0,
+            seoTitle: '', seoDesc: '', url: r.file_path || '', thumb, preview, crop: meta.crop || null, mime: r.mime_type || '',
+          };
+        });
         if (mapped.length || !keepMockIfEmpty) replaceInPlace(D().MEDIA, mapped);
         return mapped;
       } catch (e) { console.warn('[store] loadMedia failed', e && e.status); return null; }
+    },
+    async saveMediaCrop(id, crop) {
+      if (id == null) throw new Error('saveMediaCrop: missing media id');
+      const saved = await api().put('/media/' + id, { crop });
+      await this.loadMedia({ keepMockIfEmpty: false });
+      return saved || null;
     },
 
     async loadTaxonomies({ keepMockIfEmpty = true } = {}) {
@@ -206,6 +218,12 @@
       if (!pt || pt._dbId == null) return;
       await api().del('/post-types/' + pt._dbId);
       await this.loadPostTypes({ keepMockIfEmpty: false });
+    },
+    async savePostTypeSchema(dbId, schema) {
+      if (dbId == null) throw new Error('savePostTypeSchema: missing post type id');
+      const saved = await api().put('/post-types/' + dbId, { schema });
+      await this.loadPostTypes({ keepMockIfEmpty: false });
+      return saved ? ptFromApi(saved) : null;
     },
 
     // --- theme (design system) server persistence ---

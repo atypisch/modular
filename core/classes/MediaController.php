@@ -27,7 +27,14 @@ class MediaController {
             ORDER BY m.created_at DESC
             LIMIT 100
         ");
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['variants'] = json_decode($row['variants'] ?? 'null', true);
+            $row['metadata'] = json_decode($row['metadata'] ?? 'null', true);
+            $row['tags']     = json_decode($row['tags'] ?? 'null', true);
+        }
+        unset($row);
+        return $rows;
     }
     
     public function show($id) {
@@ -47,10 +54,64 @@ class MediaController {
         $media['variants'] = json_decode($media['variants'], true);
         $media['metadata'] = json_decode($media['metadata'], true);
         $media['tags'] = json_decode($media['tags'], true);
-        
+
         return $media;
     }
-    
+
+    /**
+     * Update a media item. Currently supports a global crop rect (percentages
+     * 0-100) stored on the item: it is saved into metadata.crop and every image
+     * variant is regenerated from the cropped source so all usages re-crop.
+     */
+    public function update($id) {
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $stmt = $this->db->prepare("SELECT * FROM media WHERE id = ? AND deleted_at IS NULL");
+        $stmt->execute([$id]);
+        $media = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$media) {
+            return ['error' => 'Media not found', 'code' => 404];
+        }
+
+        $metadata = json_decode($media['metadata'] ?? 'null', true);
+        if (!is_array($metadata)) $metadata = [];
+
+        if (array_key_exists('crop', $input)) {
+            $crop = $input['crop'];
+            $cropRect = null;
+            if (is_array($crop) && isset($crop['w'], $crop['h'])) {
+                $cropRect = [
+                    'x' => (float)($crop['x'] ?? 0), 'y' => (float)($crop['y'] ?? 0),
+                    'w' => (float)$crop['w'], 'h' => (float)$crop['h'],
+                ];
+                // Remember the chosen image format (preset name) for the field preview.
+                $metadata['crop'] = $cropRect;
+                if (isset($crop['preset']) && $crop['preset'] !== '') {
+                    $metadata['crop']['preset'] = (string)$crop['preset'];
+                }
+            } else {
+                unset($metadata['crop']);
+            }
+
+            // Regenerate variants from the (cropped) source for images only.
+            if (($media['file_type'] ?? '') === 'image') {
+                $source = $this->physicalPath($media['file_path']);
+                if ($source && is_file($source)) {
+                    $pos = strrpos($media['file_path'], '/uploads/');
+                    $rel = $pos !== false ? substr($media['file_path'], $pos + strlen('/uploads/')) : basename($media['file_path']);
+                    $subDir = trim(dirname($rel), '/.');
+                    $variants = $this->generateImageVariants($source, $media['filename'], $subDir, $cropRect);
+                    $upd = $this->db->prepare("UPDATE media SET variants = ?, metadata = ?, updated_at = NOW() WHERE id = ?");
+                    $upd->execute([json_encode($variants), json_encode($metadata), $id]);
+                    return $this->show($id);
+                }
+            }
+        }
+
+        $upd = $this->db->prepare("UPDATE media SET metadata = ?, updated_at = NOW() WHERE id = ?");
+        $upd->execute([json_encode($metadata), $id]);
+        return $this->show($id);
+    }
+
     public function upload() {
         $userId = $GLOBALS['current_user']['user_id'] ?? 1;
         
@@ -127,7 +188,7 @@ class MediaController {
         return $this->show($id);
     }
     
-    private function generateImageVariants($sourcePath, $baseFilename, $subDir = '') {
+    private function generateImageVariants($sourcePath, $baseFilename, $subDir = '', $cropRect = null) {
         $variants = [];
         $subPath = $subDir !== '' ? '/' . trim($subDir, '/') : '';
 
@@ -156,7 +217,7 @@ class MediaController {
             $variantFilename = $baseName . '_' . $name . '.' . $extension;
             $variantPath = $this->uploadDir . $subPath . '/' . $variantFilename;
 
-            if ($this->resizeImage($sourcePath, $variantPath, $maxW, $maxH, $crop, $format, $quality)) {
+            if ($this->resizeImage($sourcePath, $variantPath, $maxW, $maxH, $crop, $format, $quality, $cropRect)) {
                 $webBase = defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') : '/public/uploads';
                 $variants[$name] = [
                     'filename' => $variantFilename,
@@ -170,15 +231,28 @@ class MediaController {
         return $variants;
     }
     
-    private function resizeImage($source, $destination, $maxWidth, $maxHeight, $crop = false, $targetFormat = 'original', $quality = 85) {
+    private function resizeImage($source, $destination, $maxWidth, $maxHeight, $crop = false, $targetFormat = 'original', $quality = 85, $cropRect = null) {
         $imageInfo = getimagesize($source);
         if (!$imageInfo) {
             return false;
         }
-        
-        $sourceWidth = $imageInfo[0];
-        $sourceHeight = $imageInfo[1];
+
+        $origWidth = $imageInfo[0];
+        $origHeight = $imageInfo[1];
         $mimeType = $imageInfo['mime'];
+
+        // Source region to read from. A global crop rect (percentages 0-100,
+        // stored on the media item) narrows the source so every preset re-crops.
+        $srcX = 0; $srcY = 0;
+        $sourceWidth = $origWidth; $sourceHeight = $origHeight;
+        if (is_array($cropRect) && isset($cropRect['w'], $cropRect['h']) && $cropRect['w'] > 0 && $cropRect['h'] > 0) {
+            $srcX = (int)round(max(0, (float)($cropRect['x'] ?? 0)) / 100 * $origWidth);
+            $srcY = (int)round(max(0, (float)($cropRect['y'] ?? 0)) / 100 * $origHeight);
+            $sourceWidth = max(1, (int)round((float)$cropRect['w'] / 100 * $origWidth));
+            $sourceHeight = max(1, (int)round((float)$cropRect['h'] / 100 * $origHeight));
+            if ($srcX + $sourceWidth > $origWidth) $sourceWidth = $origWidth - $srcX;
+            if ($srcY + $sourceHeight > $origHeight) $sourceHeight = $origHeight - $srcY;
+        }
 
         if ($maxWidth <= 0 && $maxHeight <= 0) {
             $maxWidth = $sourceWidth;
@@ -206,7 +280,7 @@ class MediaController {
             $newWidth = (int)($sourceWidth * $ratio);
             $newHeight = (int)($sourceHeight * $ratio);
         }
-        
+
         // Create image resource
         switch ($mimeType) {
             case 'image/jpeg':
@@ -240,7 +314,7 @@ class MediaController {
             imagefilledrectangle($destinationImage, 0, 0, $newWidth, $newHeight, $transparent);
         }
         
-        imagecopyresampled($destinationImage, $sourceImage, 0, 0, 0, 0, $newWidth, $newHeight, $sourceWidth, $sourceHeight);
+        imagecopyresampled($destinationImage, $sourceImage, 0, 0, $srcX, $srcY, $newWidth, $newHeight, $sourceWidth, $sourceHeight);
         
         // Save resized image
         $result = false;
