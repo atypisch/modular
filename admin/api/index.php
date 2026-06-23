@@ -28,6 +28,7 @@ require_once __DIR__ . '/../../core/classes/ResolveController.php';
 require_once __DIR__ . '/../../core/classes/FieldGroupsController.php';
 require_once __DIR__ . '/../../core/classes/ComponentsController.php';
 require_once __DIR__ . '/../../core/classes/UpdateController.php';
+require_once __DIR__ . '/../../core/classes/StatsController.php';
 require_once __DIR__ . '/../../core/classes/RateLimiter.php';
 require_once __DIR__ . '/../../core/classes/JWT.php';
 
@@ -46,6 +47,7 @@ use Modular\API\ResolveController;
 use Modular\API\FieldGroupsController;
 use Modular\API\ComponentsController;
 use Modular\API\UpdateController;
+use Modular\API\StatsController;
 use Modular\RateLimiter;
 use Modular\Auth\JWT;
 use Modular\PostTypeResolver;
@@ -537,6 +539,11 @@ $router->addRoute('PUT', '/api/v1/modules/{id}', function($id) use ($mkResult) {
 // System update — one central upgrade point (version check + run core update)
 $router->addRoute('GET', '/api/v1/system/update', function() { return (new UpdateController($GLOBALS['db']))->status(); }, ['auth']);
 $router->addRoute('POST', '/api/v1/system/update', function() use ($mkResult) { return $mkResult((new UpdateController($GLOBALS['db']))->run()); }, ['auth']);
+
+// Stats, Analytics & Reports — real database statistics
+$router->addRoute('GET', '/api/v1/stats/overview', function() { return (new StatsController($GLOBALS['db']))->overview(); }, ['auth']);
+$router->addRoute('GET', '/api/v1/stats/analytics', function() { return (new StatsController($GLOBALS['db']))->analytics(); }, ['auth']);
+$router->addRoute('GET', '/api/v1/stats/reports', function() { return (new StatsController($GLOBALS['db']))->reports(); }, ['auth']);
 
 // Resolve: effective fieldset + revisions per post
 $router->addRoute('GET', '/api/v1/posts/{id}/resolved-fieldset', function($id) use ($mkResult) { return $mkResult((new ResolveController($GLOBALS['db']))->resolvedFieldset($id)); }, ['auth']);

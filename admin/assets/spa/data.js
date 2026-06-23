@@ -568,23 +568,15 @@
     weekday: { labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], data:[3100,3400,3600,3500,3200,1800,1500] },
   };
 
-  /* ---- Reports (BI) ---- */
+  /* ---- Reports (BI) — types must match StatsController report endpoints ---- */
   const REPORTS = [
     { id:'production', name:'Content production', icon:'files', desc:'Items created & published over time, per author and type.' },
     { id:'cadence', name:'Publishing cadence', icon:'calendar', desc:'How regularly each type ships; gaps and streaks.' },
-    { id:'forms', name:'Form conversions', icon:'form', desc:'Views, submissions and conversion rate per form.' },
-    { id:'authors', name:'Author leaderboard', icon:'users', desc:'Output and engagement per team member.' },
-    { id:'search', name:'On-site search', icon:'search', desc:'What people search for — and what returns nothing.' },
-    { id:'health', name:'Content health', icon:'alert', desc:'Stale items, missing SEO, broken links, orphan pages.' },
+    { id:'forms', name:'Form submissions', icon:'form', desc:'Submission counts and spam stats per form.' },
+    { id:'authors', name:'Author leaderboard', icon:'users', desc:'Output per team member in the selected period.' },
+    { id:'health', name:'Content health', icon:'alert', desc:'Stale items, missing excerpts, old drafts, unused media.' },
   ];
-  const REPORT_ROWS = [
-    { name:'Digital Twins Helpdesk', type:'Project', author:'marten', published:'May 21', views:4120, conv:'4.2%' },
-    { name:'Headless without the headache', type:'Post', author:'lieke', published:'Jun 04', views:2410, conv:'2.1%' },
-    { name:'MydayPrice', type:'Product', author:'marten', published:'May 12', views:1980, conv:'6.8%' },
-    { name:'EU-hosted by default', type:'Post', author:'marten', published:'Mar 28', views:1720, conv:'1.4%' },
-    { name:'Living-in.EU', type:'Project', author:'marten', published:'May 18', views:1640, conv:'3.0%' },
-    { name:'About Atypisch', type:'Page', author:'marten', published:'May 12', views:1210, conv:'0.9%' },
-  ];
+  const REPORT_ROWS = [];
 
   /* ---- Front-end (public site) themes — for Appearance gallery ---- */
   const THEMES = Vue.reactive([

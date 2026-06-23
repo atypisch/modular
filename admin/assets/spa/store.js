@@ -240,8 +240,31 @@
       this._themeTimer = setTimeout(() => { api().put('/settings/theme', { tokens: M.theme.state }).catch(e => console.warn('[store] saveTheme failed', e && e.status)); }, 600);
     },
 
+    async loadStatsOverview() {
+      try {
+        const data = await api().get('/stats/overview');
+        D().STATS_OVERVIEW = data;
+        return data;
+      } catch (e) { console.warn('[store] loadStatsOverview failed', e && e.status); return null; }
+    },
+    async loadAnalytics(range) {
+      try {
+        const data = await api().get('/stats/analytics' + (range ? '?range=' + range : ''));
+        D().LIVE_ANALYTICS = data;
+        return data;
+      } catch (e) { console.warn('[store] loadAnalytics failed', e && e.status); return null; }
+    },
+    async loadReports(type, range) {
+      try {
+        const qs = '?type=' + (type || 'production') + '&range=' + (range || 30);
+        const data = await api().get('/stats/reports' + qs);
+        D().LIVE_REPORTS = data;
+        return data;
+      } catch (e) { console.warn('[store] loadReports failed', e && e.status); return null; }
+    },
+
     async hydrate() {
-      await Promise.all([this.loadPostTypes(), this.loadFieldGroups(), this.loadComponents(), this.loadMedia(), this.loadTaxonomies(), this.loadModules(), this.loadForms(), this.loadActions(), this.loadRoles()]);
+      await Promise.all([this.loadPostTypes(), this.loadFieldGroups(), this.loadComponents(), this.loadMedia(), this.loadTaxonomies(), this.loadModules(), this.loadForms(), this.loadActions(), this.loadRoles(), this.loadStatsOverview()]);
       this.ready = true;
     },
   };

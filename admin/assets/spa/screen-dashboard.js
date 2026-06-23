@@ -22,19 +22,46 @@
       pts() { return D().POST_TYPES; },
       recent() { return D().POSTS.slice(0, 5); },
       updateCount() { return D().MODULES.filter(m => m.update).length + (D().SYSTEM.version !== D().SYSTEM.latest ? 1 : 0); },
-      headTitle() { return { overview:'Good morning, Marten', updates:'Updates', analytics:'Analytics', reports:'Reports' }[this.tab]; },
-      headSub() { return {
-        overview:'Everything is quiet. 4 drafts are waiting and one release is scheduled for tomorrow.',
-        updates:'Keep the CMS and its modules current.',
-        analytics:'Traffic and content performance at a glance.',
-        reports:'Build, export and schedule reports across your content.',
-      }[this.tab]; },
+      headTitle() {
+        if (this.tab === 'overview') {
+          const h = new Date().getHours();
+          const greeting = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+          const profile = D().PROFILE;
+          const name = profile && profile.name ? profile.name.split(' ')[0] : '';
+          return name ? greeting + ', ' + name : greeting;
+        }
+        return { updates:'Updates', analytics:'Analytics', reports:'Reports' }[this.tab];
+      },
+      headSub() {
+        if (this.tab === 'overview') {
+          const s = D().STATS_OVERVIEW;
+          if (s) {
+            const parts = [];
+            if (s.drafts > 0) parts.push(s.drafts + ' draft' + (s.drafts !== 1 ? 's' : '') + ' waiting');
+            if (s.submissions > 0) parts.push(s.submissions + ' form submission' + (s.submissions !== 1 ? 's' : ''));
+            return parts.length ? parts.join(' · ') + '.' : 'Everything is up to date.';
+          }
+          return 'Loading statistics\u2026';
+        }
+        return {
+          updates:'Keep the CMS and its modules current.',
+          analytics:'Content production and activity at a glance.',
+          reports:'Build, export and schedule reports across your content.',
+        }[this.tab];
+      },
       stats() {
+        const s = D().STATS_OVERVIEW;
+        if (!s) return [
+          { label: 'Content items', value: '\u2026', sub: '', icon: 'files' },
+          { label: 'Published', value: '\u2026', sub: '', icon: 'check' },
+          { label: 'Components', value: '\u2026', sub: '', icon: 'layers' },
+          { label: 'Media', value: '\u2026', sub: '', icon: 'image' },
+        ];
         return [
-          { label: 'Content items', value: '304', sub: '5 post types', icon: 'files' },
-          { label: 'Published', value: '261', sub: '43 drafts', icon: 'check' },
-          { label: 'Components', value: '10', sub: 'reused 137×', icon: 'layers' },
-          { label: 'Media', value: '236', sub: '4 presets', icon: 'image' },
+          { label: 'Content items', value: String(s.content_items), sub: s.post_types + ' post type' + (s.post_types !== 1 ? 's' : ''), icon: 'files' },
+          { label: 'Published', value: String(s.published), sub: s.drafts + ' draft' + (s.drafts !== 1 ? 's' : ''), icon: 'check' },
+          { label: 'Components', value: String(s.components), sub: 'reused ' + s.component_usage + '\u00d7', icon: 'layers' },
+          { label: 'Media', value: String(s.media), sub: s.users + ' user' + (s.users !== 1 ? 's' : ''), icon: 'image' },
         ];
       },
     },
@@ -46,7 +73,7 @@
     <div class="page fade-up">
       <div class="page-head">
         <div>
-          <div class="t-eyebrow" style="margin-bottom:8px">Wednesday, 3 June</div>
+          <div class="t-eyebrow" style="margin-bottom:8px">{{ new Date().toLocaleDateString('en-US', { weekday:'long', day:'numeric', month:'long' }) }}</div>
           <h1 class="t-title t-h1">{{ headTitle }}</h1>
           <p class="page-sub" style="margin-top:6px">{{ headSub }}</p>
         </div>
