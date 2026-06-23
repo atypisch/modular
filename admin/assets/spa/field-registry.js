@@ -459,7 +459,14 @@
     computed: { items() { return Array.isArray(this.modelValue) ? this.modelValue : []; } },
     methods: {
       grad(h) { return 'linear-gradient(135deg, hsl(' + h + ' 26% 82%), hsl(' + (h - 6) + ' 22% 64%))'; },
-      bg(it) { return it && it.url ? ('center/cover no-repeat url(' + it.url + ')') : this.grad((it && it.hue) || 30); },
+      bg(it) {
+        // Prefer the small, resolved thumbnail from the loaded media library so cells
+        // are KB-light and never broken on relative paths; fall back to the stored url.
+        const MEDIA = (window.__mdlr.data && window.__mdlr.data.MEDIA) || [];
+        const m = (it && it.id != null) ? MEDIA.find(x => x.id === it.id) : null;
+        const u = (m && (m.thumb || m.url)) || (it && it.url) || '';
+        return u ? ('center/cover no-repeat url(' + u + ')') : this.grad((it && it.hue) || 30);
+      },
       addBatch(payload) { const arr = Array.isArray(payload) ? payload : [payload]; const add = arr.map(m => ({ id: m.id, hue: m.hue, name: m.name, w: m.w, h: m.h, url: m.url })); this.set(this.items.concat(add)); },
       remove(i) { const a = this.items.slice(); a.splice(i, 1); this.set(a); },
       dStart(i, e) { this.dragI = i; if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(i)); } catch (_) {} } },

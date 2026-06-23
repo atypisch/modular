@@ -104,8 +104,11 @@
         const rows = await api().get('/media');
         const mapped = (rows || []).map(r => {
           const v = (r.variants && typeof r.variants === 'object') ? r.variants : {};
-          const thumb = (v.thumb && v.thumb.path) || (v.small && v.small.path) || r.file_path || '';
-          const preview = (v.large && v.large.path) || (v.medium && v.medium.path) || thumb;
+          // Prefer the API's resolved ABSOLUTE urls (small thumb_url / medium preview_url);
+          // fall back to raw variant paths, then the original. Keeps previews KB-light and
+          // never broken on relative file_path values.
+          const thumb = r.thumb_url || (v.thumb && v.thumb.path) || (v.small && v.small.path) || r.url || r.file_path || '';
+          const preview = r.preview_url || (v.large && v.large.path) || (v.medium && v.medium.path) || thumb;
           const meta = (r.metadata && typeof r.metadata === 'object') ? r.metadata : {};
           return {
             id: r.id, name: r.filename, title: r.title || r.filename || '',
@@ -113,7 +116,7 @@
             kb: Math.round((Number(r.file_size) || 0) / 1024),
             alt: r.alt_text || '', caption: r.caption || '', folder: r.folder_path || '',
             hue: 30, uploaded: (r.created_at || '').slice(0, 10), usedIn: 0,
-            seoTitle: '', seoDesc: '', url: r.file_path || '', thumb, preview, crop: meta.crop || null, mime: r.mime_type || '',
+            seoTitle: '', seoDesc: '', url: r.url || r.file_path || '', thumb, preview, crop: meta.crop || null, mime: r.mime_type || '',
           };
         });
         if (mapped.length || !keepMockIfEmpty) replaceInPlace(D().MEDIA, mapped);

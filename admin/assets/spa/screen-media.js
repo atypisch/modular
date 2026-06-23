@@ -140,7 +140,7 @@
         else { this.$emit('pick', m); this.$emit('close'); }
       },
       confirm() { this.$emit('pick', this.picked.slice()); this.$emit('close'); },
-      mapMedia(r) { return { id: r.id, name: r.filename, title: r.title || r.filename, w: Number(r.width) || null, h: Number(r.height) || null, kb: Math.round((Number(r.file_size) || 0) / 1024), alt: r.alt_text || '', caption: r.caption || '', folder: r.folder_path || '', hue: 30, uploaded: (r.created_at || '').slice(0, 10), usedIn: 0, url: r.file_path || '', mime: r.mime_type || '' }; },
+      mapMedia(r) { const v = (r.variants && typeof r.variants === 'object') ? r.variants : {}; const thumb = r.thumb_url || (v.thumb && v.thumb.path) || (v.small && v.small.path) || r.url || r.file_path || ''; return { id: r.id, name: r.filename, title: r.title || r.filename, w: Number(r.width) || null, h: Number(r.height) || null, kb: Math.round((Number(r.file_size) || 0) / 1024), alt: r.alt_text || '', caption: r.caption || '', folder: r.folder_path || '', hue: 30, uploaded: (r.created_at || '').slice(0, 10), usedIn: 0, url: r.url || r.file_path || '', thumb, preview: r.preview_url || thumb, mime: r.mime_type || '' }; },
       async onFiles(e) {
         const files = Array.from((e.target && e.target.files) || (e.dataTransfer && e.dataTransfer.files) || []);
         if (!files.length || !window.__mdlr.api) return;

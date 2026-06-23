@@ -28,15 +28,11 @@ class MediaController {
             LIMIT 100
         ");
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        foreach ($rows as &$row) {
-            $row['variants'] = json_decode($row['variants'] ?? 'null', true);
-            $row['metadata'] = json_decode($row['metadata'] ?? 'null', true);
-            $row['tags']     = json_decode($row['tags'] ?? 'null', true);
-        }
-        unset($row);
-        return $rows;
+        $out = [];
+        foreach ($rows as $row) { $out[] = $this->decorate($row); }
+        return $out;
     }
-    
+
     public function show($id) {
         $stmt = $this->db->prepare("
             SELECT m.*, COALESCE(u.username, u.email, 'Unknown') as uploaded_by_name
@@ -46,16 +42,73 @@ class MediaController {
         ");
         $stmt->execute([$id]);
         $media = $stmt->fetch(\PDO::FETCH_ASSOC);
-        
+
         if (!$media) {
             return ['error' => 'Media not found', 'code' => 404];
         }
-        
-        $media['variants'] = json_decode($media['variants'], true);
-        $media['metadata'] = json_decode($media['metadata'], true);
-        $media['tags'] = json_decode($media['tags'], true);
 
-        return $media;
+        return $this->decorate($media);
+    }
+
+    /**
+     * Normalise a media row for the API: backfill a lightweight thumbnail when
+     * missing, decode JSON columns, and expose ABSOLUTE web URLs so the admin
+     * previews never break on relative file_path values. `thumb_url` points at a
+     * small variant (KB-light) when available; `preview_url` at a medium one.
+     */
+    private function decorate(array $row): array {
+        $this->ensureThumb($row);
+        $row['variants'] = json_decode($row['variants'] ?? 'null', true);
+        $row['metadata'] = json_decode($row['metadata'] ?? 'null', true);
+        $row['tags']     = json_decode($row['tags'] ?? 'null', true);
+
+        $v = is_array($row['variants']) ? $row['variants'] : [];
+        $thumb   = $v['thumb']['path']  ?? ($v['small']['path']  ?? ($row['file_path'] ?? ''));
+        $preview = $v['medium']['path'] ?? ($v['large']['path']  ?? $thumb);
+        $resolve = function ($p) {
+            $p = (string) $p;
+            if ($p === '') return '';
+            if (preg_match('#^(https?:|data:|/)#', $p)) return $p;   // already absolute / external
+            $base = defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') : '/public/uploads';
+            return $base . '/' . ltrim($p, '/');
+        };
+        $row['url']         = $resolve($row['file_path'] ?? '');
+        $row['thumb_url']   = $resolve($thumb);
+        $row['preview_url'] = $resolve($preview);
+        return $row;
+    }
+
+    /**
+     * Generate small image variants (thumb/small/medium/large) for an image row
+     * that has none yet, so the library/gallery previews load KB-light thumbnails
+     * instead of the full-size original. Persisted, so it runs once per image.
+     */
+    private function ensureThumb(array &$row): void {
+        if (($row['file_type'] ?? '') !== 'image') return;
+        $variants = json_decode($row['variants'] ?? 'null', true);
+        if (is_array($variants) && (isset($variants['thumb']) || isset($variants['small']))) return;
+
+        $fp = (string) ($row['file_path'] ?? '');
+        if ($fp === '') return;
+        $pos = strrpos($fp, '/uploads/');
+        $rel = $pos !== false ? substr($fp, $pos + strlen('/uploads/')) : $fp;
+        $rel = ltrim(str_replace('..', '', $rel), '/');
+        $source = $this->uploadDir . '/' . $rel;
+        if ($rel === '' || !is_file($source)) return;
+
+        $subDir = trim(dirname($rel), '/.');
+        if ($subDir === '.') $subDir = '';
+        try {
+            $newVariants = $this->generateImageVariants($source, basename($rel), $subDir);
+        } catch (\Throwable $e) {
+            return;
+        }
+        if (!empty($newVariants)) {
+            $merged = is_array($variants) ? array_merge($variants, $newVariants) : $newVariants;
+            $json = json_encode($merged);
+            $this->db->prepare("UPDATE media SET variants = ?, updated_at = NOW() WHERE id = ?")->execute([$json, $row['id']]);
+            $row['variants'] = $json;
+        }
     }
 
     /**
