@@ -224,7 +224,8 @@
     },
     async savePostTypeSchema(dbId, schema) {
       if (dbId == null) throw new Error('savePostTypeSchema: missing post type id');
-      const saved = await api().put('/post-types/' + dbId, { schema });
+      const payload = JSON.parse(JSON.stringify({ schema: schema || {} }));
+      const saved = await api().put('/post-types/' + dbId, payload);
       await this.loadPostTypes({ keepMockIfEmpty: false });
       return saved ? ptFromApi(saved) : null;
     },

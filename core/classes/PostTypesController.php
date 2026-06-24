@@ -73,7 +73,7 @@ class PostTypesController {
     }
     
     public function create() {
-        $input = json_decode(file_get_contents('php://input'), true);
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $userId = $GLOBALS['current_user']['user_id'] ?? 1;
         
         $name = $input['name'] ?? '';
@@ -89,7 +89,7 @@ class PostTypesController {
         }
         $icon = $input['icon'] ?? 'file';
         $hierarchical = !empty($input['hierarchical']) ? 1 : 0;
-        $schema = isset($input['schema']) ? json_encode($input['schema']) : null;
+        $schema = isset($input['schema']) ? json_encode($this->normalizeSchema($input['schema'])) : null;
 
         if (empty($name) || empty($slug)) {
             return ['error' => 'Name and slug are required', 'code' => 400];
@@ -119,7 +119,7 @@ class PostTypesController {
     }
     
     public function update($id) {
-        $input = json_decode(file_get_contents('php://input'), true);
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $userId = $GLOBALS['current_user']['user_id'] ?? 1;
         
         $existing = $this->show($id);
@@ -140,9 +140,14 @@ class PostTypesController {
         }
         $icon = $input['icon'] ?? ($existing['icon'] ?? 'file');
         $hierarchical = array_key_exists('hierarchical', $input) ? (!empty($input['hierarchical']) ? 1 : 0) : ($existing['hierarchical'] ?? 0);
-        $schema = array_key_exists('schema', $input) ? json_encode($input['schema']) : ($existing['schema'] ?? null);
-        if ($schema === null && isset($existing['schema']) && is_array($existing['schema'])) {
+        if (array_key_exists('schema', $input)) {
+            $existingSchema = is_array($existing['schema']) ? $existing['schema'] : [];
+            $incomingSchema = is_array($input['schema']) ? $input['schema'] : [];
+            $schema = json_encode($this->normalizeSchema(array_merge($existingSchema, $incomingSchema)));
+        } elseif (isset($existing['schema']) && is_array($existing['schema'])) {
             $schema = json_encode($existing['schema']);
+        } else {
+            $schema = $existing['schema'] ?? null;
         }
 
         if ($slug !== $existing['slug']) {
@@ -185,6 +190,21 @@ class PostTypesController {
         return ['message' => 'Post type deleted'];
     }
     
+    /**
+     * Normalize a schema payload to canonical form (ui/storage/output per field)
+     * before persisting, so the editor renderer and PHP/JSON output keep working
+     * after a field-builder save. Preserves extra top-level keys (e.g. field_groups).
+     */
+    private function normalizeSchema($schema) {
+        if (!is_array($schema)) {
+            return $schema;
+        }
+        if (!class_exists(\Modular\Fields\FieldSchemaMap::class, false)) {
+            require_once dirname(__DIR__) . '/fields/FieldSchemaMap.php';
+        }
+        return array_merge($schema, \Modular\Fields\FieldSchemaMap::normalizeSchema($schema));
+    }
+
     private function slugify($text) {
         $text = strtolower(trim($text));
         $text = preg_replace('/[^a-z0-9-]/', '-', $text);

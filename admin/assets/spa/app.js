@@ -88,6 +88,22 @@
   const ui = reactive({ focus: false, cmdk: false, sidebar: false, notif: false, acct: false, help: false, modeHelp: false });
 
   let popping = false;
+  // Build the address-bar URL for a route. The post editor gets a real
+  // ?postid=<id> (or the temporary ?postid=new while unsaved) so a refresh /
+  // reload lands back on the same post instead of an empty editor.
+  function urlFor(name, params) {
+    params = params || {};
+    if (name === 'editor' && params.postId != null && params.postId !== '') {
+      const q = new URLSearchParams();
+      q.set('postid', params.postId);
+      if (params.type) q.set('type', params.type);
+      return '?' + q.toString() + '#editor';
+    }
+    if (name === 'fieldBuilder' && params.type) {
+      return '?type=' + encodeURIComponent(params.type) + '#fieldBuilder';
+    }
+    return '#' + name;
+  }
   function go(name, params) {
     route.name = name;
     route.params = params || {};
@@ -95,7 +111,7 @@
     if (main) main.scrollTop = 0;
     if (!popping) {
       const plain = { name: name, params: JSON.parse(JSON.stringify(params || {})) };
-      try { history.pushState(plain, '', '#' + name); } catch (e) {}
+      try { history.pushState(plain, '', urlFor(name, params)); } catch (e) {}
     }
   }
 
@@ -110,14 +126,26 @@
   });
 
   // initial route from hash (so deep-links / refresh land on the right screen)
-  const initial = (location.hash || '').replace(/^#/, '');
-  if (initial && SCREEN[initial]) route.name = initial;
-
-  // Deep-link to a post editor: /admin/?edit=<id> (used by the themed front-end's
-  // "Edit" links now that the legacy /admin/posts/edit.php is gone).
+  const hashRoute = (location.hash || '').replace(/^#/, '');
   try {
-    const editId = new URLSearchParams(location.search).get('edit');
-    if (editId) { route.name = 'editor'; route.params = { postId: editId }; }
+    const qs = new URLSearchParams(location.search);
+    const postId = qs.get('postid') || qs.get('edit');
+    if (hashRoute && SCREEN[hashRoute]) {
+      route.name = hashRoute;
+      route.params = {};
+      if (hashRoute === 'fieldBuilder' && qs.get('type')) route.params.type = qs.get('type');
+      else if (hashRoute === 'editor' && postId) {
+        route.params = { postId: postId };
+        const type = qs.get('type'); if (type) route.params.type = type;
+      }
+    } else if (postId) {
+      route.name = 'editor';
+      const params = { postId: postId };
+      const type = qs.get('type'); if (type) params.type = type;
+      route.params = params;
+    } else if (hashRoute && SCREEN[hashRoute]) {
+      route.name = hashRoute;
+    }
   } catch (e) {}
 
   const app = createApp({
@@ -141,7 +169,7 @@
 
   M.app = app;
   M.go = go;
-  try { history.replaceState({ name: route.name, params: {} }, '', '#' + route.name); } catch (e) {}
+  try { history.replaceState({ name: route.name, params: JSON.parse(JSON.stringify(route.params || {})) }, '', urlFor(route.name, route.params)); } catch (e) {}
   window.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); ui.cmdk = !ui.cmdk; }
   });

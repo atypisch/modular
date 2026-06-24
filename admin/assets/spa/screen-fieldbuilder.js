@@ -133,7 +133,16 @@
       saveGroup() {
         this.saving = true;
         if (this.ptMode && this.pt) {
-          window.__mdlr.store.savePostTypeSchema(this.pt._dbId, { fields: this.schema || [] })
+          const ptRef = D().POST_TYPES.find(p => p.id === this.pt.id) || this.pt;
+          const dbId = ptRef._dbId;
+          if (dbId == null) {
+            this.saving = false;
+            alert('Post type is still loading — wait a moment and try again.');
+            return;
+          }
+          const base = (ptRef._schema && typeof ptRef._schema === 'object') ? JSON.parse(JSON.stringify(ptRef._schema)) : {};
+          const schema = { ...base, fields: JSON.parse(JSON.stringify(this.schema || [])) };
+          window.__mdlr.store.savePostTypeSchema(dbId, schema)
             .then(() => { this.saving = false; this.go('postTypes'); })
             .catch((e) => { this.saving = false; console.error('[fieldbuilder] post type save failed', e); alert('Saving the post type fields failed. Check the console.'); });
           return;
