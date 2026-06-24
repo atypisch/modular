@@ -93,16 +93,18 @@
   // reload lands back on the same post instead of an empty editor.
   function urlFor(name, params) {
     params = params || {};
+    const path = location.pathname || '/';
     if (name === 'editor' && params.postId != null && params.postId !== '') {
       const q = new URLSearchParams();
       q.set('postid', params.postId);
       if (params.type) q.set('type', params.type);
-      return '?' + q.toString() + '#editor';
+      return path + '?' + q.toString() + '#editor';
     }
     if (name === 'fieldBuilder' && params.type) {
-      return '?type=' + encodeURIComponent(params.type) + '#fieldBuilder';
+      return path + '?type=' + encodeURIComponent(params.type) + '#fieldBuilder';
     }
-    return '#' + name;
+    // Drop stale ?postid= / ?type= when leaving editor / field builder.
+    return path + '#' + name;
   }
   function go(name, params) {
     route.name = name;

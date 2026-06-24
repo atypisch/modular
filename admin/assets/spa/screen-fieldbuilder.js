@@ -31,32 +31,7 @@
         allowedComps: ['cmp_hero','cmp_richtext','cmp_imgtext','cmp_features','cmp_quote','cmp_gallery'],
       };
     },
-    created() {
-      const rp = this.route.params || {};
-      const DB = D();
-      if (rp.group) {
-        const g = rp.group === 'new'
-          ? { id:'new', name:'New field group', icon:'box', desc:'', active:true, fields:[], location:[[{param:'post_type',op:'==',value: rp.type || 'page'}]] }
-          : (DB.FIELD_GROUPS.find(x => x.id === rp.group) || DB.FIELD_GROUPS[0]);
-        this.group = g;
-        this.groupName = g.name; this.groupIcon = g.icon;
-        this.schema = (g.id === 'fg_project')
-          ? JSON.parse(JSON.stringify(DB.PROJECT_SCHEMA))
-          : JSON.parse(JSON.stringify((g.fields||[]).map(f => ({ ...f, mode: f.mode || 'fixed' }))));
-        this.location = JSON.parse(JSON.stringify(g.location || [[{param:'post_type',op:'==',value:'page'}]]));
-      } else {
-        const pt = DB.POST_TYPES.find(p => p.id === rp.type) || DB.POST_TYPES[4];
-        this.pt = pt; this.ptMode = true; this.mode = pt.mode;
-        this.group = { id:'type_'+pt.id, name:pt.name+' fields', icon:pt.icon, active:true, order:1, position:'normal', style:'default', labelPlacement:'top', desc:'' };
-        this.groupName = pt.name + ' fields'; this.groupIcon = pt.icon;
-        const sc = pt._schema;
-        const ptFields = (sc && Array.isArray(sc.fields)) ? sc.fields : (Array.isArray(sc) ? sc : []);
-        this.schema = JSON.parse(JSON.stringify(ptFields.map(f => ({ ...f, mode: f.mode || 'fixed' }))));
-        this.location = [[{ param:'post_type', op:'==', value:pt.id }]];
-      }
-      this.rules = JSON.parse(JSON.stringify(DB.RULES));
-      if (rp.view) this.view = rp.view;
-    },
+    created() { this.bootstrap(); },
     computed: {
       cats() {
         const types = D().FIELD_TYPES;
@@ -84,6 +59,36 @@
       },
     },
     methods: {
+      async bootstrap() {
+        const store = window.__mdlr.store;
+        if (store && !store.ready) await store.loadPostTypes({ keepMockIfEmpty: false });
+        const rp = this.route.params || {};
+        const DB = D();
+        if (rp.group) {
+          const g = rp.group === 'new'
+            ? { id:'new', name:'New field group', icon:'box', desc:'', active:true, fields:[], location:[[{param:'post_type',op:'==',value: rp.type || 'page'}]] }
+            : (DB.FIELD_GROUPS.find(x => x.id === rp.group) || DB.FIELD_GROUPS[0]);
+          this.group = g;
+          this.groupName = g.name; this.groupIcon = g.icon;
+          this.schema = (g.id === 'fg_project')
+            ? JSON.parse(JSON.stringify(DB.PROJECT_SCHEMA))
+            : JSON.parse(JSON.stringify((g.fields||[]).map(f => ({ ...f, mode: f.mode || 'fixed' }))));
+          this.location = JSON.parse(JSON.stringify(g.location || [[{param:'post_type',op:'==',value:'page'}]]));
+        } else {
+          if (!rp.type) { this.go('postTypes'); return; }
+          const pt = DB.POST_TYPES.find(p => p.id === rp.type);
+          if (!pt) { alert('Post type not found — try again from Post types.'); this.go('postTypes'); return; }
+          this.pt = pt; this.ptMode = true; this.mode = pt.mode;
+          this.group = { id:'type_'+pt.id, name:pt.name+' fields', icon:pt.icon, active:true, order:1, position:'normal', style:'default', labelPlacement:'top', desc:'' };
+          this.groupName = pt.name + ' fields'; this.groupIcon = pt.icon;
+          const sc = pt._schema;
+          const ptFields = (sc && Array.isArray(sc.fields)) ? sc.fields : (Array.isArray(sc) ? sc : []);
+          this.schema = JSON.parse(JSON.stringify(ptFields.map(f => ({ ...f, mode: f.mode || 'fixed' }))));
+          this.location = [[{ param:'post_type', op:'==', value:pt.id }]];
+        }
+        this.rules = JSON.parse(JSON.stringify(DB.RULES));
+        if (rp.view) this.view = rp.view;
+      },
       D() { return window.__mdlr.data; },
       tmeta(t) { return D().TYPE_MAP[t] || { label: t, icon: 'dot', cat: 'util' }; },
       tcolor(t) { return this.catVar[this.tmeta(t).cat] || 'var(--ink-3)'; },
