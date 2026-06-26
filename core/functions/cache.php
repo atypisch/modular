@@ -46,6 +46,35 @@ if (!function_exists('cache_delete')) {
     }
 }
 
+if (!function_exists('cache_delete_prefix')) {
+    /**
+     * Delete every cache entry whose key starts with $prefix. Used to invalidate a whole
+     * group at once (e.g. all cached post-list queries) after a write. Returns the count removed.
+     */
+    function cache_delete_prefix(string $prefix): int {
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $prefix);
+        $files = @glob(cache_dir() . '/' . $safe . '*') ?: [];
+        $removed = 0;
+        foreach ($files as $f) {
+            if (is_file($f) && @unlink($f)) { $removed++; }
+        }
+        return $removed;
+    }
+}
+
+if (!function_exists('cache_remember')) {
+    /** Return the cached value for $key, or run $producer, cache its result and return it. */
+    function cache_remember(string $key, int $ttlSeconds, callable $producer) {
+        $hit = cache_get($key);
+        if ($hit !== null) {
+            return $hit;
+        }
+        $value = $producer();
+        cache_set($key, $value, $ttlSeconds);
+        return $value;
+    }
+}
+
 if (!function_exists('cache_path')) {
     function cache_path(string $key): string {
         $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $key);

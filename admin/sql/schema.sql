@@ -278,7 +278,10 @@ CREATE TABLE IF NOT EXISTS `posts` (
   KEY `idx_slug` (`slug`),
   KEY `idx_published` (`published_at`),
   KEY `idx_deleted` (`deleted_at`),
-  KEY `idx_author` (`author_id`)
+  KEY `idx_author` (`author_id`),
+  KEY `idx_type_status_date` (`post_type_id`,`status`,`published_at`),
+  KEY `idx_parent` (`parent_id`),
+  KEY `idx_title` (`title`(60))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS `relationships` (
   `id` int NOT NULL AUTO_INCREMENT,

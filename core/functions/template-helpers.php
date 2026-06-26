@@ -471,17 +471,24 @@ if (!function_exists('get_post')) {
 
 if (!function_exists('get_meta')) {
     function get_meta(int $post_id, string $key): mixed {
-        if (!isset($GLOBALS['db'])) return null;
-        try {
-            $stmt = $GLOBALS['db']->prepare("SELECT meta_data FROM posts WHERE id = ? AND deleted_at IS NULL");
-            $stmt->execute([$post_id]);
-            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-            if (!$row || $row['meta_data'] === null) return null;
-            $meta = json_decode($row['meta_data'], true);
-            return is_array($meta) && array_key_exists($key, $meta) ? $meta[$key] : null;
-        } catch (\Throwable $e) {
-            return null;
+        // Load each post's meta_data once per request so N meta reads cost one query, not N.
+        static $cache = [];
+        if ($post_id <= 0 || !isset($GLOBALS['db'])) return null;
+        if (!array_key_exists($post_id, $cache)) {
+            $cache[$post_id] = null;
+            try {
+                $stmt = $GLOBALS['db']->prepare("SELECT meta_data FROM posts WHERE id = ? AND deleted_at IS NULL");
+                $stmt->execute([$post_id]);
+                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if ($row && $row['meta_data'] !== null) {
+                    $decoded = json_decode($row['meta_data'], true);
+                    $cache[$post_id] = is_array($decoded) ? $decoded : null;
+                }
+            } catch (\Throwable $e) {
+            }
         }
+        $meta = $cache[$post_id];
+        return is_array($meta) && array_key_exists($key, $meta) ? $meta[$key] : null;
     }
 }
 

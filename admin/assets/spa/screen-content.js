@@ -230,23 +230,24 @@
     name: 'ScreenContentList',
     inject: ['go','route'],
     data() { return { tab:'all', q:'', sel: [], items: [], quickId: null, qdraft: null,
+      page: 1, perPage: 50, total: 0, countAll: 0, countTrash: 0, loading: false, _searchTimer: null,
       statuses:['published','draft','scheduled'], authors:['marten','lieke','sam','noor'] }; },
     created() { this.load(); },
     computed: {
       pt() { return D().POST_TYPES.find(p => p.id === (this.route.params||{}).type) || D().POST_TYPES[0]; },
+      // Server already applies status + search + pagination; only the optimistic _trash
+      // toggle (trash/restore) is reflected client-side so rows appear/vanish instantly.
       filtered() {
-        let r = this.items.filter(p => !p._trash);
-        if (this.tab === 'trash') r = this.items.filter(p => p._trash);
-        else if (this.tab !== 'all') r = r.filter(p => p.status === this.tab);
-        const q = this.q.trim().toLowerCase();
-        if (q) r = r.filter(p => p.title.toLowerCase().includes(q));
-        return r;
+        return this.tab === 'trash' ? this.items.filter(p => p._trash) : this.items.filter(p => !p._trash);
       },
-      counts() {
-        const live = this.items.filter(p => !p._trash);
-        return { all: live.length, trash: this.items.filter(p=>p._trash).length };
-      },
+      counts() { return { all: this.countAll, trash: this.countTrash }; },
+      totalPages() { return Math.max(1, Math.ceil(this.total / this.perPage)); },
       allOn() { return this.filtered.length>0 && this.filtered.every(p => this.sel.includes(p.id)); },
+    },
+    watch: {
+      pt() { this.tab = 'all'; this.q = ''; this.page = 1; this.load(); },
+      tab() { this.page = 1; this.sel = []; this.load(); },
+      q() { clearTimeout(this._searchTimer); this._searchTimer = setTimeout(() => { this.page = 1; this.load(); }, 300); },
     },
     methods: {
       load() {
@@ -256,18 +257,36 @@
         if (!dbId || !api) {
           // fallback to mock while post types hydrate
           this.items = D().POSTS.filter(p => p.type === pt.id).map(p => ({ ...p, slug: p.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''), _trash:false }));
+          this.total = this.items.length;
           return;
         }
-        api.get('/posts?post_type_id=' + dbId).then(rows => {
-          this.items = (rows || []).map(p => ({
+        const params = new URLSearchParams();
+        params.set('post_type_id', dbId);
+        params.set('fields', 'list');
+        params.set('page', this.page);
+        params.set('per_page', this.perPage);
+        if (this.tab === 'trash') params.set('status', 'trash');
+        else if (this.tab !== 'all') params.set('status', this.tab);
+        const q = this.q.trim();
+        if (q) params.set('q', q);
+        this.loading = true;
+        api.get('/posts?' + params.toString()).then(resp => {
+          const rows = (resp && resp.items) || [];
+          this.items = rows.map(p => ({
             id: p.id, title: p.title || '(untitled)',
             slug: p.slug || '', status: p.status || 'draft',
             date: (p.published_at || p.created_at || '').slice(0, 10),
             type: pt.id, author: p.author_name || '', url: p.url || '',
             _trash: p.status === 'trash' || !!p.deleted_at,
           }));
-        }).catch((e) => { console.warn('[content] load posts failed', e && e.status); this.items = []; });
+          this.total = (resp && resp.total) || 0;
+          const c = (resp && resp.counts) || {};
+          this.countAll = c.all || 0;
+          this.countTrash = c.trash || 0;
+        }).catch((e) => { console.warn('[content] load posts failed', e && e.status); this.items = []; this.total = 0; })
+          .finally(() => { this.loading = false; });
       },
+      goPage(p) { const n = Math.min(this.totalPages, Math.max(1, p)); if (n !== this.page) { this.page = n; this.sel = []; this.load(); } },
       statusClass(s){ return s==='published'?'badge--ok':s==='scheduled'?'badge--info':s==='draft'?'badge--warn':''; },
       singular(){ return this.pt.name.replace(/s$/,'').toLowerCase(); },
       openEditor(p){ this.go('editor',{postId:p.id,type:this.pt.id}); },
@@ -362,6 +381,12 @@
             <tr v-if="!filtered.length"><td colspan="5"><div class="empty" style="padding:40px"><Icon name="files"/><div>No {{ pt.name.toLowerCase() }} here {{ tab!=='all' ? 'in '+tab : '' }}.</div></div></td></tr>
           </tbody>
         </table>
+        <div class="list-toolbar list-pager" v-if="total > perPage">
+          <span class="t-meta">{{ total }} items · page {{ page }} of {{ totalPages }}</span>
+          <div class="grow"></div>
+          <button class="btn btn--ghost btn--sm" :disabled="page<=1" @click="goPage(page-1)"><Icon name="chevLeft" :size="14"/> Prev</button>
+          <button class="btn btn--ghost btn--sm" :disabled="page>=totalPages" @click="goPage(page+1)">Next <Icon name="chevRight" :size="14"/></button>
+        </div>
       </div>
     </div>`,
   };

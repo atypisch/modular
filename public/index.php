@@ -49,6 +49,9 @@ unset($_sc_inc, $_repo);
 if (is_file(MODULAR_PATH . '/core/functions/template-helpers.php')) {
     require_once MODULAR_PATH . '/core/functions/template-helpers.php';
 }
+if (is_file(MODULAR_PATH . '/core/functions/cache.php')) {
+    require_once MODULAR_PATH . '/core/functions/cache.php';
+}
 
 // If someone hits /public/* directly (e.g. http://localhost/modular/public/),
 // redirect to the clean root URL (http://localhost/modular/*).
@@ -587,7 +590,8 @@ if ($postTypeSlug === null || $postSlug === null) {
                 $stmt = $GLOBALS['db']->prepare("
                     SELECT p.id, pt.slug as type_slug FROM posts p
                     INNER JOIN post_types pt ON p.post_type_id = pt.id
-                    WHERE p.slug = ? AND p.deleted_at IS NULL AND p.status = 'published'
+                    WHERE p.slug = ? AND p.deleted_at IS NULL
+                    AND (p.status = 'published' OR (p.status = 'scheduled' AND p.published_at IS NOT NULL AND p.published_at <= NOW()))
                     ORDER BY (pt.slug = 'page') DESC
                     LIMIT 1
                 ");
