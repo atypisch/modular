@@ -52,6 +52,10 @@ if (is_file(MODULAR_PATH . '/core/functions/template-helpers.php')) {
 if (is_file(MODULAR_PATH . '/core/functions/cache.php')) {
     require_once MODULAR_PATH . '/core/functions/cache.php';
 }
+// Promote any scheduled posts whose publication time has arrived (lazy, throttled).
+if (function_exists('md_publish_due_posts')) {
+    md_publish_due_posts();
+}
 
 // If someone hits /public/* directly (e.g. http://localhost/modular/public/),
 // redirect to the clean root URL (http://localhost/modular/*).

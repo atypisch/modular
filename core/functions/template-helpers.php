@@ -469,6 +469,34 @@ if (!function_exists('get_post')) {
     }
 }
 
+if (!function_exists('md_publish_due_posts')) {
+    /**
+     * Auto-publish: flip scheduled posts whose publication time has passed to
+     * status='published'. Lazy scheduler (no cron) — any CMS/front request promotes
+     * due posts, throttled to once per minute via the cache.
+     */
+    function md_publish_due_posts(): void {
+        if (!isset($GLOBALS['db'])) return;
+        if (function_exists('cache_get') && cache_get('publish_due_tick') !== null) return;
+        if (function_exists('cache_set')) cache_set('publish_due_tick', 1, 60);
+        try {
+            $stmt = $GLOBALS['db']->prepare(
+                "UPDATE posts p
+                 INNER JOIN post_types pt ON pt.id = p.post_type_id
+                 SET p.status = 'published', p.updated_at = NOW()
+                 WHERE p.status = 'scheduled' AND p.published_at IS NOT NULL
+                   AND p.published_at <= NOW() AND p.deleted_at IS NULL
+                   AND pt.slug NOT IN ('album','track')"
+            );
+            $stmt->execute();
+            if ($stmt->rowCount() > 0 && function_exists('cache_delete_prefix')) {
+                cache_delete_prefix('mdposts');
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+}
+
 if (!function_exists('get_meta')) {
     function get_meta(int $post_id, string $key): mixed {
         // Load each post's meta_data once per request so N meta reads cost one query, not N.

@@ -52,6 +52,15 @@ class PostsController {
     }
 
     public function index($postTypeId = null) {
+        // Auto-publish scheduled posts that are now due so the overview/counts are accurate.
+        // The API entrypoint doesn't load these helpers, so pull them in on demand (idempotent).
+        if (!function_exists('md_publish_due_posts')) {
+            $core = defined('CORE_PATH') ? CORE_PATH : dirname(__DIR__);
+            foreach (['/functions/cache.php', '/functions/template-helpers.php'] as $f) {
+                if (is_file($core . $f)) { require_once $core . $f; }
+            }
+        }
+        if (function_exists('md_publish_due_posts')) { md_publish_due_posts(); }
         // Lightweight mode (?fields=light): id/title/slug/status only — relationship field picker.
         // List mode (?fields=list): lean admin-overview columns + author/url.
         $light = (($_GET['fields'] ?? '') === 'light');
