@@ -16,7 +16,7 @@
   /* ---- Shared API client: same-origin, cookie session + CSRF for writes ---- */
   const api = {
     base: (BOOT.apiBase || '/api/v1').replace(/\/$/, ''),
-    async request(method, path, body) {
+    async request(method, path, body, _retry) {
       const headers = { 'Accept': 'application/json' };
       const opts = { method, headers, credentials: 'same-origin' };
       if (body !== undefined) {
@@ -25,6 +25,11 @@
         opts.body = JSON.stringify(body);
       }
       const res = await fetch(this.base + path, opts);
+      // Session expired → pop the login modal, wait for re-auth, retry once.
+      if (res.status === 401 && !_retry && path.indexOf('/auth/') !== 0) {
+        await requireReauth();
+        return this.request(method, path, body, true);
+      }
       const text = await res.text();
       let data = null;
       try { data = text ? JSON.parse(text) : null; } catch (e) { data = { raw: text }; }
@@ -34,13 +39,17 @@
     get(p) { return this.request('GET', p); },
     post(p, b) { return this.request('POST', p, b || {}); },
     put(p, b) { return this.request('PUT', p, b || {}); },
-    del(p) { return this.request('DELETE', p); },
-    async upload(path, formData) {
+    del(p, b) { return this.request('DELETE', p, b); },
+    async upload(path, formData, _retry) {
       const res = await fetch(this.base + path, {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': BOOT.csrf || '' },
         body: formData,
       });
+      if (res.status === 401 && !_retry) {
+        await requireReauth();
+        return this.upload(path, formData, true);
+      }
       const text = await res.text();
       let data = null; try { data = text ? JSON.parse(text) : null; } catch (e) { data = { raw: text }; }
       if (!res.ok) throw Object.assign(new Error('API ' + res.status), { status: res.status, data });
@@ -85,9 +94,69 @@
 
   const route = reactive({ name: 'dashboard', params: {} });
   const tweaks = reactive({ provStyle: 'chip', open: false });
-  const ui = reactive({ focus: false, cmdk: false, sidebar: false, notif: false, acct: false, help: false, modeHelp: false });
+  const ui = reactive({ focus: false, cmdk: false, sidebar: false, notif: false, acct: false, help: false, modeHelp: false, loginModal: false });
+
+  // Session-expiry re-auth gate. When an API call 401s, requireReauth() opens the
+  // login modal and returns a promise that resolves once the user logs back in;
+  // all in-flight 401'd requests await the same promise and then retry, so the user
+  // continues exactly where they were. reauth() is called by the modal's form.
+  let _authGate = null, _authResolve = null;
+  function requireReauth() {
+    if (!_authGate) {
+      ui.loginModal = true;
+      _authGate = new Promise((resolve) => { _authResolve = resolve; });
+    }
+    return _authGate;
+  }
+  async function reauth(email, password) {
+    const res = await fetch(api.base + '/auth/relogin', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, password: password }),
+    });
+    let data = null; try { data = await res.json(); } catch (e) {}
+    if (!res.ok || !data || !data.ok) {
+      throw new Error((data && (data.error || data.message)) || 'Login failed');
+    }
+    if (data.csrf) BOOT.csrf = data.csrf;
+    if (data.user) { BOOT.user = data.user; try { window.__MDLR.user = data.user; } catch (e) {} }
+    ui.loginModal = false;
+    const r = _authResolve; _authGate = null; _authResolve = null;
+    if (r) r();
+    return data;
+  }
+  M.reauth = reauth;
 
   let popping = false;
+  // Short SPA address for a module page: keep the module-page query params as REAL
+  // query params on the SPA URL (not one giant encoded blob) + #modulePage. e.g.
+  //   /base/admin/module-page.php?module=x&page=board&edit=9  ->  /base/admin/?module=x&page=board&edit=9#modulePage
+  function szModulePageSpaUrl(u) {
+    const path = location.pathname || '/';
+    const qi = String(u).indexOf('?');
+    const q = qi >= 0 ? String(u).slice(qi + 1) : '';
+    return path + (q ? '?' + q : '') + '#modulePage';
+  }
+  // Rebuild the full module-page.php URL from the SPA's query params on refresh.
+  function szModulePageUrlFromQuery(search) {
+    const q = String(search || '').replace(/^\?/, '');
+    if (!q) return '';
+    return (BOOT.baseUrl || '') + '/admin/module-page.php?' + q;
+  }
+  // Best-effort module-page title from the admin menu (so the header isn't 'Module').
+  function szModulePageTitle(mod, page) {
+    const menu = BOOT.menu || [];
+    for (let i = 0; i < menu.length; i++) {
+      const subs = menu[i].sub || [];
+      for (let j = 0; j < subs.length; j++) {
+        const su = subs[j].url || '';
+        if (su.indexOf('module=' + mod) >= 0 && su.indexOf('page=' + page) >= 0) return subs[j].label;
+      }
+      const iu = menu[i].url || '';
+      if (iu.indexOf('module=' + mod) >= 0 && iu.indexOf('page=' + page) >= 0) return menu[i].label;
+    }
+    return '';
+  }
   // Build the address-bar URL for a route. The post editor gets a real
   // ?postid=<id> (or the temporary ?postid=new while unsaved) so a refresh /
   // reload lands back on the same post instead of an empty editor.
@@ -102,6 +171,11 @@
     }
     if (name === 'fieldBuilder' && params.type) {
       return path + '?type=' + encodeURIComponent(params.type) + '#fieldBuilder';
+    }
+    // Module pages keep their module-page query params on the SPA URL (short, real
+    // params) so a refresh lands back on the exact sub-page (e.g. ?page=board&edit=9).
+    if (name === 'modulePage' && params.url) {
+      return szModulePageSpaUrl(params.url);
     }
     // Drop stale ?postid= / ?type= when leaving editor / field builder.
     return path + '#' + name;
@@ -127,6 +201,23 @@
     popping = false;
   });
 
+  // A module page (iframe) reports its current URL as the user navigates inside it
+  // (e.g. opening a board item). Mirror it to the address bar + history state ONLY —
+  // we deliberately do NOT touch route.params, so ScreenModulePage's iframe is never
+  // re-rendered/reloaded by internal navigation (which would snap it back to the
+  // overview). A refresh reads the sub-page back from the address bar in the init below.
+  window.addEventListener('message', (e) => {
+    if (e.origin !== location.origin) return;
+    const d = e.data || {};
+    if (!d.__mdModulePage || typeof d.url !== 'string' || route.name !== 'modulePage') return;
+    let u;
+    try { const abs = new URL(d.url, location.origin); abs.searchParams.delete('embed'); u = abs.pathname + (abs.search || ''); }
+    catch (err) { return; }
+    if (!u) return;
+    const title = (route.params && route.params.title) || 'Module';
+    try { history.replaceState({ name: 'modulePage', params: { url: u, title: title } }, '', szModulePageSpaUrl(u)); } catch (err) {}
+  });
+
   // initial route from hash (so deep-links / refresh land on the right screen)
   const hashRoute = (location.hash || '').replace(/^#/, '');
   try {
@@ -139,6 +230,10 @@
       else if (hashRoute === 'editor' && postId) {
         route.params = { postId: postId };
         const type = qs.get('type'); if (type) route.params.type = type;
+      }
+      else if (hashRoute === 'modulePage' && qs.get('module') && qs.get('page')) {
+        const u = szModulePageUrlFromQuery(location.search);
+        if (u) route.params = { url: u, title: szModulePageTitle(qs.get('module'), qs.get('page')) || 'Module' };
       }
     } else if (postId) {
       route.name = 'editor';

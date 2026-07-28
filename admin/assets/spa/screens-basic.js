@@ -95,16 +95,17 @@
   C.ScreenUsers = {
     name: 'ScreenUsers',
     inject: ['go'],
-    data() { return { sel: [], bulkRole: '', q: '', rows: [
-      { id:1, name:'Marten Timan', email:'marten@atypisch.nl', role:'admin', status:'Active', last:'2 min ago' },
-      { id:2, name:'Lieke de Vries', email:'lieke@atypisch.nl', role:'editor', status:'Active', last:'Yesterday' },
-    ] }; },
-    created() {
-      if (!window.__mdlr.api) return;
-      window.__mdlr.api.get('/users').then(rows => {
-        if (Array.isArray(rows) && rows.length) this.rows = rows.map(u => ({ id: u.id, name: u.name || u.username || u.email, email: u.email, role: (u.role || 'user').toLowerCase(), status: (u.status === 'active' ? 'Active' : (u.status || 'Active')), last: u.last_login ? String(u.last_login).slice(0, 10) : '—' }));
-      }).catch(() => {});
-    },
+    data() { return {
+      sel: [], bulkRole: '', q: '', rows: [], loading: true, err: '',
+      // Create dialog
+      addOpen: false, addBusy: false, addErr: '',
+      add: { first_name: '', last_name: '', email: '', role: 'user', password: '' },
+      // Delete dialog: deleting is permanent, so the operator picks who inherits
+      // everything the account owned before we let it through.
+      delOpen: false, delBusy: false, delErr: '', delUser: null,
+      delContent: null, delReassignTo: '',
+    }; },
+    created() { this.load(); },
     computed: {
       roles() {
         const r = (window.__mdlr.data && window.__mdlr.data.ROLES) || [];
@@ -117,17 +118,71 @@
         return this.rows.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (this.roleLabel[u.role]||u.role).toLowerCase().includes(q));
       },
       allOn() { return this.filtered.length>0 && this.filtered.every(u => this.sel.includes(u.id)); },
+      heirs() { const id = this.delUser && this.delUser.id; return this.rows.filter(r => r.id !== id); },
     },
     methods: {
+      map(u){ return { id: u.id, name: u.name || u.username || u.email, email: u.email, role: (u.role || 'user').toLowerCase(), status: (u.status === 'active' ? 'Active' : (u.status || 'Active')), last: u.last_login ? String(u.last_login).slice(0, 10) : '—' }; },
+      load(){
+        const api = window.__mdlr.api;
+        if (!api) { this.loading = false; return; }
+        this.loading = true; this.err = '';
+        api.get('/users')
+          .then(rows => { this.rows = Array.isArray(rows) ? rows.map(this.map) : []; })
+          .catch(e => { this.err = (e.data && e.data.error) || 'Could not load users.'; })
+          .then(() => { this.loading = false; });
+      },
       toggle(id){ const i=this.sel.indexOf(id); if(i>=0) this.sel.splice(i,1); else this.sel.push(id); },
       toggleAll(){ this.sel = this.allOn ? [] : this.filtered.map(r=>r.id); },
       onRole(u, v){ u.role = v; const s = window.__mdlr.store; if (s) s.assignUserRole(u.id, v); },
       applyRole(){ if(!this.bulkRole) return; const s = window.__mdlr.store; this.rows.forEach(r=>{ if(this.sel.includes(r.id)){ r.role=this.bulkRole; if (s) s.assignUserRole(r.id, this.bulkRole); } }); this.sel=[]; this.bulkRole=''; },
-      bulkDelete(){ this.rows = this.rows.filter(r=>!this.sel.includes(r.id)); this.sel=[]; },
-      bulkDeactivate(){ this.rows.forEach(r=>{ if(this.sel.includes(r.id)) r.status='Inactive'; }); this.sel=[]; },
-      del(id){ this.rows = this.rows.filter(r=>r.id!==id); this.sel = this.sel.filter(x=>x!==id); },
-      toggleActive(u){ u.status = u.status==='Active' ? 'Inactive' : 'Active'; },
-      initials(n){ return n.split(' ').map(s=>s[0]).join(''); },
+      bulkDeactivate(){
+        const api = window.__mdlr.api;
+        this.rows.forEach(r => { if (this.sel.includes(r.id)) { r.status = 'Inactive'; if (api) api.put('/users/' + r.id, { status: 'inactive' }).catch(()=>{}); } });
+        this.sel = [];
+      },
+      toggleActive(u){
+        const next = u.status === 'Active' ? 'Inactive' : 'Active';
+        u.status = next;
+        const api = window.__mdlr.api;
+        if (api) api.put('/users/' + u.id, { status: next.toLowerCase() }).catch(() => { u.status = next === 'Active' ? 'Inactive' : 'Active'; });
+      },
+
+      /* ---- create ---- */
+      openAdd(){ this.add = { first_name:'', last_name:'', email:'', role:'user', password:'' }; this.addErr=''; this.addOpen = true; },
+      submitAdd(){
+        const api = window.__mdlr.api;
+        if (!api || this.addBusy) return;
+        this.addBusy = true; this.addErr = '';
+        api.post('/users', this.add)
+          .then(u => { this.rows.unshift(this.map(u)); this.addOpen = false; })
+          .catch(e => { this.addErr = (e.data && e.data.error) || 'Could not create this user.'; })
+          .then(() => { this.addBusy = false; });
+      },
+
+      /* ---- delete (permanent, with hand-over) ---- */
+      askDelete(u){
+        this.delUser = u; this.delErr = ''; this.delContent = null;
+        this.delReassignTo = String((this.rows.find(r => r.id !== u.id) || {}).id || '');
+        this.delOpen = true;
+        const api = window.__mdlr.api;
+        if (api) api.get('/users/' + u.id + '/content').then(c => { this.delContent = c; }).catch(() => {});
+      },
+      confirmDelete(){
+        const api = window.__mdlr.api;
+        if (!api || this.delBusy || !this.delUser) return;
+        if (!this.delReassignTo) { this.delErr = 'Choose who inherits this user\u2019s content.'; return; }
+        this.delBusy = true; this.delErr = '';
+        const id = this.delUser.id;
+        api.del('/users/' + id, { reassign_to: Number(this.delReassignTo) })
+          .then(() => {
+            this.rows = this.rows.filter(r => r.id !== id);
+            this.sel = this.sel.filter(x => x !== id);
+            this.delOpen = false; this.delUser = null;
+          })
+          .catch(e => { this.delErr = (e.data && e.data.error) || 'Could not delete this user.'; })
+          .then(() => { this.delBusy = false; });
+      },
+      initials(n){ return String(n || '?').split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase(); },
     },
     template: `
     <div class="page page--wide fade-up">
@@ -135,7 +190,7 @@
         <div><h1 class="t-title t-h1">Users</h1><p class="page-sub" style="margin-top:6px">Accounts, roles and capabilities.</p></div>
         <div class="flex gap-2">
           <button class="btn btn--ghost" @click="go('roles')"><Icon name="lock"/> Roles &amp; capabilities</button>
-          <button class="btn btn--accent"><Icon name="plus"/> Invite user</button>
+          <button class="btn btn--accent" @click="openAdd"><Icon name="plus"/> Add user</button>
         </div>
       </div>
       <div class="card">
@@ -151,7 +206,6 @@
           <button class="btn btn--sm" @click="applyRole" :disabled="!bulkRole"><Icon name="check" :size="14"/> Apply</button>
           <div class="grow"></div>
           <button class="btn btn--ghost btn--sm" @click="bulkDeactivate"><Icon name="eyeOff" :size="14"/> Deactivate</button>
-          <button class="btn btn--danger btn--sm" @click="bulkDelete"><Icon name="trash" :size="14"/> Delete {{ sel.length }}</button>
         </div>
         <table class="tbl tbl--rows">
           <thead><tr><th style="width:36px"><UiChk :modelValue="allOn" @update:modelValue="toggleAll"/></th><th>User</th><th style="width:170px">Role</th><th style="width:110px">Status</th><th style="width:120px">Last active</th></tr></thead>
@@ -163,7 +217,7 @@
                   <button>Edit</button>
                   <button>Reset password</button>
                   <button @click="toggleActive(u)">{{ u.status==='Active' ? 'Deactivate' : 'Activate' }}</button>
-                  <button class="is-danger" @click="del(u.id)">Delete</button>
+                  <button class="is-danger" @click="askDelete(u)">Delete</button>
                 </div>
               </div></div></td>
               <td><UiSelect class="sel sel--bare" :modelValue="u.role" @update:modelValue="v => onRole(u, v)"><option v-for="r in roles" :key="r.id" :value="r.id">{{ r.label }}</option></UiSelect></td>
@@ -172,7 +226,49 @@
             </tr>
           </tbody>
         </table>
+        <div v-if="!loading && !filtered.length" class="t-meta" style="padding:18px">{{ err || 'No users yet.' }}</div>
       </div>
+
+      <UiModal v-if="addOpen" @close="addOpen=false">
+        <div class="drawer-head"><Icon name="user" :size="18"/><strong style="font-size:15px;flex:1">Add user</strong><button class="iconbtn" @click="addOpen=false"><Icon name="x"/></button></div>
+        <div class="drawer-body">
+          <p class="t-meta" style="margin:0 0 14px">They can sign in straight away with the password you set here.</p>
+          <div class="field"><label class="field-label">First name</label><input class="inp" v-model="add.first_name"></div>
+          <div class="field"><label class="field-label">Last name</label><input class="inp" v-model="add.last_name"></div>
+          <div class="field"><label class="field-label">Email <span class="field-req">*</span></label><input class="inp" type="email" v-model="add.email" placeholder="name@example.com"></div>
+          <div class="field"><label class="field-label">Role</label><UiSelect v-model="add.role"><option v-for="r in roles" :key="r.id" :value="r.id">{{ r.label }}</option></UiSelect></div>
+          <div class="field" style="margin:0"><label class="field-label">Password <span class="field-req">*</span></label><input class="inp" type="password" v-model="add.password" placeholder="At least 8 characters"></div>
+          <p v-if="addErr" class="t-meta" style="color:var(--danger);margin-top:10px">{{ addErr }}</p>
+        </div>
+        <div class="drawer-foot">
+          <button class="btn btn--ghost" @click="addOpen=false">Cancel</button>
+          <button class="btn btn--accent" :disabled="addBusy" @click="submitAdd"><Icon name="plus" :size="15"/> {{ addBusy ? 'Creating…' : 'Create user' }}</button>
+        </div>
+      </UiModal>
+
+      <UiModal v-if="delOpen" @close="delOpen=false">
+        <div class="drawer-head"><Icon name="trash" :size="18"/><strong style="font-size:15px;flex:1">Delete {{ delUser && delUser.name }}</strong><button class="iconbtn" @click="delOpen=false"><Icon name="x"/></button></div>
+        <div class="drawer-body">
+          <p class="t-meta" style="margin:0 0 14px">This removes the account for good. Everything it owns is handed to the user you pick, so nothing is left orphaned.</p>
+          <p v-if="delContent" class="t-meta" style="margin:0 0 14px">
+            <template v-if="delContent.total">Owns {{ delContent.total }} record<span v-if="delContent.total!==1">s</span>:
+              <span v-for="(n,t) in delContent.by_table" :key="t">{{ t }} ({{ n }}) </span>
+            </template>
+            <template v-else>Owns no content.</template>
+          </p>
+          <div class="field" style="margin:0"><label class="field-label">Hand content over to <span class="field-req">*</span></label>
+            <UiSelect v-model="delReassignTo">
+              <option value="">Choose a user…</option>
+              <option v-for="r in heirs" :key="r.id" :value="String(r.id)">{{ r.name }} ({{ r.email }})</option>
+            </UiSelect>
+          </div>
+          <p v-if="delErr" class="t-meta" style="color:var(--danger);margin-top:10px">{{ delErr }}</p>
+        </div>
+        <div class="drawer-foot">
+          <button class="btn btn--ghost" @click="delOpen=false">Cancel</button>
+          <button class="btn btn--danger" :disabled="delBusy" @click="confirmDelete"><Icon name="trash" :size="15"/> {{ delBusy ? 'Deleting…' : 'Delete user' }}</button>
+        </div>
+      </UiModal>
     </div>`,
   };
 
@@ -186,6 +282,7 @@
             { id:'general', label:'General', icon:'settings' },
             { id:'appearance', label:'Appearance', icon:'palette' },
             { id:'permalinks', label:'Permalinks', icon:'link' },
+            { id:'menus', label:'Menus', icon:'menu' },
           ]},
           { group:'Content', items:[
             { id:'media', label:'Media images', icon:'image' },
@@ -338,6 +435,11 @@
           <!-- PERMALINKS -->
           <div v-else-if="tab==='permalinks'" class="settings-embed">
             <PermalinksPanel/>
+          </div>
+
+          <!-- MENUS -->
+          <div v-else-if="tab==='menus'" class="settings-embed">
+            <MenusPanel/>
           </div>
 
           <!-- MEDIA -->

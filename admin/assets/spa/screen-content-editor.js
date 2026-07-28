@@ -23,7 +23,7 @@
     inject: ['go', 'route', 'ui'],
     data() {
       return {
-        post: { id: null, title: '', slug: '', status: 'draft', type: '', url: '' },
+        post: { id: null, title: '', slug: '', status: 'draft', order: 0, type: '', url: '' },
         schema: [],            // post-type fields (prov type) + shared-group fields (prov shared, _group)
         fieldGroups: [],       // matched shared groups [{id,name,icon}]
         perPostGroups: [],     // per-post field-group containers (prov post), drag fields between them
@@ -102,7 +102,7 @@
           api.get('/posts/' + rp.postId + '/resolved-fieldset').then(rf => {
             this.loading = false;
             if (rf && rf.post) {
-              this.post = { id: rf.post.id, title: rf.post.title || '', slug: rf.post.slug || '', status: rf.post.status || 'draft', type: (rf.post.post_type && rf.post.post_type.slug) || '', url: rf.post.url || '' };
+              this.post = { id: rf.post.id, title: rf.post.title || '', slug: rf.post.slug || '', status: rf.post.status || 'draft', order: Number(rf.post.order) || 0, type: (rf.post.post_type && rf.post.post_type.slug) || '', url: rf.post.url || '' };
               this.schema = ((rf.schema && rf.schema.fields) || []).map(f => Object.assign({ prov: 'type' }, f));
               this.fieldGroups = rf.field_groups || [];
               this.values = reactive(rf.values && typeof rf.values === 'object' ? rf.values : {});
@@ -175,7 +175,7 @@
         this.saving = true;
         const rp = this.route.params || {};
         const layout = { _perPostGroups: this.perPostGroups.map(g => ({ id: g.id, label: g.label, fields: g.fields.map(f => ({ id: f.id, label: f.label, name: f.name, key: f.key, type: f.type, required: f.required, instructions: f.instructions, w: f.w })) })) };
-        const body = { title: this.post.title, slug: this.post.slug, status: this.post.status, data: this.values, layout };
+        const body = { title: this.post.title, slug: this.post.slug, status: this.post.status, order: Number(this.post.order) || 0, data: this.values, layout };
         const isNew = !this.post.id || rp.postId === 'new';
         const req = isNew ? api.post('/posts', Object.assign({ post_type_id: this.ptDbId() }, body)) : api.put('/posts/' + this.post.id, body);
         return req.then((saved) => {
@@ -313,7 +313,11 @@
                   <option value="private">Private</option>
                 </UiSelect>
               </div>
-              <div class="field" style="margin:0"><label class="field-label">Slug</label><input class="inp mono" v-model="post.slug" placeholder="auto"></div>
+              <div class="field"><label class="field-label">Slug</label><input class="inp mono" v-model="post.slug" placeholder="auto"></div>
+              <div class="field" style="margin:0"><label class="field-label">Order</label>
+                <input class="inp" type="number" step="1" v-model.number="post.order" placeholder="0">
+                <div class="t-meta" style="margin-top:6px">Lowest first. Dragging rows in the overview writes this same number.</div>
+              </div>
             </div>
           </div>
           <div class="rail-card" v-if="fieldGroups.length">

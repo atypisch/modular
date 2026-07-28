@@ -15,6 +15,7 @@
       return {
         view: 'fields',          // fields | components | logic
         saving: false,
+        savedMsg: '', _flashTimer: null,
         mode: 'modular',
         q: '',
         openCats: { basic:true, content:true, choice:false, rel:false, media:true, date:false, layout:true, component:true },
@@ -32,6 +33,7 @@
       };
     },
     created() { this.bootstrap(); },
+    beforeUnmount() { if (this._flashTimer) clearTimeout(this._flashTimer); },
     computed: {
       cats() {
         const types = D().FIELD_TYPES;
@@ -148,7 +150,7 @@
           const base = (ptRef._schema && typeof ptRef._schema === 'object') ? JSON.parse(JSON.stringify(ptRef._schema)) : {};
           const schema = { ...base, fields: JSON.parse(JSON.stringify(this.schema || [])) };
           window.__mdlr.store.savePostTypeSchema(dbId, schema)
-            .then(() => { this.saving = false; this.go('postTypes'); })
+            .then(() => { this.saving = false; this.flash('Schema saved'); })
             .catch((e) => { this.saving = false; console.error('[fieldbuilder] post type save failed', e); alert('Saving the post type fields failed. Check the console.'); });
           return;
         }
@@ -163,9 +165,10 @@
           location: this.location || [], fields: this.schema || [],
         };
         window.__mdlr.store.saveFieldGroup(payload)
-          .then(() => { this.saving = false; this.go('binding'); })
+          .then(() => { this.saving = false; this.flash('Field group saved'); })
           .catch((e) => { this.saving = false; console.error('[fieldbuilder] save failed', e); alert('Saving the field group failed. Check the console.'); });
       },
+      flash(msg) { this.savedMsg = msg; if (this._flashTimer) clearTimeout(this._flashTimer); this._flashTimer = setTimeout(() => { this.savedMsg = ''; }, 2600); },
       delRule(id) { this.rules = this.rules.filter(r => r.id !== id); },
       fieldOptions() { return this.schema.filter(s => s.type!=='tab' && !s._section).map(s => ({ name:s.name, label:s.label })); },
       tabOptions() { return this.schema.filter(s => s.type==='tab').map(s => ({ name:s.name, label:s.label })); },
@@ -220,6 +223,7 @@
         </div>
         <div class="fb-top-r">
           <span class="t-meta">{{ fieldCount }} fields</span>
+          <transition name="fade"><span v-if="savedMsg" class="badge badge--ok ed-saved"><Icon name="check" :size="12"/> {{ savedMsg }}</span></transition>
           <button class="btn" :disabled="saving" @click="saveGroup"><Icon name="save" :size="15"/> {{ saving ? 'Saving…' : 'Save group' }}</button>
         </div>
       </div>

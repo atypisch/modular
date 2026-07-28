@@ -292,7 +292,7 @@
      this in Fase 7; the field contract + markup stay the same. */
   C.MdRichText = base({
     name: 'MdRichText',
-    data() { return { block: 'p', tiptap: null, useTT: false, sourceView: false }; },
+    data() { return { block: 'p', tiptap: null, useTT: false, sourceView: false, imgPick: false, _savedRange: null }; },
     mounted() { if (this.$refs.body) this.$refs.body.innerHTML = this.modelValue || ''; this.initTiptap(); },
     beforeUnmount() { if (this.tiptap) { try { this.tiptap.destroy(); } catch (e) {} } },
     watch: {
@@ -355,6 +355,26 @@
         this.exec('formatBlock', 'P'); // drop heading/quote/code blocks too
       },
       onInput() { this.emit(); },
+      // Save the caret position before the MediaPicker steals focus, so the
+      // chosen image lands where the cursor was (basic contentEditable path).
+      saveRange() {
+        const sel = window.getSelection();
+        this._savedRange = (sel && sel.rangeCount && this.$refs.body && this.$refs.body.contains(sel.anchorNode))
+          ? sel.getRangeAt(0) : null;
+      },
+      openImage() { this.saveRange(); this.imgPick = true; },
+      insertImage(m) {
+        const url = m && m.url; if (!url) return;
+        const alt = String((m && m.name) || '').replace(/"/g, '');
+        const html = '<img src="' + url + '" alt="' + alt + '">';
+        if (this.useTT) { try { this.tiptap.chain().focus().insertContent(html).run(); } catch (e) {} return; }
+        if (this.$refs.body) {
+          this.$refs.body.focus();
+          if (this._savedRange) { const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(this._savedRange); }
+        }
+        try { document.execCommand('insertHTML', false, html); } catch (e) {}
+        this.emit();
+      },
     },
     template: `
       <div class="rte">
@@ -380,6 +400,8 @@
           <button type="button" class="rte-b" title="Remove link" @mousedown.prevent @click="exec('unlink')"><Icon name="unlink" :size="15"/></button>
           <button type="button" class="rte-b" title="Inline code" @mousedown.prevent @click="codeInline"><Icon name="code" :size="15"/></button>
           <span class="rte-sep"></span>
+          <button type="button" class="rte-b" title="Insert image" @mousedown.prevent @click="openImage"><Icon name="image" :size="15"/></button>
+          <span class="rte-sep"></span>
           <button type="button" class="rte-b" title="Clear formatting" @mousedown.prevent @click="clearFormat"><Icon name="eraser" :size="15"/></button>
           <button type="button" class="rte-b" title="Undo" @mousedown.prevent @click="exec('undo')"><Icon name="undo" :size="15"/></button>
           <button type="button" class="rte-b" title="Redo" @mousedown.prevent @click="exec('redo')"><Icon name="redo" :size="15"/></button>
@@ -390,6 +412,7 @@
           <div v-show="useTT" ref="tt" class="rte-body tt-host"></div>
         </template>
         <textarea v-else class="ta mono" style="min-height:160px;border-radius:0 0 var(--r-sm) var(--r-sm)" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" placeholder="&lt;p&gt;HTML…&lt;/p&gt;"></textarea>
+        <MediaPicker v-if="imgPick" :accept="'image'" @close="imgPick=false" @pick="m=>{ insertImage(m); imgPick=false }"/>
       </div>`,
   });
 

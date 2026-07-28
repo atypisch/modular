@@ -136,6 +136,69 @@ $router->addRoute('POST', '/api/v1/auth/login', function() {
     return $result;
 }, ['rate_limit']);
 
+// Re-login from the admin SPA when the session expired (a 401 popped the login
+// modal). Re-establishes the SAME cms_* session keys as admin/auth/process_login.php
+// and returns a fresh CSRF token so the SPA can carry on where it left off.
+// No CSRF gate (the expired session's token is stale by definition); rate limited.
+$router->addRoute('POST', '/api/v1/auth/relogin', function() {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    if (!RateLimiter::check($ip . '_relogin', 8, 900)) {
+        return ['error' => 'Too many attempts. Please try again later.', 'code' => 429];
+    }
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $email = trim((string) ($input['email'] ?? ''));
+    $password = (string) ($input['password'] ?? '');
+    if ($email === '' || $password === '') {
+        return ['error' => 'Email and password are required', 'code' => 400];
+    }
+    $db = $GLOBALS['db'];
+    $stmt = $db->prepare("SELECT * FROM users WHERE email = ? AND deleted_at IS NULL");
+    $stmt->execute([$email]);
+    $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$user || !password_verify($password, $user['password'])) {
+        return ['error' => 'Invalid email or password', 'code' => 401];
+    }
+    if (($user['status'] ?? 'active') !== 'active') {
+        return ['error' => 'Account is not active', 'code' => 403];
+    }
+    $role = 'user';
+    try {
+        $rs = $db->prepare("SELECT r.name FROM user_roles ur INNER JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = ? LIMIT 1");
+        $rs->execute([$user['id']]);
+        $role = $rs->fetchColumn() ?: 'user';
+    } catch (\PDOException $e) { /* default 'user' */ }
+
+    // Same session keys as admin/auth/process_login.php — cms_* are the ONLY keys
+    // that grant Modular CMS access (core/functions/auth.php).
+    $_SESSION['user_id']    = $user['id'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['username']   = $user['username'] ?? $user['email'];
+    $_SESSION['user_name']  = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: ($user['username'] ?? $user['email']);
+    $_SESSION['user_role']  = $role;
+    $_SESSION['cms_authenticated'] = true;
+    $_SESSION['cms_user_id']       = $user['id'];
+    $_SESSION['cms_user_role']     = $role;
+    session_regenerate_id(true);
+    try {
+        $db->prepare("UPDATE users SET last_login = NOW(), last_ip = ?, updated_at = NOW() WHERE id = ?")
+           ->execute([$ip, $user['id']]);
+    } catch (\PDOException $e) { /* non-fatal */ }
+
+    if (!function_exists('md_csrf_token') && defined('CORE_PATH')) {
+        require_once CORE_PATH . '/functions/csrf.php';
+    }
+    return [
+        'ok'   => true,
+        'csrf' => function_exists('md_csrf_token') ? md_csrf_token() : '',
+        'user' => [
+            'id'    => $user['id'],
+            'name'  => $_SESSION['user_name'],
+            'email' => $user['email'],
+            'role'  => $role,
+        ],
+    ];
+}, ['rate_limit']);
+
 $router->addRoute('POST', '/api/v1/auth/register', function() {
     $controller = new AuthController($GLOBALS['db']);
     $result = $controller->login();
@@ -526,8 +589,18 @@ $router->addRoute('GET', '/api/v1/settings/theme', function() { return (new Sett
 $router->addRoute('PUT', '/api/v1/settings/theme', function() { return (new SettingsController($GLOBALS['db']))->setTheme(); }, ['auth']);
 
 // System: users, roles, capabilities, modules
+$router->addRoute('POST', '/api/v1/posts/reorder', function() use ($mkResult) {
+    return $mkResult((new PostsController($GLOBALS['db']))->reorder());
+}, ['auth']);
+
 $router->addRoute('GET', '/api/v1/users', function() { return (new SystemController($GLOBALS['db']))->users(); }, ['auth']);
+$router->addRoute('POST', '/api/v1/users', function() use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->createUser()); }, ['auth']);
 $router->addRoute('PUT', '/api/v1/users/{id}', function($id) use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->updateUser($id)); }, ['auth']);
+$router->addRoute('GET', '/api/v1/users/{id}/content', function($id) use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->userContent($id)); }, ['auth']);
+$router->addRoute('DELETE', '/api/v1/users/{id}', function($id) use ($mkResult) {
+    $me = $_SESSION['cms_user_id'] ?? ($GLOBALS['current_user']['user_id'] ?? null);
+    return $mkResult((new SystemController($GLOBALS['db']))->deleteUser($id, $me));
+}, ['auth']);
 $router->addRoute('GET', '/api/v1/roles', function() { return (new SystemController($GLOBALS['db']))->roles(); }, ['auth']);
 $router->addRoute('POST', '/api/v1/roles', function() use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->createRole()); }, ['auth']);
 $router->addRoute('PUT', '/api/v1/roles/{id}/capabilities', function($id) use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->updateRoleCapabilities($id)); }, ['auth']);

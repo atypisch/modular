@@ -91,6 +91,9 @@ if ($embed) {
         . 'function keep(u){try{var url=new URL(u,location.href);if(url.pathname.indexOf("module-page.php")>=0&&!url.searchParams.has("embed")){url.searchParams.set("embed","1");return url.toString();}}catch(e){}return u;}'
         . 'document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(a&&a.getAttribute("href")){a.setAttribute("href",keep(a.getAttribute("href")));}},true);'
         . 'document.querySelectorAll("form").forEach(function(f){if(f.getAttribute("action")){f.setAttribute("action",keep(f.getAttribute("action")));}else{f.setAttribute("action",keep(location.href));}});'
+        // Tell the SPA shell which module-page URL is showing, so its address bar
+        // reflects deep state (e.g. ?page=board&edit=123) and a refresh restores it.
+        . 'try{if(window.parent&&window.parent!==window){window.parent.postMessage({__mdModulePage:true,url:location.pathname+location.search},location.origin);}}catch(e){}'
         . '})();</script>';
     echo '</body></html>';
     exit;

@@ -57,13 +57,22 @@ class ResolveController {
         $layout = json_decode($post['layout'] ?? 'null', true);
 
         // Public front-end URL (so the editor's View / Preview links work).
+        $core = defined('CORE_PATH') ? CORE_PATH : dirname(__DIR__);
         if (!function_exists('get_post_permalink')) {
-            $core = defined('CORE_PATH') ? CORE_PATH : dirname(__DIR__);
             foreach (['/functions/permalinks.php', '/functions/template-helpers.php'] as $f) {
                 if (is_file($core . $f)) { require_once $core . $f; }
             }
         }
+        if (!function_exists('md_upload_url') && is_file($core . '/functions/http.php')) {
+            require_once $core . '/functions/http.php';
+        }
         $url = function_exists('get_post_permalink') ? get_post_permalink($post['post_type_slug'], $post['slug']) : '';
+
+        // Hydrate image/file fields into the {id,name,url,w,h} object the editor expects.
+        // Stored values may be a bare media id (legacy) or — for featured_image — live only
+        // in the posts.featured_image column. Without this the image field renders empty even
+        // though the front-end (which reads the column) shows the picture.
+        $values = $this->hydrateImageFields($fields, is_array($values) ? $values : [], $post);
 
         return [
             'post' => [
@@ -71,6 +80,7 @@ class ResolveController {
                 'title' => $post['title'],
                 'slug' => $post['slug'],
                 'status' => $post['status'],
+                'order' => (int) ($post['order'] ?? 0),
                 'url' => $url,
                 'post_type' => ['id' => (int)$post['post_type_id'], 'name' => $post['post_type_name'], 'slug' => $post['post_type_slug'], 'mode' => $post['post_type_mode'] ?? 'fixed'],
             ],
@@ -79,6 +89,70 @@ class ResolveController {
             'layout' => is_array($layout) ? $layout : null,
             'field_groups' => $matchedGroups,
         ];
+    }
+
+    /** Extract a media id from a stored image value (bare id or {id:…} object). */
+    private function mediaIdFromValue($v): int {
+        if (is_array($v)) return (int) ($v['id'] ?? 0);
+        if (is_numeric($v)) return (int) $v;
+        return 0;
+    }
+
+    /**
+     * Turn image/file field values into the {id,name,url,w,h} object the editor's
+     * image control needs. Handles the legacy featured_image column fallback and
+     * batches the media lookup into one query.
+     */
+    private function hydrateImageFields(array $fields, array $values, array $post): array {
+        $imageFields = [];
+        foreach ($fields as $f) {
+            if (!is_array($f)) continue;
+            if (in_array(($f['type'] ?? ''), ['image', 'file'], true)) {
+                $fn = (string) ($f['name'] ?? ($f['key'] ?? ''));
+                if ($fn !== '') $imageFields[$fn] = true;
+            }
+        }
+        if (empty($imageFields)) return $values;
+
+        // Legacy: featured_image may live only in the column, not in data.
+        if (isset($imageFields['featured_image']) && empty($values['featured_image']) && !empty($post['featured_image'])) {
+            $values['featured_image'] = (int) $post['featured_image'];
+        }
+
+        $needIds = [];
+        foreach ($imageFields as $fn => $_) {
+            $v = $values[$fn] ?? null;
+            $mid = $this->mediaIdFromValue($v);
+            if ($mid > 0 && (!is_array($v) || empty($v['url']))) $needIds[$mid] = true;
+        }
+        if (empty($needIds)) return $values;
+
+        $ids = array_keys($needIds);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("SELECT id, file_path, title, filename, width, height FROM media WHERE id IN ($ph)");
+        $stmt->execute($ids);
+        $byId = [];
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $m) { $byId[(int) $m['id']] = $m; }
+
+        foreach ($imageFields as $fn => $_) {
+            $v = $values[$fn] ?? null;
+            if (is_array($v) && !empty($v['url'])) continue;
+            $mid = $this->mediaIdFromValue($v);
+            if ($mid <= 0 || !isset($byId[$mid])) continue;
+            $m = $byId[$mid];
+            $path = (string) ($m['file_path'] ?? '');
+            $url = function_exists('md_upload_url')
+                ? md_upload_url($path)
+                : (defined('UPLOADS_WEB_PATH') ? rtrim(UPLOADS_WEB_PATH, '/') . '/' . ltrim($path, '/') : $path);
+            $values[$fn] = [
+                'id'   => $mid,
+                'name' => (string) (($m['title'] ?? '') !== '' ? $m['title'] : (($m['filename'] ?? '') !== '' ? $m['filename'] : ('media-' . $mid))),
+                'url'  => $url,
+                'w'    => isset($m['width']) ? (int) $m['width'] : null,
+                'h'    => isset($m['height']) ? (int) $m['height'] : null,
+            ];
+        }
+        return $values;
     }
 
     /** True if any OR-group's AND-rules match the given post type slug. */

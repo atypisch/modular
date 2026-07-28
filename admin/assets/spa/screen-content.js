@@ -231,7 +231,11 @@
     inject: ['go','route'],
     data() { return { tab:'all', q:'', sel: [], items: [], quickId: null, qdraft: null,
       page: 1, perPage: 50, total: 0, countAll: 0, countTrash: 0, loading: false, _searchTimer: null,
-      statuses:['published','draft','scheduled'], authors:['marten','lieke','sam','noor'] }; },
+      statuses:['published','draft','scheduled'], authors:['marten','lieke','sam','noor'],
+      // Manual ordering: drag a row to a new position and the whole page is
+      // renumbered server-side. Only offered on the unfiltered first page —
+      // reordering a filtered or paginated slice would renumber the wrong set.
+      dragI: null, dropAt: null, ordering: false }; },
     created() { this.load(); },
     computed: {
       pt() { return D().POST_TYPES.find(p => p.id === (this.route.params||{}).type) || D().POST_TYPES[0]; },
@@ -243,6 +247,7 @@
       counts() { return { all: this.countAll, trash: this.countTrash }; },
       totalPages() { return Math.max(1, Math.ceil(this.total / this.perPage)); },
       allOn() { return this.filtered.length>0 && this.filtered.every(p => this.sel.includes(p.id)); },
+      canReorder() { return this.tab === 'all' && !this.q && this.page === 1 && this.filtered.length > 1; },
     },
     watch: {
       pt() { this.tab = 'all'; this.q = ''; this.page = 1; this.load(); },
@@ -250,6 +255,29 @@
       q() { clearTimeout(this._searchTimer); this._searchTimer = setTimeout(() => { this.page = 1; this.load(); }, 300); },
     },
     methods: {
+      dStart(i, e) { if (!this.canReorder) return; this.dragI = i; if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(i)); } catch (_) {} } },
+      dOver(i, e) { if (this.dragI == null) return; e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); this.dropAt = (e.clientY - r.top) > r.height / 2 ? i + 1 : i; },
+      dEnd() { this.dragI = null; this.dropAt = null; },
+      dDrop() {
+        if (this.dragI == null) { this.dEnd(); return; }
+        let at = this.dropAt == null ? this.filtered.length : this.dropAt;
+        const rows = this.filtered.slice();
+        const moved = rows[this.dragI];
+        rows.splice(this.dragI, 1);
+        if (this.dragI < at) at -= 1;
+        rows.splice(at, 0, moved);
+        this.dEnd();
+        if (!moved) return;
+        // Reflect the new order immediately, then persist it.
+        const byId = {}; rows.forEach((r, n) => { byId[r.id] = n; });
+        this.items.sort((a, b) => (byId[a.id] ?? 1e9) - (byId[b.id] ?? 1e9));
+        const api = window.__mdlr.api;
+        if (!api) return;
+        this.ordering = true;
+        api.post('/posts/reorder', { ids: rows.map(r => r.id) })
+          .catch(() => { this.load(); })
+          .then(() => { this.ordering = false; });
+      },
       load() {
         const pt = this.pt;
         const dbId = pt && pt._dbId;
@@ -329,13 +357,18 @@
         <table class="tbl tbl--rows">
           <thead><tr>
             <th style="width:36px"><UiChk :modelValue="allOn" @update:modelValue="toggleAll"/></th>
+            <th v-if="canReorder" style="width:34px"></th>
             <th>Title</th><th style="width:120px">Status</th><th style="width:140px">Author</th><th style="width:150px">Updated</th>
           </tr></thead>
-          <tbody>
-            <template v-for="p in filtered" :key="p.id">
+          <tbody @dragover.prevent @drop="dDrop">
+            <template v-for="(p,i) in filtered" :key="p.id">
               <!-- normal row -->
-              <tr v-if="quickId!==p.id" :class="{'row-sel': sel.includes(p.id)}">
+              <tr v-if="quickId!==p.id" :class="{'row-sel': sel.includes(p.id), 'is-dragging': dragI===i, 'is-dropbefore': dragI!=null && dropAt===i}"
+                  @dragover="dOver(i,$event)">
                 <td @click.stop><UiChk :modelValue="sel.includes(p.id)" @update:modelValue="toggle(p.id)"/></td>
+                <td v-if="canReorder" @click.stop>
+                  <span class="drag-handle" draggable="true" @dragstart="dStart(i,$event)" @dragend="dEnd" title="Drag to reorder"><Icon name="drag" :size="14"/></span>
+                </td>
                 <td>
                   <div class="ce-title-cell">
                     <a class="ce-title" @click="openEditor(p)">{{ p.title }}</a>
@@ -360,7 +393,8 @@
               <!-- quick edit row -->
               <tr v-else class="quick-row">
                 <td></td>
-                <td colspan="4">
+                <td v-if="canReorder"></td>
+                <td :colspan="4">
                   <div class="quick-edit">
                     <div class="quick-edit-head"><Icon name="pencil" :size="14"/> Quick edit <span class="t-meta">— the essentials, without opening the editor.</span></div>
                     <div class="quick-grid">
@@ -378,7 +412,7 @@
                 </td>
               </tr>
             </template>
-            <tr v-if="!filtered.length"><td colspan="5"><div class="empty" style="padding:40px"><Icon name="files"/><div>No {{ pt.name.toLowerCase() }} here {{ tab!=='all' ? 'in '+tab : '' }}.</div></div></td></tr>
+            <tr v-if="!filtered.length"><td :colspan="canReorder ? 6 : 5"><div class="empty" style="padding:40px"><Icon name="files"/><div>No {{ pt.name.toLowerCase() }} here {{ tab!=='all' ? 'in '+tab : '' }}.</div></div></td></tr>
           </tbody>
         </table>
         <div class="list-toolbar list-pager" v-if="total > perPage">

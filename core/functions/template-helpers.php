@@ -435,10 +435,10 @@ if (!function_exists('get_posts')) {
         if (!in_array($order, ['ASC', 'DESC'], true)) $order = 'DESC';
         try {
             $stmt = $GLOBALS['db']->prepare("
-                SELECT p.id, p.title, p.slug, p.excerpt, p.published_at, p.created_at
+                SELECT p.id, p.title, p.slug, p.excerpt, p.data, p.`order`, p.published_at, p.created_at
                 FROM posts p INNER JOIN post_types pt ON p.post_type_id = pt.id
                 WHERE pt.slug = ? AND p.deleted_at IS NULL AND p.status = 'published'
-                ORDER BY p.{$orderby} {$order} LIMIT " . $per_page . " OFFSET " . $offset
+                ORDER BY p.`order` ASC, p.{$orderby} {$order} LIMIT " . $per_page . " OFFSET " . $offset
             );
             $stmt->execute([$post_type]);
             return $stmt->fetchAll(\PDO::FETCH_ASSOC);

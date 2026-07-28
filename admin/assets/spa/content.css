@@ -844,6 +844,8 @@
 .fg-order { display: flex; align-items: center; gap: 8px; }
 .fg-num { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--ink-3); width: 18px; text-align: center; }
 .tbl--rows tr.is-dragging { opacity: 0.4; }
+/* Where the dragged row will land. */
+.tbl--rows tr.is-dropbefore > td { box-shadow: inset 0 2px 0 0 var(--accent); }
 .tbl--rows tr.fg-drop td { box-shadow: inset 0 2px 0 var(--accent); }
 
 /* ============================================================

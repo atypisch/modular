@@ -13,6 +13,21 @@ class PostsController {
         $this->db = $db;
     }
 
+    /**
+     * Resolve the featured-image media id from a post's data payload so the
+     * posts.featured_image column stays in sync with data.featured_image (front-end
+     * helpers read the column first). Returns null when the key is absent (leave the
+     * column untouched), 0 when explicitly cleared, or the media id.
+     */
+    private function featuredImageId($data): ?int {
+        if (!is_array($data) || !array_key_exists('featured_image', $data)) return null;
+        $fi = $data['featured_image'];
+        if ($fi === null || $fi === '' || $fi === 0 || $fi === '0') return 0;
+        if (is_array($fi)) return (int) ($fi['id'] ?? 0);
+        if (is_numeric($fi)) return (int) $fi;
+        return null;
+    }
+
     /** Drop cached post-list queries after a write so overviews/archives reflect the change. */
     private function invalidatePostCache(): void {
         if (function_exists('cache_delete_prefix')) {
@@ -76,7 +91,7 @@ class PostsController {
             $cols = "p.id, p.title, p.slug, p.status, p.deleted_at, pt.name as post_type_name, pt.slug as post_type_slug";
             $join = "";
         } elseif ($listMode) {
-            $cols = "p.id, p.title, p.slug, p.status, p.published_at, p.created_at, p.deleted_at, pt.name as post_type_name, pt.slug as post_type_slug, " . $this->authorNameExpr();
+            $cols = "p.id, p.title, p.slug, p.status, p.`order`, p.published_at, p.created_at, p.deleted_at, pt.name as post_type_name, pt.slug as post_type_slug, " . $this->authorNameExpr();
             $join = "LEFT JOIN users u ON p.author_id = u.id";
         } else {
             $cols = "p.*, pt.name as post_type_name, pt.slug as post_type_slug, " . $this->authorNameExpr();
@@ -108,7 +123,7 @@ class PostsController {
             $page = max(1, (int) ($_GET['page'] ?? 1));
             $perPage = max(1, min(200, (int) ($_GET['per_page'] ?? 50)));
             $offset = ($page - 1) * $perPage;
-            $sql .= " ORDER BY p.created_at DESC LIMIT " . $perPage . " OFFSET " . $offset;
+            $sql .= " ORDER BY p.`order` ASC, p.created_at DESC LIMIT " . $perPage . " OFFSET " . $offset;
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -139,7 +154,7 @@ class PostsController {
         }
 
         // Legacy non-paginated shape (relationship picker, exports): a bare array.
-        $sql .= " ORDER BY p.created_at DESC LIMIT " . (int) $limit;
+        $sql .= " ORDER BY p.`order` ASC, p.created_at DESC LIMIT " . (int) $limit;
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -232,15 +247,18 @@ class PostsController {
         
         $publishedAt = ($status === 'published') ? date('Y-m-d H:i:s') : null;
         
+        $fiId = $this->featuredImageId($input['data'] ?? null);
+        $featuredCol = ($fiId !== null && $fiId > 0) ? $fiId : null;
+
         $stmt = $this->db->prepare("
             INSERT INTO posts
-            (post_type_id, slug, title, status, `data`, `layout`, component_data, meta_data,
+            (post_type_id, slug, title, status, `data`, `layout`, component_data, meta_data, featured_image,
              author_id, created_by, updated_by, published_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
 
         $stmt->execute([
-            $postTypeId, $slug, $title, $status, $dataJson, $layoutJson, $componentData, $metaData,
+            $postTypeId, $slug, $title, $status, $dataJson, $layoutJson, $componentData, $metaData, $featuredCol,
             $userId, $userId, $userId, $publishedAt
         ]);
         
@@ -261,6 +279,9 @@ class PostsController {
         $title = $input['title'] ?? $existing['title'];
         $slug = $input['slug'] ?? $existing['slug'];
         $status = $input['status'] ?? $existing['status'];
+        // Manual sort position. Editable as a plain number in the editor; drag &
+        // drop in the overview writes the same column through reorder().
+        $order = array_key_exists('order', $input) ? (int) $input['order'] : (int) ($existing['order'] ?? 0);
         $componentData = json_encode($input['component_data'] ?? $existing['component_data']);
         $metaData = json_encode($input['meta_data'] ?? $existing['meta_data']);
         // `data` is the canonical field-value store; keep existing raw JSON when not supplied.
@@ -283,15 +304,21 @@ class PostsController {
             $publishedAt = null;
         }
         
+        // Keep the featured_image column in sync with data.featured_image (front-end reads
+        // the column first). Untouched when the payload doesn't carry a featured_image key.
+        $effectiveData = array_key_exists('data', $input) ? $input['data'] : json_decode($existing['data'] ?? 'null', true);
+        $fiId = $this->featuredImageId(is_array($effectiveData) ? $effectiveData : null);
+        $featuredCol = $fiId === null ? ($existing['featured_image'] ?? null) : ($fiId > 0 ? $fiId : null);
+
         $stmt = $this->db->prepare("
             UPDATE posts
-            SET slug = ?, title = ?, status = ?, `data` = ?, `layout` = ?, component_data = ?, meta_data = ?,
-                published_at = ?, updated_by = ?, updated_at = NOW()
+            SET slug = ?, title = ?, status = ?, `order` = ?, `data` = ?, `layout` = ?, component_data = ?, meta_data = ?,
+                featured_image = ?, published_at = ?, updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
 
         $stmt->execute([
-            $slug, $title, $status, $dataJson, $layoutJson, $componentData, $metaData, $publishedAt, $userId, $id
+            $slug, $title, $status, $order, $dataJson, $layoutJson, $componentData, $metaData, $featuredCol, $publishedAt, $userId, $id
         ]);
         
         // Create revision
@@ -299,6 +326,41 @@ class PostsController {
 
         $this->invalidatePostCache();
         return $this->show($id);
+    }
+
+    /**
+     * POST /posts/reorder — body { ids: [postId, ...] } in the order they should
+     * appear. Renumbers `order` to 0..n-1 in one transaction, so a drag never
+     * leaves the list half-sorted. Ids that are not real posts are skipped.
+     */
+    public function reorder() {
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $ids = array_values(array_filter(array_map('intval', (array) ($input['ids'] ?? []))));
+        if (!$ids) return ['error' => 'Send the post ids in their new order', 'code' => 400];
+
+        $place = implode(',', array_fill(0, count($ids), '?'));
+        $known = $this->db->prepare("SELECT id FROM posts WHERE id IN ($place) AND deleted_at IS NULL");
+        $known->execute($ids);
+        $valid = array_map('intval', $known->fetchAll(\PDO::FETCH_COLUMN, 0));
+        if (!$valid) return ['error' => 'None of those posts exist', 'code' => 404];
+
+        $userId = $GLOBALS['current_user']['user_id'] ?? 1;
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare("UPDATE posts SET `order` = ?, updated_by = ?, updated_at = NOW() WHERE id = ?");
+            $position = 0;
+            foreach ($ids as $id) {
+                if (!in_array($id, $valid, true)) continue;
+                $stmt->execute([$position++, $userId, $id]);
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            return ['error' => 'Could not save the new order', 'code' => 500];
+        }
+
+        $this->invalidatePostCache();
+        return ['ok' => true, 'count' => $position];
     }
 
     public function delete($id) {

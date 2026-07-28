@@ -135,6 +135,7 @@ $spaAsset = function (string $file) use ($assetsBase) {
   <script src="<?= $spaAsset('screen-roles.js') ?>"></script>
   <script src="<?= $spaAsset('screen-profile.js') ?>"></script>
   <script src="<?= $spaAsset('screen-permalinks.js') ?>"></script>
+  <script src="<?= $spaAsset('screen-menus.js') ?>"></script>
   <script src="<?= $spaAsset('screen-notifications.js') ?>"></script>
   <script src="<?= $spaAsset('screen-exportimport.js') ?>"></script>
   <script src="<?= $spaAsset('screen-library.js') ?>"></script>

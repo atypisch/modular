@@ -99,6 +99,7 @@
     props: { screen: String },
     watch: { 'route.name'() { this.ui.sidebar = false; }, 'route.params'() { this.ui.sidebar = false; } },
     data() { return { collapsed: false, q: '', openMods: {}, boot: (window.__MDLR || {}),
+      reEmail: ((((window.__MDLR || {}).user) || {}).email) || '', rePass: '', reErr: '', reBusy: false,
       markSvg: `<svg viewBox="0 0 86 78" width="24" height="22" aria-label="Modular"><defs><linearGradient id="mdlrM" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#221F1A"/><stop offset="1" stop-color="#C0552F"/></linearGradient></defs><path d="M1.44,75.812l8.08,-48.479l7.927,15.092l-5.336,33.386l-10.671,0Zm69.516,-74.852l2.744,16.617l-31.252,59.912l-31.404,-60.065l2.744,-16.464l28.66,55.186l28.508,-55.186Zm4.269,26.069l8.08,48.783l-10.671,0l-5.336,-33.539l7.927,-15.245Z" fill="url(#mdlrM)"/></svg>`,
     }; },
     computed: {
@@ -263,8 +264,39 @@
           <button class="btn" @click="ui.modeHelp=false">Got it</button>
         </div>
       </UiModal>
+
+      <!-- SESSION EXPIRED — re-login modal (popped on API 401). Not dismissable; -->
+      <!-- after login the failed requests retry so the user stays on the same page. -->
+      <UiModal v-if="ui.loginModal" @close="()=>{}">
+        <div class="drawer-head">
+          <span class="mode-ico mode-ico--modular"><Icon name="lock" :size="16"/></span>
+          <div style="flex:1"><strong style="font-size:15px">Session expired</strong><div class="t-meta">Log back in to continue where you left off</div></div>
+        </div>
+        <div class="drawer-body">
+          <div class="field"><label class="field-label">Email</label><input class="inp" type="email" v-model="reEmail" autocomplete="username" @keyup.enter="doReauth"></div>
+          <div class="field"><label class="field-label">Password</label><input class="inp" type="password" v-model="rePass" autocomplete="current-password" @keyup.enter="doReauth"></div>
+          <div v-if="reErr" style="color:var(--danger);font-size:12.5px;margin-top:8px">{{ reErr }}</div>
+        </div>
+        <div class="drawer-foot">
+          <button class="btn" :disabled="reBusy" @click="doReauth">{{ reBusy ? 'Signing in…' : 'Log in' }}</button>
+        </div>
+      </UiModal>
     </div>`,
     methods: {
+      async doReauth() {
+        if (this.reBusy) return;
+        this.reErr = '';
+        if (!this.reEmail || !this.rePass) { this.reErr = 'Enter your email and password.'; return; }
+        this.reBusy = true;
+        try {
+          await window.__mdlr.reauth(this.reEmail, this.rePass);
+          this.rePass = '';
+        } catch (e) {
+          this.reErr = (e && e.message) || 'Login failed';
+        } finally {
+          this.reBusy = false;
+        }
+      },
       openNotif(n) { n.read = true; this.ui.notif = false; if (n.go) this.go(n.go[0], n.go[1]); },
       markAllRead() { this.notifications.forEach(n => { n.read = true; }); },
       matches(t) {
