@@ -186,15 +186,43 @@
           return saved;
         }).catch(e => { this.saving = false; console.error('[editor] save failed', e); alert('Saving the post failed. Check the console.'); });
       },
-      // Open the post's public page in a new tab.
-      viewPost() {
-        const u = this.post.url || ((window.__MDLR && window.__MDLR.baseUrl || '') + '/' + this.post.type + '/' + this.post.slug);
-        window.open(u, '_blank', 'noopener');
+      publicUrl() {
+        return this.post.url || ((window.__MDLR && window.__MDLR.baseUrl || '') + '/' + this.post.type + '/' + this.post.slug);
       },
-      // Save the current edits first, then open the public page so the preview reflects them.
+      withPreview(u) { return u + (u.indexOf('?') === -1 ? '?' : '&') + 'preview=1'; },
+      // Open the post's public page in a new tab. Anything that isn't publicly live
+      // opens in preview mode, so an admin can always look at a post whatever its
+      // status instead of hitting the 404 a draft or scheduled item would give.
+      viewPost() {
+        const u = this.publicUrl();
+        window.open(this.post.status === 'published' ? u : this.withPreview(u), '_blank', 'noopener');
+      },
+      // Preview the *unsaved* editor state. This deliberately does not save: asking
+      // to look at a draft should never publish it. The values are stashed in the
+      // session by the API and overlaid on the post by the front controller.
       previewChanges() {
-        const r = this.save();
-        if (r && typeof r.then === 'function') r.then(() => this.viewPost()); else this.viewPost();
+        const api = M.api;
+        const isNew = !this.post.id || (this.route.params || {}).postId === 'new';
+        if (!api || isNew) {
+          const r = this.save();
+          if (r && typeof r.then === 'function') r.then((saved) => { if (saved && saved.id) this.previewChanges(); });
+          return;
+        }
+        // Opened up front, on the click itself, so the popup blocker lets it through;
+        // the URL is filled in once the draft has been stashed.
+        const tab = window.open('about:blank', '_blank');
+        api.post('/posts/' + this.post.id + '/preview', {
+          title: this.post.title, slug: this.post.slug, status: this.post.status,
+          data: this.values,
+        }).then((r) => {
+          const u = (r && r.url) || this.withPreview(this.publicUrl());
+          if (tab) { tab.opener = null; tab.location.replace(u); }
+          else window.open(u, '_blank', 'noopener');
+        }).catch((e) => {
+          if (tab) tab.close();
+          console.error('[editor] preview failed', e);
+          alert('Could not build the preview. Check the console.');
+        });
       },
     },
     template: `
@@ -219,8 +247,8 @@
               <span class="t-meta">Permalink</span>
               <span class="ed-permalink-url"><span class="muted">/{{ post.type }}/</span><template v-if="!editingSlug"><span class="ed-slug-val">{{ post.slug || '…' }}</span></template><input v-else class="ed-slug-input mono" v-model="post.slug" @keydown.enter="editingSlug=false" @blur="editingSlug=false"></span>
               <button class="ed-permalink-btn" @click="editingSlug=!editingSlug">{{ editingSlug ? 'Done' : 'Edit' }}</button>
-              <button class="ed-permalink-btn" @click="previewChanges" title="Save changes and open the public page"><Icon name="eye" :size="12"/> Preview changes</button>
-              <a class="ed-permalink-btn" :href="post.url || '#'" target="_blank" rel="noopener" @click="!post.url && $event.preventDefault()"><Icon name="external" :size="12"/> View</a>
+              <button class="ed-permalink-btn" @click="previewChanges" title="Open the public page with your unsaved changes"><Icon name="eye" :size="12"/> Preview changes</button>
+              <button class="ed-permalink-btn" @click="viewPost" title="Open the saved version of the public page"><Icon name="external" :size="12"/> View</button>
             </div>
           </div>
 

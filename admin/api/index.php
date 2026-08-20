@@ -593,6 +593,11 @@ $router->addRoute('POST', '/api/v1/posts/reorder', function() use ($mkResult) {
     return $mkResult((new PostsController($GLOBALS['db']))->reorder());
 }, ['auth']);
 
+// Preview: stash unsaved editor values in the session, return the front-end URL.
+$router->addRoute('POST', '/api/v1/posts/{id}/preview', function($id) use ($mkResult) {
+    return $mkResult((new PostsController($GLOBALS['db']))->preview($id));
+}, ['auth']);
+
 $router->addRoute('GET', '/api/v1/users', function() { return (new SystemController($GLOBALS['db']))->users(); }, ['auth']);
 $router->addRoute('POST', '/api/v1/users', function() use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->createUser()); }, ['auth']);
 $router->addRoute('PUT', '/api/v1/users/{id}', function($id) use ($mkResult) { return $mkResult((new SystemController($GLOBALS['db']))->updateUser($id)); }, ['auth']);

@@ -36,8 +36,49 @@ class PostsController {
     }
 
     /** Author-name expression (username → email). Needs the users join. */
-    private function authorNameExpr(): string {
-        return "COALESCE(u.username, u.email, 'Unknown') as author_name";
+    private function authorNameExpr(bool $alias = true): string {
+        $expr = "COALESCE(u.username, u.email, 'Unknown')";
+        return $alias ? $expr . " as author_name" : $expr;
+    }
+
+    /**
+     * ORDER BY clause for the overview, from whitelisted ?orderby / ?order params.
+     *
+     * Default is publication date, not `posts`.`order`: manual ordering is only
+     * meaningful for post types someone has actually dragged into shape, and
+     * everywhere else every row shares order=0, which silently degraded the list
+     * to created_at while the column on screen showed published_at.
+     */
+    private function orderClause(bool $hasAuthorJoin = true, string $default = 'date'): string {
+        $dir = strtolower((string) ($_GET['order'] ?? '')) === 'asc' ? 'ASC' : 'DESC';
+        $flip = $dir === 'ASC' ? 'DESC' : 'ASC';
+        $by = (string) ($_GET['orderby'] ?? $default);
+        if ($by === 'author' && !$hasAuthorJoin) { $by = 'date'; }
+        switch ($by) {
+            case 'title':    return " ORDER BY p.title $dir, p.id DESC";
+            case 'status':   return " ORDER BY p.status $dir, COALESCE(p.published_at, p.created_at) DESC, p.id DESC";
+            case 'author':   return " ORDER BY author_name $dir, COALESCE(p.published_at, p.created_at) DESC, p.id DESC";
+            case 'modified': return " ORDER BY p.updated_at $dir, p.id DESC";
+            case 'order':    return " ORDER BY p.`order` $flip, COALESCE(p.published_at, p.created_at) DESC, p.id DESC";
+            default:         return " ORDER BY COALESCE(p.published_at, p.created_at) $dir, p.id DESC";
+        }
+    }
+
+    /** Distinct author names within a post type, to populate the overview's Filter popover. */
+    private function authorList($postTypeId): array {
+        $sql = "SELECT DISTINCT " . $this->authorNameExpr() . "
+                FROM posts p LEFT JOIN users u ON p.author_id = u.id
+                WHERE p.deleted_at IS NULL";
+        $params = [];
+        if ($postTypeId) { $sql .= " AND p.post_type_id = ?"; $params[] = $postTypeId; }
+        $sql .= " ORDER BY author_name ASC LIMIT 200";
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return array_values(array_filter($stmt->fetchAll(\PDO::FETCH_COLUMN)));
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     /**
@@ -110,6 +151,23 @@ class PostsController {
         } elseif (!$includeTrashed) {
             $where .= " AND p.deleted_at IS NULL";
         }
+        // Overview filters (the Filter popover). Dates bound on the effective
+        // publication date so they line up with what the Published column shows.
+        $author = trim((string) ($_GET['author'] ?? ''));
+        if ($author !== '' && !$light) {
+            $where .= " AND " . $this->authorNameExpr(false) . " = ?";
+            $params[] = $author;
+        }
+        $from = trim((string) ($_GET['date_from'] ?? ''));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
+            $where .= " AND DATE(COALESCE(p.published_at, p.created_at)) >= ?";
+            $params[] = $from;
+        }
+        $to = trim((string) ($_GET['date_to'] ?? ''));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
+            $where .= " AND DATE(COALESCE(p.published_at, p.created_at)) <= ?";
+            $params[] = $to;
+        }
         // The relationship picker (light) keeps its title-only search; the admin overview
         // searches custom fields too so posts/tracks are findable by any stored value.
         if ($q !== '') {
@@ -123,7 +181,7 @@ class PostsController {
             $page = max(1, (int) ($_GET['page'] ?? 1));
             $perPage = max(1, min(200, (int) ($_GET['per_page'] ?? 50)));
             $offset = ($page - 1) * $perPage;
-            $sql .= " ORDER BY p.`order` ASC, p.created_at DESC LIMIT " . $perPage . " OFFSET " . $offset;
+            $sql .= $this->orderClause(!$light) . " LIMIT " . $perPage . " OFFSET " . $offset;
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -150,11 +208,14 @@ class PostsController {
                 'page' => $page,
                 'per_page' => $perPage,
                 'counts' => $this->statusCounts($postTypeId, $q),
+                'authors' => $this->authorList($postTypeId),
             ];
         }
 
         // Legacy non-paginated shape (relationship picker, exports): a bare array.
-        $sql .= " ORDER BY p.`order` ASC, p.created_at DESC LIMIT " . (int) $limit;
+        // Legacy non-paginated shape keeps manual order as its default so the
+        // relationship picker and exports are unaffected; ?orderby still works.
+        $sql .= $this->orderClause(!$light, 'order') . " LIMIT " . (int) $limit;
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -326,6 +387,47 @@ class PostsController {
 
         $this->invalidatePostCache();
         return $this->show($id);
+    }
+
+    /**
+     * POST /posts/{id}/preview — stash the editor's *unsaved* values in the session
+     * and hand back the front-end URL that will render them.
+     *
+     * Nothing is written to the posts table: previewing a draft must never change
+     * what is published. The front controller reads this back and overlays it.
+     */
+    public function preview($id) {
+        $id = (int) $id;
+        if ($id <= 0) return ['error' => 'Unknown post', 'code' => 400];
+
+        $stmt = $this->db->prepare("
+            SELECT p.slug, pt.slug AS post_type_slug
+            FROM posts p INNER JOIN post_types pt ON p.post_type_id = pt.id
+            WHERE p.id = ? AND p.deleted_at IS NULL
+        ");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$row) return ['error' => 'Post not found', 'code' => 404];
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $draft = [];
+        foreach (['title', 'slug', 'excerpt', 'status', 'template'] as $k) {
+            if (array_key_exists($k, $input)) $draft[$k] = $input[$k];
+        }
+        if (isset($input['data']) && is_array($input['data'])) $draft['data'] = $input['data'];
+        if (isset($input['layout']) && is_array($input['layout'])) $draft['layout'] = $input['layout'];
+
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        // One slot per post, replaced on each preview — a scratch buffer, not a
+        // revision store, and it must not grow without bound.
+        $_SESSION['md_preview'] = ['post_id' => $id, 'draft' => $draft, 'time' => time()];
+
+        $this->loadPermalinks();
+        // Built from the stored slug on purpose: an unsaved slug rename has no row
+        // to resolve against, and the draft title/body is what the preview is for.
+        $url = $this->permalinkFor(['post_type_slug' => $row['post_type_slug'], 'slug' => $row['slug']]);
+        $sep = strpos($url, '?') === false ? '?' : '&';
+        return ['url' => $url . $sep . 'preview=1'];
     }
 
     /**

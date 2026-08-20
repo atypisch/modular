@@ -5,6 +5,20 @@
 .list-toolbar .topbar-search { cursor: text; }
 .list-pager { border-bottom: 0; border-top: 1px solid var(--line); }
 
+/* Filter / Columns popovers in the list toolbar. Anchored to their button; the
+   dismiss layer sits just under .pop (z-index 70) so a click outside closes it. */
+.ct-pop-wrap { position: relative; display: inline-flex; }
+.ct-pop { top: calc(100% + 6px); left: 0; min-width: 230px; padding: 12px; }
+.ct-pop--right { left: auto; right: 0; min-width: 200px; padding: 5px; }
+.ct-pop--right .pop-item { cursor: pointer; }
+.ct-pop-dismiss { position: fixed; inset: 0; z-index: 69; }
+
+/* Sortable column headers. A button so it is keyboard reachable, styled to read
+   as the header text it replaces. */
+.ct-sort { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.ct-sort:hover { color: var(--ink); }
+.ct-sort-ar { color: var(--accent); font-size: 11px; min-width: 8px; }
+
 /* ---- EDITOR ---- */
 .ed { display: block; }
 .ed-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 22px; border-bottom: 1px solid var(--line); background: var(--paper); }

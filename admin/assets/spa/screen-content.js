@@ -8,6 +8,18 @@
   const C = window.__mdlr.comps;
   const D = () => window.__mdlr.data;
 
+  /* Column visibility, remembered between sessions. `order` is off by default:
+     it only earns its place when you actually sort by manual order. */
+  const COL_KEY = 'mdlr.contentCols';
+  const COL_DEFAULTS = { status: true, author: true, date: true, slug: false, order: false };
+  function loadCols() {
+    try { return Object.assign({}, COL_DEFAULTS, JSON.parse(localStorage.getItem(COL_KEY) || '{}')); }
+    catch (e) { return Object.assign({}, COL_DEFAULTS); }
+  }
+  function saveCols(cols) {
+    try { localStorage.setItem(COL_KEY, JSON.stringify(cols)); } catch (e) {}
+  }
+
   /* ---- a single field's control, rendered by type ---- */
   C.FieldControl = {
     name: 'FieldControl',
@@ -231,7 +243,14 @@
     inject: ['go','route'],
     data() { return { tab:'all', q:'', sel: [], items: [], quickId: null, qdraft: null,
       page: 1, perPage: 50, total: 0, countAll: 0, countTrash: 0, loading: false, _searchTimer: null,
-      statuses:['published','draft','scheduled'], authors:['marten','lieke','sam','noor'],
+      statuses:['published','draft','scheduled'], authors:[],
+      // Sorting. Publication date first — that is the order editors think in,
+      // and it is what the date column shows.
+      orderby: 'date', order: 'desc',
+      // Filter popover (author + publication window). Status lives in the tabs.
+      filterOpen: false, fAuthor: '', fFrom: '', fTo: '',
+      // Columns popover. Title is structural and always shown.
+      colsOpen: false, cols: loadCols(),
       // Manual ordering: drag a row to a new position and the whole page is
       // renumbered server-side. Only offered on the unfiltered first page —
       // reordering a filtered or paginated slice would renumber the wrong set.
@@ -247,7 +266,14 @@
       counts() { return { all: this.countAll, trash: this.countTrash }; },
       totalPages() { return Math.max(1, Math.ceil(this.total / this.perPage)); },
       allOn() { return this.filtered.length>0 && this.filtered.every(p => this.sel.includes(p.id)); },
-      canReorder() { return this.tab === 'all' && !this.q && this.page === 1 && this.filtered.length > 1; },
+      // Dragging renumbers `order`, so it only makes sense while the list is
+      // actually sorted by manual order — on any other sort the rows would jump
+      // straight back on reload.
+      canReorder() { return this.orderby === 'order' && this.order === 'asc' && this.tab === 'all' && !this.q && !this.hasFilters && this.page === 1 && this.filtered.length > 1; },
+      hasFilters() { return !!(this.fAuthor || this.fFrom || this.fTo); },
+      filterCount() { return (this.fAuthor ? 1 : 0) + (this.fFrom ? 1 : 0) + (this.fTo ? 1 : 0); },
+      // Title + checkbox are always there; the rest is what the Columns popover allows.
+      colSpan() { return 2 + (this.canReorder ? 1 : 0) + ['status','author','date','slug','order'].filter(k => this.cols[k]).length; },
     },
     watch: {
       pt() { this.tab = 'all'; this.q = ''; this.page = 1; this.load(); },
@@ -297,6 +323,11 @@
         else if (this.tab !== 'all') params.set('status', this.tab);
         const q = this.q.trim();
         if (q) params.set('q', q);
+        params.set('orderby', this.orderby);
+        params.set('order', this.order);
+        if (this.fAuthor) params.set('author', this.fAuthor);
+        if (this.fFrom) params.set('date_from', this.fFrom);
+        if (this.fTo) params.set('date_to', this.fTo);
         this.loading = true;
         api.get('/posts?' + params.toString()).then(resp => {
           const rows = (resp && resp.items) || [];
@@ -304,6 +335,7 @@
             id: p.id, title: p.title || '(untitled)',
             slug: p.slug || '', status: p.status || 'draft',
             date: (p.published_at || p.created_at || '').slice(0, 10),
+            order: Number(p.order) || 0,
             type: pt.id, author: p.author_name || '', url: p.url || '',
             _trash: p.status === 'trash' || !!p.deleted_at,
           }));
@@ -311,9 +343,20 @@
           const c = (resp && resp.counts) || {};
           this.countAll = c.all || 0;
           this.countTrash = c.trash || 0;
+          this.authors = (resp && resp.authors) || [];
         }).catch((e) => { console.warn('[content] load posts failed', e && e.status); this.items = []; this.total = 0; })
           .finally(() => { this.loading = false; });
       },
+      // Click a header to sort by it; click the active one again to flip direction.
+      sortBy(key) {
+        if (this.orderby === key) this.order = this.order === 'asc' ? 'desc' : 'asc';
+        else { this.orderby = key; this.order = key === 'title' || key === 'order' ? 'asc' : 'desc'; }
+        this.page = 1; this.sel = []; this.load();
+      },
+      sortIcon(key) { return this.orderby !== key ? '' : (this.order === 'asc' ? '↑' : '↓'); },
+      toggleCol(key) { this.cols[key] = !this.cols[key]; saveCols(this.cols); },
+      applyFilters() { this.filterOpen = false; this.page = 1; this.sel = []; this.load(); },
+      clearFilters() { this.fAuthor = ''; this.fFrom = ''; this.fTo = ''; this.applyFilters(); },
       goPage(p) { const n = Math.min(this.totalPages, Math.max(1, p)); if (n !== this.page) { this.page = n; this.sel = []; this.load(); } },
       statusClass(s){ return s==='published'?'badge--ok':s==='scheduled'?'badge--info':s==='draft'?'badge--warn':''; },
       singular(){ return this.pt.name.replace(/s$/,'').toLowerCase(); },
@@ -346,19 +389,59 @@
       <div class="card">
         <div class="list-toolbar">
           <div class="topbar-search" style="max-width:280px;flex:0 1 280px;cursor:text"><Icon name="search" :size="15"/><input class="fb-lib-input" v-model="q" :placeholder="'Search '+pt.name.toLowerCase()+'…'" style="color:var(--ink)"></div>
-          <button class="btn btn--ghost btn--sm"><Icon name="filter" :size="14"/> Filter</button>
+          <div v-if="filterOpen || colsOpen" class="ct-pop-dismiss" @click="filterOpen=false; colsOpen=false"></div>
+          <div class="ct-pop-wrap">
+            <button class="btn btn--ghost btn--sm" :class="{'is-on':hasFilters}" @click="filterOpen=!filterOpen; colsOpen=false">
+              <Icon name="filter" :size="14"/> Filter<span v-if="filterCount" class="tab-count">{{ filterCount }}</span>
+            </button>
+            <div v-if="filterOpen" class="pop ct-pop">
+              <div class="field" style="margin:0 0 10px">
+                <label class="field-label">Author</label>
+                <UiSelect v-model="fAuthor"><option value="">Any author</option><option v-for="a in authors" :key="a" :value="a">{{ a }}</option></UiSelect>
+              </div>
+              <div class="field" style="margin:0 0 10px">
+                <label class="field-label">Published from</label>
+                <input class="inp mono" type="date" v-model="fFrom">
+              </div>
+              <div class="field" style="margin:0 0 12px">
+                <label class="field-label">Published until</label>
+                <input class="inp mono" type="date" v-model="fTo">
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn--ghost btn--sm" @click="clearFilters">Clear</button>
+                <div class="grow"></div>
+                <button class="btn btn--accent btn--sm" @click="applyFilters"><Icon name="check" :size="14"/> Apply</button>
+              </div>
+            </div>
+          </div>
           <template v-if="sel.length">
             <span class="badge badge--info">{{ sel.length }} selected</span>
             <button class="btn btn--danger btn--sm" @click="bulkTrash"><Icon name="trash" :size="14"/> Move to trash</button>
           </template>
           <div class="grow"></div>
-          <button class="btn btn--ghost btn--sm"><Icon name="sliders" :size="14"/> Columns</button>
+          <div class="ct-pop-wrap">
+            <button class="btn btn--ghost btn--sm" @click="colsOpen=!colsOpen; filterOpen=false"><Icon name="sliders" :size="14"/> Columns</button>
+            <div v-if="colsOpen" class="pop ct-pop ct-pop--right">
+              <div class="pop-item" @click="toggleCol('status')"><UiChk :modelValue="cols.status"/> <span>Status</span></div>
+              <div class="pop-item" @click="toggleCol('author')"><UiChk :modelValue="cols.author"/> <span>Author</span></div>
+              <div class="pop-item" @click="toggleCol('date')"><UiChk :modelValue="cols.date"/> <span>Published</span></div>
+              <div class="pop-item" @click="toggleCol('slug')"><UiChk :modelValue="cols.slug"/> <span>Slug</span></div>
+              <div class="pop-item" @click="toggleCol('order')"><UiChk :modelValue="cols.order"/> <span>Order</span></div>
+              <div class="pop-sep"></div>
+              <div class="t-meta" style="padding:2px 10px 4px">Sort by Order to drag rows into place.</div>
+            </div>
+          </div>
         </div>
         <table class="tbl tbl--rows">
           <thead><tr>
             <th style="width:36px"><UiChk :modelValue="allOn" @update:modelValue="toggleAll"/></th>
             <th v-if="canReorder" style="width:34px"></th>
-            <th>Title</th><th style="width:120px">Status</th><th style="width:140px">Author</th><th style="width:150px">Updated</th>
+            <th><button class="ct-sort" @click="sortBy('title')">Title <span class="ct-sort-ar">{{ sortIcon('title') }}</span></button></th>
+            <th v-if="cols.slug" style="width:180px">Slug</th>
+            <th v-if="cols.status" style="width:120px"><button class="ct-sort" @click="sortBy('status')">Status <span class="ct-sort-ar">{{ sortIcon('status') }}</span></button></th>
+            <th v-if="cols.author" style="width:140px"><button class="ct-sort" @click="sortBy('author')">Author <span class="ct-sort-ar">{{ sortIcon('author') }}</span></button></th>
+            <th v-if="cols.date" style="width:150px"><button class="ct-sort" @click="sortBy('date')">Published <span class="ct-sort-ar">{{ sortIcon('date') }}</span></button></th>
+            <th v-if="cols.order" style="width:90px"><button class="ct-sort" @click="sortBy('order')">Order <span class="ct-sort-ar">{{ sortIcon('order') }}</span></button></th>
           </tr></thead>
           <tbody @dragover.prevent @drop="dDrop">
             <template v-for="(p,i) in filtered" :key="p.id">
@@ -386,15 +469,17 @@
                     </div>
                   </div>
                 </td>
-                <td><span class="badge" :class="statusClass(p.status)">{{ p.status }}</span></td>
-                <td class="muted">{{ p.author }}@atypisch.nl</td>
-                <td class="muted">{{ p.date }}</td>
+                <td v-if="cols.slug" class="muted mono">{{ p.slug }}</td>
+                <td v-if="cols.status"><span class="badge" :class="statusClass(p.status)">{{ p.status }}</span></td>
+                <td v-if="cols.author" class="muted">{{ p.author }}</td>
+                <td v-if="cols.date" class="muted">{{ p.date || '—' }}</td>
+                <td v-if="cols.order" class="muted mono">{{ p.order }}</td>
               </tr>
               <!-- quick edit row -->
               <tr v-else class="quick-row">
                 <td></td>
                 <td v-if="canReorder"></td>
-                <td :colspan="4">
+                <td :colspan="colSpan - 1 - (canReorder ? 1 : 0)">
                   <div class="quick-edit">
                     <div class="quick-edit-head"><Icon name="pencil" :size="14"/> Quick edit <span class="t-meta">— the essentials, without opening the editor.</span></div>
                     <div class="quick-grid">
@@ -412,7 +497,7 @@
                 </td>
               </tr>
             </template>
-            <tr v-if="!filtered.length"><td :colspan="canReorder ? 6 : 5"><div class="empty" style="padding:40px"><Icon name="files"/><div>No {{ pt.name.toLowerCase() }} here {{ tab!=='all' ? 'in '+tab : '' }}.</div></div></td></tr>
+            <tr v-if="!filtered.length"><td :colspan="colSpan"><div class="empty" style="padding:40px"><Icon name="files"/><div>No {{ pt.name.toLowerCase() }} here {{ tab!=='all' ? 'in '+tab : '' }}.</div></div></td></tr>
           </tbody>
         </table>
         <div class="list-toolbar list-pager" v-if="total > perPage">

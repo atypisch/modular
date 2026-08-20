@@ -297,6 +297,9 @@
     beforeUnmount() { if (this.tiptap) { try { this.tiptap.destroy(); } catch (e) {} } },
     watch: {
       modelValue(v) {
+        // While the HTML pane is open the textarea owns the value; pushing every
+        // keystroke back into the hidden editor would fight the caret for nothing.
+        if (this.sourceView) return;
         if (this.useTT) { if (this.tiptap && this.tiptap.getHTML() !== (v || '')) { try { this.tiptap.commands.setContent(v || '', false); } catch (e) {} } return; }
         // only rewrite when the editor isn't focused, to avoid caret jumps
         if (this.$refs.body && document.activeElement !== this.$refs.body && this.$refs.body.innerHTML !== (v || '')) {
@@ -305,14 +308,45 @@
       },
     },
     methods: {
-      async initTiptap() {
+      async initTiptap(content) {
         try {
           const vbase = (window.__MDLR && window.__MDLR.baseUrl || '') + '/admin/assets/vendor';
           const tt = await import(vbase + '/tiptap/tiptap.bundle.js');   // vendored locally — no external deps
           const StarterKit = tt.StarterKit;
-          this.tiptap = new tt.Editor({ element: this.$refs.tt, extensions: [StarterKit], content: this.modelValue || '', onUpdate: ({ editor }) => this.$emit('update:modelValue', editor.getHTML()) });
+          if (this.$refs.tt) this.$refs.tt.innerHTML = ''; // drop any view left by a previous editor
+          this.tiptap = new tt.Editor({ element: this.$refs.tt, extensions: [StarterKit], content: content != null ? content : (this.modelValue || ''), onUpdate: ({ editor }) => this.$emit('update:modelValue', editor.getHTML()) });
           this.useTT = true;
         } catch (e) { console.warn('[wysiwyg] Tiptap load failed; using basic editor', e); this.useTT = false; }
+      },
+      // Switch between visual and HTML editing. Going back to visual re-seeds the
+      // editor from the value the textarea produced, which the watcher skipped.
+      toggleSource() {
+        const backToVisual = this.sourceView;
+        this.sourceView = !this.sourceView;
+        if (backToVisual) this.$nextTick(() => this.syncFromValue());
+      },
+      syncFromValue() {
+        const v = this.modelValue || '';
+        if (this.useTT && this.tiptap) {
+          if (this.tiptap.getHTML() === v) return;
+          try {
+            this.tiptap.commands.setContent(v, false);
+          } catch (e) {
+            // ProseMirror rejects a transaction built against a state it no
+            // longer holds ("Applying a mismatched transaction"), which is what
+            // silently swallowed edits made in HTML view. Rebuilding the editor
+            // around the new content is the reliable way back.
+            this.rebuildTiptap(v);
+          }
+          return;
+        }
+        if (this.$refs.body && this.$refs.body.innerHTML !== v) this.$refs.body.innerHTML = v;
+      },
+      rebuildTiptap(content) {
+        if (this.tiptap) { try { this.tiptap.destroy(); } catch (e) {} this.tiptap = null; }
+        this.useTT = false;
+        if (this.$refs.body) this.$refs.body.innerHTML = content;
+        this.initTiptap(content);
       },
       ttRun(fn) { try { fn(this.tiptap.chain().focus()).run(); } catch (e) {} },
       emit() { this.$emit('update:modelValue', this.$refs.body ? this.$refs.body.innerHTML : ''); },
@@ -405,13 +439,15 @@
           <button type="button" class="rte-b" title="Clear formatting" @mousedown.prevent @click="clearFormat"><Icon name="eraser" :size="15"/></button>
           <button type="button" class="rte-b" title="Undo" @mousedown.prevent @click="exec('undo')"><Icon name="undo" :size="15"/></button>
           <button type="button" class="rte-b" title="Redo" @mousedown.prevent @click="exec('redo')"><Icon name="redo" :size="15"/></button>
-          <button type="button" class="rte-b rte-source" :class="{'is-on':sourceView}" title="View HTML source" @mousedown.prevent @click="sourceView=!sourceView" style="margin-left:auto"><Icon name="code" :size="15"/> HTML</button>
+          <button type="button" class="rte-b rte-source" :class="{'is-on':sourceView}" title="View HTML source" @mousedown.prevent @click="toggleSource" style="margin-left:auto"><Icon name="code" :size="15"/> HTML</button>
         </div>
-        <template v-if="!sourceView">
+        <!-- v-show, never v-if: v-if unmounts the node Tiptap is attached to, so one
+             trip through HTML view left the editor permanently blank. -->
+        <div v-show="!sourceView">
           <div v-show="!useTT" ref="body" class="rte-body" contenteditable="true" @input="onInput" @blur="emit"></div>
           <div v-show="useTT" ref="tt" class="rte-body tt-host"></div>
-        </template>
-        <textarea v-else class="ta mono" style="min-height:160px;border-radius:0 0 var(--r-sm) var(--r-sm)" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" placeholder="&lt;p&gt;HTML…&lt;/p&gt;"></textarea>
+        </div>
+        <textarea v-show="sourceView" class="ta mono" style="min-height:160px;border-radius:0 0 var(--r-sm) var(--r-sm)" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" placeholder="&lt;p&gt;HTML…&lt;/p&gt;"></textarea>
         <MediaPicker v-if="imgPick" :accept="'image'" @close="imgPick=false" @pick="m=>{ insertImage(m); imgPick=false }"/>
       </div>`,
   });

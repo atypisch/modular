@@ -81,7 +81,6 @@
     analytics: 'ScreenAnalytics',
     notifications: 'ScreenNotifications',
     library: 'ScreenLibrary',
-    fieldDemo: 'ScreenFieldDemo',
     modulePage: 'ScreenModulePage',
     systemUpdate: 'ScreenSystemUpdate',
   };

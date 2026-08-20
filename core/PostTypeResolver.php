@@ -83,6 +83,20 @@ class PostTypeResolver
             return ['error' => 'Post not found', 'code' => 404];
         }
 
+        // Admin preview: overlay the editor's unsaved values onto the stored row
+        // before anything is resolved, so blocks, content and the base output all
+        // reflect the draft rather than what is in the database.
+        if (!empty($options['overrides']) && is_array($options['overrides'])) {
+            foreach (['title', 'slug', 'excerpt', 'status', 'template', 'layout'] as $k) {
+                if (array_key_exists($k, $options['overrides'])) {
+                    $post[$k] = $options['overrides'][$k];
+                }
+            }
+            if (isset($options['overrides']['data']) && is_array($options['overrides']['data'])) {
+                $post['data'] = $options['overrides']['data'];
+            }
+        }
+
         $schema = $this->getEffectiveSchema($post);
         if (empty($schema['fields'])) {
             $base = $this->basePostOutput($post, $includeAuthor);

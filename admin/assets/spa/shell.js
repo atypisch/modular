@@ -61,7 +61,6 @@
         ]},
         { name:'components', label:'Blocks', icon:'layers' },
         { name:'library', label:'Field types', icon:'grid' },
-        { name:'fieldDemo', label:'Field demo', icon:'grid' },
         { name:'forms', label:'Forms', icon:'form' },
       ]},
       { label: 'Automation', items: [

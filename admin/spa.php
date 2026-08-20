@@ -144,7 +144,6 @@ $spaAsset = function (string $file) use ($assetsBase) {
   <script src="<?= $spaAsset('screen-system-update.js') ?>"></script>
   <script src="<?= $spaAsset('screen-insights.js') ?>"></script>
   <script src="<?= $spaAsset('screen-analytics.js') ?>"></script>
-  <script src="<?= $spaAsset('screen-field-demo.js') ?>"></script>
   <script src="<?= $spaAsset('visual-editor.js') ?>"></script>
   <script src="<?= $spaAsset('screen-fieldbuilder.js') ?>"></script>
   <script src="<?= $spaAsset('screen-components.js') ?>"></script>

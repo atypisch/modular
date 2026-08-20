@@ -88,6 +88,16 @@ if (is_file(MODULAR_PATH . '/core/functions/permalinks.php')) {
     require_once MODULAR_PATH . '/core/functions/permalinks.php';
 }
 
+// Admin preview. A logged-in CMS admin asking for ?preview=1 may open any post
+// whatever its status, so drafts and scheduled items can be checked before they
+// go live. is_admin() gates on the cms_* session keys only, so a front-end
+// login can never satisfy it. Everyone else keeps the published-or-due rule.
+$md_preview = isset($_GET['preview']) && $_GET['preview'] !== '0'
+    && function_exists('is_admin') && is_admin();
+$md_status_sql = $md_preview
+    ? '1=1'
+    : "(p.status = 'published' OR (p.status = 'scheduled' AND p.published_at IS NOT NULL AND p.published_at <= NOW()))";
+
 // Detect post type slug + post slug from query or path
 $postTypeSlug = $_GET['type'] ?? $_GET['post_type'] ?? null;
 $postSlug = $_GET['slug'] ?? null;
@@ -218,7 +228,7 @@ if ($postTypeSlug !== null && $postSlug !== null) {
         SELECT p.id FROM posts p
         INNER JOIN post_types pt ON p.post_type_id = pt.id
         WHERE pt.slug = ? AND p.slug = ? AND p.deleted_at IS NULL
-        AND (p.status = 'published' OR (p.status = 'scheduled' AND p.published_at IS NOT NULL AND p.published_at <= NOW()))
+        AND $md_status_sql
     ");
     $stmt->execute([$postTypeSlug, $postSlug]);
     $row = $stmt->fetch(\PDO::FETCH_ASSOC);
