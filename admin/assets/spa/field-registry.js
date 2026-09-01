@@ -499,16 +499,23 @@
     methods: {
       grad(h) { return 'linear-gradient(135deg, hsl(' + h + ' 30% 80%), hsl(' + (h - 8) + ' 24% 58%))'; },
       onCrop(crop) { const v = this.modelValue; if (!v || v.id == null) return; window.__mdlr.store.saveMediaCrop(v.id, crop).catch(e => console.error('[image] save crop failed', e)); },
+      isMobile() { const v = this.modelValue; return !!(v && typeof v === 'object' && v.mobile); },
+      setMobile(on) {
+        const v = this.modelValue;
+        if (!v) return;
+        if (typeof v === 'object') this.set(Object.assign({}, v, { mobile: !!on }));
+        else this.set({ id: v, mobile: !!on });
+      },
     },
     template: `
       <div class="fc-img">
-        <div v-if="modelValue && modelValue.name" class="img-slot" :style="imgBg ? {background:'center/cover no-repeat url('+imgBg+')'} : {backgroundImage: grad(modelValue.hue||34)}">
-          <div class="img-slot-actions"><button class="btn btn--soft btn--xs" @click="cropOpen=true"><Icon name="crop" :size="13"/> Crop</button><button class="btn btn--soft btn--xs" @click="pickOpen=true"><Icon name="refresh" :size="13"/> Replace</button><button class="btn btn--soft btn--xs" @click="set(null)"><Icon name="x" :size="13"/> Remove</button></div>
-          <span class="img-slot-meta mono">{{ modelValue.name }}<template v-if="modelValue.w"> · {{ modelValue.w }}×{{ modelValue.h }}</template><template v-if="formatName"> · {{ formatName }}</template></span>
+        <div v-if="modelValue && (modelValue.name || modelValue.id)" class="img-slot" :class="{'is-mobile': isMobile()}" :style="imgBg ? {background:'center / contain no-repeat url('+imgBg+')', backgroundColor:'var(--paper-2)'} : {backgroundImage: grad(modelValue.hue||34)}">
+          <div class="img-slot-actions"><button class="btn btn--soft btn--xs" :class="{'is-on': isMobile()}" @click="setMobile(!isMobile())" title="Show in the mobile row on the public page"><Icon name="box" :size="13"/> Mobile</button><button class="btn btn--soft btn--xs" @click="cropOpen=true"><Icon name="crop" :size="13"/> Crop</button><button class="btn btn--soft btn--xs" @click="pickOpen=true"><Icon name="refresh" :size="13"/> Replace</button><button class="btn btn--soft btn--xs" @click="set(null)"><Icon name="x" :size="13"/> Remove</button></div>
+          <span class="img-slot-meta mono">{{ modelValue.name }}<template v-if="modelValue.w"> · {{ modelValue.w }}×{{ modelValue.h }}</template><template v-if="formatName"> · {{ formatName }}</template><template v-if="isMobile()"> · mobile</template></span>
         </div>
         <button v-else class="form-file" @click="pickOpen=true"><Icon name="image" :size="15"/> Choose image…</button>
         <ImageCropper v-if="cropOpen" :img="cropImg" @save="onCrop" @close="cropOpen=false"/>
-        <MediaPicker v-if="pickOpen" :accept="'image'" @close="pickOpen=false" @pick="m=>{ set({id:m.id,hue:m.hue,name:m.name,w:m.w,h:m.h,url:m.url}); pickOpen=false }"/>
+        <MediaPicker v-if="pickOpen" :accept="'image'" @close="pickOpen=false" @pick="m=>{ set({id:m.id,hue:m.hue,name:m.name,w:m.w,h:m.h,url:m.url,mobile:isMobile()}); pickOpen=false }"/>
       </div>`,
   });
 
@@ -526,7 +533,16 @@
         const u = (m && (m.thumb || m.url)) || (it && it.url) || '';
         return u ? ('center/cover no-repeat url(' + u + ')') : this.grad((it && it.hue) || 30);
       },
-      addBatch(payload) { const arr = Array.isArray(payload) ? payload : [payload]; const add = arr.map(m => ({ id: m.id, hue: m.hue, name: m.name, w: m.w, h: m.h, url: m.url })); this.set(this.items.concat(add)); },
+      addBatch(payload) { const arr = Array.isArray(payload) ? payload : [payload]; const add = arr.map(m => ({ id: m.id, hue: m.hue, name: m.name, w: m.w, h: m.h, url: m.url, mobile: !!m.mobile })); this.set(this.items.concat(add)); },
+      toggleMobile(i) {
+        const a = this.items.slice();
+        if (!a[i]) return;
+        const cur = a[i];
+        const obj = (cur && typeof cur === 'object') ? Object.assign({}, cur) : { id: cur };
+        obj.mobile = !obj.mobile;
+        a[i] = obj;
+        this.set(a);
+      },
       remove(i) { const a = this.items.slice(); a.splice(i, 1); this.set(a); },
       dStart(i, e) { this.dragI = i; if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(i)); } catch (_) {} } },
       dOver(i, e) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); this.dropAt = (e.clientX - r.left) > r.width / 2 ? i + 1 : i; },
@@ -537,8 +553,9 @@
         <div class="gal" @dragover.prevent @drop="dDrop">
           <template v-for="(it,i) in items" :key="it.id||i">
             <div class="gal-dropline" v-if="dragI!=null && dropAt===i"></div>
-            <div class="gal-cell" :class="{'is-dragging':dragI===i}" :style="{ background: bg(it) }" draggable="true" @dragstart="dStart(i,$event)" @dragend="dragI=null;dropAt=null" @dragover="dOver(i,$event)" :title="it.name">
+            <div class="gal-cell" :class="{'is-dragging':dragI===i, 'is-mobile': !!(it && it.mobile)}" :style="{ background: bg(it) }" draggable="true" @dragstart="dStart(i,$event)" @dragend="dragI=null;dropAt=null" @dragover="dOver(i,$event)" :title="it.name">
               <button class="iconbtn iconbtn--sm is-danger gal-rm" @click.stop="remove(i)"><Icon name="x" :size="12"/></button>
+              <button class="gal-flag" :class="{'is-on': !!(it && it.mobile)}" @click.stop="toggleMobile(i)" title="Show in the mobile row on the public page">Mobile</button>
             </div>
           </template>
           <div class="gal-dropline" v-if="dragI!=null && dropAt===items.length"></div>

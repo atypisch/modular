@@ -142,6 +142,14 @@
       await this.loadMedia();
       return saved || null;
     },
+    async deleteMedia(id) {
+      const nid = Number(id);
+      if (isNaN(nid) || nid <= 0) return;
+      await api().del('/media/' + nid);
+      const list = D().MEDIA;
+      const i = list.findIndex(m => Number(m.id) === nid);
+      if (i >= 0) list.splice(i, 1);
+    },
 
     async loadTaxonomies() {
       try {

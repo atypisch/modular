@@ -465,7 +465,12 @@ $router->addRoute('PUT', '/api/v1/media/{id}', function($id) {
 
 $router->addRoute('DELETE', '/api/v1/media/{id}', function($id) {
     $controller = new MediaController($GLOBALS['db']);
-    return $controller->delete($id);
+    $result = $controller->delete($id);
+    if (isset($result['code'])) {
+        http_response_code($result['code']);
+        unset($result['code']);
+    }
+    return $result;
 }, ['auth']);
 
 // Search routes
@@ -610,6 +615,8 @@ $router->addRoute('GET', '/api/v1/settings', function() { return (new SettingsCo
 $router->addRoute('PUT', '/api/v1/settings', function() use ($mkResult) { return $mkResult((new SettingsController($GLOBALS['db']))->update()); }, ['auth']);
 $router->addRoute('GET', '/api/v1/settings/theme', function() { return (new SettingsController($GLOBALS['db']))->getTheme(); }, ['auth']);
 $router->addRoute('PUT', '/api/v1/settings/theme', function() { return (new SettingsController($GLOBALS['db']))->setTheme(); }, ['auth']);
+$router->addRoute('GET', '/api/v1/settings/permalinks', function() { return (new SettingsController($GLOBALS['db']))->getPermalinks(); }, ['auth']);
+$router->addRoute('PUT', '/api/v1/settings/permalinks', function() use ($mkResult) { return $mkResult((new SettingsController($GLOBALS['db']))->savePermalinks()); }, ['auth']);
 
 // System: users, roles, capabilities, modules
 $router->addRoute('POST', '/api/v1/posts/reorder', function() use ($mkResult) {

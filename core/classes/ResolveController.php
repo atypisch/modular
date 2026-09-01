@@ -182,6 +182,7 @@ class ResolveController {
                 'url'  => $url,
                 'w'    => isset($m['width']) ? (int) $m['width'] : null,
                 'h'    => isset($m['height']) ? (int) $m['height'] : null,
+                'mobile' => is_array($v) && !empty($v['mobile']),
             ];
         }
         return $values;

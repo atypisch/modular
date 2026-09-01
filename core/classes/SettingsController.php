@@ -53,7 +53,97 @@ class SettingsController {
         return ['message' => 'Theme saved'];
     }
 
+    /** GET /settings/permalinks — structures + the real .htaccess on disk. */
+    public function getPermalinks() {
+        $this->loadPermalinksLib();
+        return $this->permalinksPayload();
+    }
+
+    /** PUT /settings/permalinks — save structures and merge rewrite rules into .htaccess. */
+    public function savePermalinks() {
+        $this->loadPermalinksLib();
+        $in = $this->body();
+        $incoming = $in['structures'] ?? null;
+        if (!is_array($incoming)) {
+            return ['error' => 'structures must be an object', 'code' => 400];
+        }
+
+        $clean = [];
+        foreach ($incoming as $type => $struct) {
+            $type = preg_replace('/[^a-z0-9_-]/', '', strtolower((string) $type));
+            $struct = preg_replace('#[^a-z0-9/_{}:-]#i', '', (string) $struct);
+            if ($type === '') {
+                continue;
+            }
+            $struct = '/' . ltrim($struct, '/');
+            if (strpos($struct, '{slug}') === false) {
+                $struct = rtrim($struct, '/') . '/{slug}';
+            }
+            $clean[$type] = $struct;
+        }
+
+        if (!\save_permalink_structures($clean)) {
+            return ['error' => 'Could not save permalink settings', 'code' => 500];
+        }
+
+        $out = $this->permalinksPayload($clean);
+        $wrote = strpos((string) ($out['htaccess']['content'] ?? ''), '# BEGIN Modular Permalinks') !== false;
+        if (!$out['htaccess']['writable'] || !$wrote) {
+            $out['warning'] = '.htaccess could not be updated. Permalink structures were saved; check file permissions.';
+        } else {
+            $out['message'] = 'Permalinks saved. .htaccess updated.';
+        }
+        return $out;
+    }
+
     /* ---- helpers ---- */
+    private function loadPermalinksLib(): void {
+        $file = (defined('CORE_PATH') ? CORE_PATH : dirname(__DIR__)) . '/functions/permalinks.php';
+        if (is_file($file)) {
+            require_once $file;
+        }
+    }
+
+    private function permalinksPayload(?array $structures = null): array {
+        $path = \get_htaccess_path();
+        $content = is_readable($path) ? (string) file_get_contents($path) : '';
+        $exists = is_file($path);
+
+        $resolved = [];
+        try {
+            $rows = $this->db->query("SELECT slug FROM post_types WHERE deleted_at IS NULL ORDER BY name ASC")->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            $rows = [];
+        }
+        foreach ($rows as $row) {
+            $slug = (string) $row['slug'];
+            if ($structures !== null && isset($structures[$slug])) {
+                $resolved[$slug] = $structures[$slug];
+            } else {
+                $resolved[$slug] = \get_permalink_structure($slug);
+            }
+        }
+        if ($structures !== null) {
+            foreach ($structures as $slug => $struct) {
+                if (!isset($resolved[$slug])) {
+                    $resolved[$slug] = $struct;
+                }
+            }
+        }
+
+        return [
+            'structures' => $resolved,
+            'site_url' => defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '',
+            'htaccess' => [
+                'path' => $path,
+                'content' => $content,
+                'exists' => $exists,
+                'writable' => \htaccess_is_writable($path),
+                'permalink_rules' => \build_permalink_htaccess_section($resolved),
+            ],
+        ];
+    }
+
     private function set(string $name, $value): void {
         $stored = is_array($value) || is_object($value) ? json_encode($value) : (string)$value;
         $stmt = $this->db->prepare("

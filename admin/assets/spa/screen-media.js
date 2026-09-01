@@ -8,6 +8,29 @@
   const D = () => window.__mdlr.data;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const grad = (hue) => `linear-gradient(135deg, hsl(${hue} 30% 80%), hsl(${hue-8} 24% 58%))`;
+  function mapMediaRow(r) {
+    const v = (r.variants && typeof r.variants === 'object') ? r.variants : {};
+    const thumb = r.thumb_url || (v.thumb && v.thumb.path) || (v.small && v.small.path) || r.url || r.file_path || '';
+    return { id: r.id, name: r.filename, title: r.title || r.filename, w: Number(r.width) || null, h: Number(r.height) || null, kb: Math.round((Number(r.file_size) || 0) / 1024), alt: r.alt_text || '', caption: r.caption || '', folder: r.folder_path || '', hue: 30, uploaded: (r.created_at || '').slice(0, 10), usedIn: 0, url: r.url || r.file_path || '', thumb, preview: r.preview_url || r.url || thumb, mime: r.mime_type || '' };
+  }
+  async function uploadMediaFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return [];
+    if (!window.__mdlr.api) { alert('Upload failed: API client is not ready.'); return []; }
+    const added = [];
+    for (const f of files) {
+      try {
+        const fd = new FormData(); fd.append('file', f);
+        const r = await window.__mdlr.api.upload('/media/upload', fd);
+        if (r && r.id) { const m = mapMediaRow(r); D().MEDIA.unshift(m); added.push(m); }
+        else { alert('Upload failed: ' + ((r && r.error) || 'the server did not return a media id.')); }
+      } catch (err) { console.error('[upload] failed', err); alert('Upload failed: ' + (err && err.data && err.data.error || err.message)); }
+    }
+    if (added.length && window.__mdlr.store && window.__mdlr.store.loadMedia) {
+      try { await window.__mdlr.store.loadMedia(); } catch (e) {}
+    }
+    return added;
+  }
 
   /* ---- real crop tool ---- */
   C.ImageCropper = {
@@ -140,29 +163,24 @@
         else { this.$emit('pick', m); this.$emit('close'); }
       },
       confirm() { this.$emit('pick', this.picked.slice()); this.$emit('close'); },
-      mapMedia(r) { const v = (r.variants && typeof r.variants === 'object') ? r.variants : {}; const thumb = r.thumb_url || (v.thumb && v.thumb.path) || (v.small && v.small.path) || r.url || r.file_path || ''; return { id: r.id, name: r.filename, title: r.title || r.filename, w: Number(r.width) || null, h: Number(r.height) || null, kb: Math.round((Number(r.file_size) || 0) / 1024), alt: r.alt_text || '', caption: r.caption || '', folder: r.folder_path || '', hue: 30, uploaded: (r.created_at || '').slice(0, 10), usedIn: 0, url: r.url || r.file_path || '', thumb, preview: r.preview_url || thumb, mime: r.mime_type || '' }; },
+      onModalClose() { if (this.uploading) return; this.$emit('close'); },
       async onFiles(e) {
         const files = Array.from((e.target && e.target.files) || (e.dataTransfer && e.dataTransfer.files) || []);
-        if (!files.length || !window.__mdlr.api) return;
+        if (!files.length) return;
         this.uploading = true;
-        for (const f of files) {
-          try {
-            const fd = new FormData(); fd.append('file', f);
-            const r = await window.__mdlr.api.upload('/media/upload', fd);
-            if (r && r.id) { const m = this.mapMedia(r); D().MEDIA.unshift(m); if (this.multiple) this.picked.push(m); else { this.$emit('pick', m); } }
-          } catch (err) { console.error('[upload] failed', err); alert('Upload failed: ' + (err && err.data && err.data.error || err.message)); }
-        }
+        const added = await uploadMediaFiles(files);
+        if (this.multiple) added.forEach(m => this.picked.push(m));
         this.uploading = false;
         if (e.target) e.target.value = '';
-        if (!this.multiple && files.length) this.$emit('close');
+        if (!this.multiple && added.length) { this.$emit('pick', added[added.length - 1]); this.$emit('close'); }
       },
     },
     template: `
-    <UiModal lg @close="$emit('close')">
-      <div class="drawer-head"><Icon name="image" :size="18"/><strong style="font-size:15px;flex:1">{{ multiple ? 'Choose images' : 'Choose an image' }}</strong><button class="iconbtn" @click="$emit('close')"><Icon name="x"/></button></div>
+    <UiModal lg @close="onModalClose">
+      <div class="drawer-head"><Icon name="image" :size="18"/><strong style="font-size:15px;flex:1">{{ multiple ? 'Choose images' : 'Choose an image' }}</strong><button class="iconbtn" @click="onModalClose"><Icon name="x"/></button></div>
       <div style="padding:14px 18px 0;display:flex;gap:10px;align-items:center">
         <div class="topbar-search" style="flex:1;max-width:none"><Icon name="search" :size="15"/><input class="fb-lib-input" v-model="q" placeholder="Search media…" style="color:var(--ink)"></div>
-        <label class="btn btn--ghost btn--sm" style="cursor:pointer;flex:none"><Icon name="upload" :size="14"/> {{ uploading ? 'Uploading…' : 'Upload' }}<input type="file" multiple :accept="accept==='image'?'image/*':'image/*,application/pdf,audio/*'" style="display:none" @change="onFiles"></label>
+        <label class="btn btn--ghost btn--sm" style="cursor:pointer;flex:none;position:relative;overflow:hidden"><Icon name="upload" :size="14"/> {{ uploading ? 'Uploading…' : 'Upload' }}<input type="file" multiple :accept="accept==='image'?'image/*':'image/jpeg,image/png,image/gif,image/webp,image/*,application/pdf,audio/*'" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:64px" @change="onFiles"></label>
       </div>
       <div class="drawer-body" style="padding-top:14px" @dragover.prevent @drop.prevent="onFiles">
         <div class="mp-droptip" v-if="!items.length && !uploading"><Icon name="upload" :size="22"/><div>Drag files here or use Upload</div></div>
@@ -182,17 +200,64 @@
 
   C.ScreenMedia = {
     name: 'ScreenMedia',
-    inject: ['go'],
-    data() { return { view:'grid', q:'', folder:'all', detail:null, cropping:null, newFolderOpen:false, newFolderName:'', renameOpen:false, rename:null }; },
+    inject: ['go', 'route'],
+    data() { return { view:'grid', q:'', folder:'all', detail:null, cropping:null, newFolderOpen:false, newFolderName:'', renameOpen:false, rename:null, uploading:false, sel:[], deleting:false }; },
     computed: {
-      items() { const q=this.q.trim().toLowerCase(); return D().MEDIA.filter(m => (this.folder==='all'||m.folder===this.folder) && (!q||m.name.toLowerCase().includes(q)||(m.title||'').toLowerCase().includes(q))); },
+      items() { const q=this.q.trim().toLowerCase(); return D().MEDIA.filter(m => (this.folder==='all'||m.folder===this.folder) && (!q||(m.name||'').toLowerCase().includes(q)||(m.title||'').toLowerCase().includes(q))); },
       folders() { return ['all', ...D().MEDIA_FOLDERS]; },
       presetCount() { return D().IMAGE_PRESETS.filter(p=>p.on).length; },
       renamePattern() { return D().RENAME_PATTERN; },
+      allOn() { return this.items.length > 0 && this.items.every(m => this.sel.includes(m.id)); },
+    },
+    mounted() {
+      if (this.route && this.route.params && this.route.params.upload) this.$nextTick(() => this.openFilePicker());
     },
     methods: {
       D(){ return window.__mdlr.data; }, grad,
+      src(m){ return (m && (m.thumb || m.preview || m.url)) || ''; },
+      isImage(m){ const mime = (m && m.mime) || ''; if (mime.indexOf('image/') === 0) return true; return /\.(jpe?g|png|gif|webp|svg|avif)$/i.test((m && m.name) || ''); },
+      isSel(id){ return this.sel.indexOf(id) >= 0; },
+      toggle(id){ const i = this.sel.indexOf(id); if (i >= 0) this.sel.splice(i, 1); else this.sel.push(id); },
+      toggleAll(){ this.sel = this.allOn ? [] : this.items.map(m => m.id); },
       open(m){ this.detail = m; },
+      viewFile(m){ const u = (m && m.url) || this.src(m); if (u) window.open(u, '_blank', 'noopener'); },
+      async removeOne(m) {
+        if (!m || m.id == null) return;
+        if (!confirm('Delete “' + (m.name || 'this file') + '”? This cannot be undone.')) return;
+        await this.removeIds([m.id]);
+        if (this.detail && this.detail.id === m.id) this.detail = null;
+        if (this.cropping && this.cropping.id === m.id) this.cropping = null;
+      },
+      async bulkDelete() {
+        if (!this.sel.length) return;
+        const n = this.sel.length;
+        if (!confirm('Delete ' + n + ' file' + (n === 1 ? '' : 's') + '? This cannot be undone.')) return;
+        await this.removeIds(this.sel.slice());
+      },
+      async removeIds(ids) {
+        const store = window.__mdlr.store;
+        if (!store || !store.deleteMedia) return;
+        this.deleting = true;
+        const failed = [];
+        for (const id of ids) {
+          try { await store.deleteMedia(id); }
+          catch (e) { console.error('[media] delete failed', id, e); failed.push(id); }
+        }
+        this.sel = this.sel.filter(id => failed.indexOf(id) >= 0);
+        if (this.detail && ids.indexOf(this.detail.id) >= 0 && failed.indexOf(this.detail.id) < 0) this.detail = null;
+        this.deleting = false;
+        if (failed.length) alert('Could not delete ' + failed.length + ' file' + (failed.length === 1 ? '' : 's') + '.');
+      },
+      openFilePicker() { const el = this.$refs.fileInput; if (el) el.click(); },
+      async onFiles(e) {
+        const files = Array.from((e.target && e.target.files) || (e.dataTransfer && e.dataTransfer.files) || []);
+        if (!files.length) return;
+        this.uploading = true;
+        const added = await uploadMediaFiles(files);
+        this.uploading = false;
+        if (e.target) e.target.value = '';
+        if (added.length) this.detail = added[0];
+      },
       slug(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); },
       ext(name){ const i=name.lastIndexOf('.'); return i>=0?name.slice(i):''; },
       autoName(m, n){ const p = this.renamePattern.pattern; return p.replace('{folder}', m.folder).replace('{title}', this.slug(m.title||'image')).replace('{n}', n||1) + this.ext(m.name); },
@@ -211,7 +276,7 @@
         <div><h1 class="t-title t-h1">Media</h1><p class="page-sub" style="margin-top:6px">{{ D().MEDIA.length }} files. Crop once — every configured preset re-crops automatically.</p></div>
         <div class="flex gap-2">
           <button class="btn btn--ghost" @click="newFolderOpen=true"><Icon name="folder"/> New folder</button>
-          <button class="btn btn--accent"><Icon name="upload"/> Upload</button>
+          <label class="btn btn--accent" style="cursor:pointer;position:relative;overflow:hidden"><Icon name="upload"/> {{ uploading ? 'Uploading…' : 'Upload' }}<input ref="fileInput" type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,image/*,application/pdf,audio/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:64px" @change="onFiles"></label>
         </div>
       </div>
       <div class="card">
@@ -219,15 +284,21 @@
           <div class="topbar-search media-search"><Icon name="search" :size="15"/><input class="fb-lib-input" v-model="q" placeholder="Search media…" style="color:var(--ink)"></div>
           <UiSelect class="media-foldersel" v-model="folder"><option v-for="f in folders" :key="f" :value="f">{{ f==='all'?'All folders':f }}</option></UiSelect>
           <button class="btn btn--ghost btn--sm" @click="renameOpen=true" title="Auto-rename files in this view"><Icon name="refresh" :size="14"/> Auto-rename</button>
+          <template v-if="sel.length">
+            <span class="badge badge--info">{{ sel.length }} selected</span>
+            <button class="btn btn--danger btn--sm" :disabled="deleting" @click="bulkDelete"><Icon name="trash" :size="14"/> {{ deleting ? 'Deleting…' : ('Delete ' + sel.length) }}</button>
+          </template>
           <div class="grow"></div>
           <div class="seg"><button :class="{'is-on':view==='grid'}" @click="view='grid'"><Icon name="grid" :size="14"/></button><button :class="{'is-on':view==='list'}" @click="view='list'"><Icon name="list" :size="14"/></button></div>
         </div>
         <div v-if="view==='grid'" class="media-grid">
-          <div v-for="m in items" :key="m.id" class="media-card media-card--lib" @click="open(m)">
-            <span class="media-thumb" :style="{background: (m.thumb||m.url) ? ('center/cover no-repeat url('+(m.thumb||m.url)+')') : grad(m.hue)}">
+          <div v-for="m in items" :key="m.id" class="media-card media-card--lib" :class="{'is-picked':isSel(m.id)}" @click="open(m)">
+            <span class="media-thumb" :style="{background: src(m) ? ('center/contain no-repeat url('+src(m)+')') : grad(m.hue), backgroundColor:'var(--paper-2)'}">
+              <span class="media-lib-check" @click.stop><UiChk :modelValue="isSel(m.id)" @update:modelValue="toggle(m.id)"/></span>
               <span class="media-hover">
                 <button class="btn btn--soft btn--xs" @click.stop="open(m)"><Icon name="pencil" :size="13"/> Edit</button>
                 <button class="btn btn--soft btn--xs" @click.stop="cropping=m"><Icon name="crop" :size="13"/> Crop</button>
+                <button class="btn btn--soft btn--xs" @click.stop="removeOne(m)"><Icon name="trash" :size="13"/> Delete</button>
               </span>
               <span class="media-badge mono">{{ presetCount }}</span>
             </span>
@@ -236,32 +307,41 @@
           </div>
         </div>
         <table v-else class="tbl tbl--rows">
-          <thead><tr><th>File</th><th style="width:130px">Folder</th><th style="width:130px">Dimensions</th><th style="width:90px">Size</th><th style="width:80px">Used</th></tr></thead>
+          <thead><tr>
+            <th style="width:36px"><UiChk :modelValue="allOn" @update:modelValue="toggleAll"/></th>
+            <th>File</th><th style="width:130px">Folder</th><th style="width:130px">Dimensions</th><th style="width:90px">Size</th>
+          </tr></thead>
           <tbody>
-            <tr v-for="m in items" :key="m.id">
+            <tr v-for="m in items" :key="m.id" :class="{'row-sel': isSel(m.id)}">
+              <td @click.stop><UiChk :modelValue="isSel(m.id)" @update:modelValue="toggle(m.id)"/></td>
               <td>
                 <div class="flex items-center gap-3">
-                  <span class="media-thumb-sm" :style="{background: (m.thumb||m.url) ? ('center/cover no-repeat url('+(m.thumb||m.url)+')') : grad(m.hue)}"></span>
+                  <span class="media-thumb-sm" @click="open(m)">
+                    <img v-if="isImage(m) && src(m)" :src="src(m)" :alt="m.name || ''">
+                    <Icon v-else class="media-thumb-ico" name="file" :size="22"/>
+                  </span>
                   <div>
                     <a class="ce-title" @click="open(m)">{{ m.name }}</a>
                     <div class="t-meta">{{ m.title }}</div>
                     <div class="row-actions">
                       <button @click="open(m)">Edit</button>
                       <button @click="cropping=m"><Icon name="crop" :size="12"/> Crop</button>
-                      <button><Icon name="eye" :size="12"/> View</button>
-                      <button class="is-danger">Delete</button>
+                      <button @click="viewFile(m)"><Icon name="eye" :size="12"/> View</button>
+                      <button class="is-danger" @click="removeOne(m)">Delete</button>
                     </div>
                   </div>
                 </div>
               </td>
-              <td class="muted">{{ m.folder }}</td><td class="mono muted">{{ m.w }}×{{ m.h }}</td><td class="mono muted">{{ (m.kb/1024).toFixed(1) }} MB</td>
-              <td class="mono muted">{{ m.usedIn }}×</td>
+              <td class="muted">{{ m.folder || '—' }}</td>
+              <td class="mono muted">{{ m.w && m.h ? (m.w + '×' + m.h) : '—' }}</td>
+              <td class="mono muted">{{ m.kb ? ((m.kb/1024).toFixed(1) + ' MB') : '—' }}</td>
             </tr>
+            <tr v-if="!items.length"><td colspan="5"><div class="empty" style="padding:40px"><Icon name="image"/><div>No media in this view.</div></div></td></tr>
           </tbody>
         </table>
       </div>
 
-      <MediaDetail v-if="detail" :m="detail" @close="detail=null" @crop="cropping=detail"/>
+      <MediaDetail v-if="detail" :m="detail" @close="detail=null" @crop="cropping=detail" @delete="removeOne"/>
       <ImageCropper v-if="cropping" :img="cropping" @save="onCrop" @close="cropping=null"/>
 
       <!-- new folder -->
@@ -293,7 +373,7 @@
   C.MediaDetail = {
     name: 'MediaDetail',
     props: { m: Object },
-    emits: ['close','crop'],
+    emits: ['close','crop','delete'],
     methods: { grad, fileType(n){ const e=(n.split('.').pop()||'').toUpperCase(); return e; } },
     template: `
     <UiModal lg @close="$emit('close')">
@@ -305,11 +385,10 @@
       <div class="drawer-body" style="padding:0">
         <div class="md-wrap">
           <div class="md-preview">
-            <div class="md-image" :style="{background: (m.preview||m.url) ? ('center/cover no-repeat url('+(m.preview||m.url)+')') : grad(m.hue)}"></div>
+            <div class="md-image" :style="{background: (m.preview||m.url) ? ('center/contain no-repeat url('+(m.preview||m.url)+')') : grad(m.hue), backgroundColor:'var(--paper-2)'}"></div>
             <div class="md-preview-actions">
               <button class="btn btn--soft btn--sm" @click="$emit('crop')"><Icon name="crop" :size="14"/> Crop</button>
-              <button class="btn btn--soft btn--sm"><Icon name="refresh" :size="14"/> Replace</button>
-              <button class="btn btn--soft btn--sm"><Icon name="external" :size="14"/> Open</button>
+              <button class="btn btn--soft btn--sm" @click="m.url && window.open(m.url, '_blank', 'noopener')"><Icon name="external" :size="14"/> Open</button>
             </div>
             <div class="md-usage"><Icon name="git" :size="14"/> Used in {{ m.usedIn }} item{{ m.usedIn===1?'':'s' }}</div>
           </div>
@@ -337,7 +416,7 @@
         </div>
       </div>
       <div class="drawer-foot">
-        <button class="btn btn--danger" style="margin-right:auto"><Icon name="trash" :size="15"/> Delete</button>
+        <button class="btn btn--danger" style="margin-right:auto" @click="$emit('delete', m)"><Icon name="trash" :size="15"/> Delete</button>
         <button class="btn btn--ghost" @click="$emit('close')">Cancel</button>
         <button class="btn" @click="$emit('close')"><Icon name="check" :size="15"/> Save</button>
       </div>

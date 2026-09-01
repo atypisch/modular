@@ -267,7 +267,7 @@ $md_status_sql = $md_preview
 
 // Detect post type slug + post slug from query or path
 $postTypeSlug = $_GET['type'] ?? $_GET['post_type'] ?? null;
-$postSlug = $_GET['slug'] ?? null;
+$postSlug = $_GET['slug'] ?? $_GET['name'] ?? null;
 $archiveSegment = null; // one path segment to try as archive (post type slug)
 
 // Try permalink structure resolution first (handles /{category}/{slug}, /events/{slug}, etc.)

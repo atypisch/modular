@@ -25,8 +25,11 @@
  *
  * @return array<string,string>  e.g. ['page' => '/{slug}', 'post' => '/{category}/{slug}']
  */
-function get_permalink_structures(): array {
+function get_permalink_structures(bool $refresh = false): array {
     static $cache = null;
+    if ($refresh) {
+        $cache = null;
+    }
     if ($cache !== null) {
         return $cache;
     }
@@ -55,7 +58,16 @@ function get_permalink_structures(): array {
  */
 function get_permalink_structure(string $post_type): string {
     $structures = get_permalink_structures();
-    return $structures[$post_type] ?? '/{slug}';
+    if (isset($structures[$post_type]) && is_string($structures[$post_type]) && $structures[$post_type] !== '') {
+        return $structures[$post_type];
+    }
+    if ($post_type === 'project') {
+        return '/projects/{slug}';
+    }
+    if ($post_type === 'product') {
+        return '/products/{slug}';
+    }
+    return '/{slug}';
 }
 
 /**
@@ -82,14 +94,11 @@ function save_permalink_structures(array $structures): bool {
         return false;
     }
 
-    // Invalidate static cache
-    // (re-call will re-query; simplest approach without a reset mechanism)
-    unset($GLOBALS['_permalink_cache_bust']);
+    get_permalink_structures(true);
 
-    // Regenerate .htaccess
-    $htaccessPath = defined('MODULAR_PATH') ? MODULAR_PATH . '/.htaccess' : dirname(__DIR__, 2) . '/.htaccess';
-    $basePath     = defined('BASE_PATH') ? BASE_PATH : '/modular';
-    write_htaccess($htaccessPath, $basePath);
+    $htaccessPath = get_htaccess_path();
+    $basePath     = defined('BASE_PATH') ? BASE_PATH : '/';
+    write_htaccess($htaccessPath, $basePath, $structures);
 
     return true;
 }
@@ -306,8 +315,125 @@ function _permalink_pattern_to_regex(string $pattern): string {
 // .htaccess
 // ---------------------------------------------------------------------------
 
+function get_htaccess_path(): string {
+    if (defined('MODULAR_PATH')) {
+        return MODULAR_PATH . '/.htaccess';
+    }
+    return dirname(__DIR__, 2) . '/.htaccess';
+}
+
+function htaccess_is_writable(?string $path = null): bool {
+    $path = $path ?: get_htaccess_path();
+    if (is_file($path)) {
+        return is_writable($path);
+    }
+    $dir = dirname($path);
+    return is_dir($dir) && is_writable($dir);
+}
+
 /**
- * Generate a minimal .htaccess block.
+ * Convert one permalink structure into an Apache RewriteRule, or null when
+ * the front controller already covers it (plain /{slug}).
+ */
+function permalink_structure_to_rewrite_rule(string $post_type, string $structure): ?string {
+    $post_type = preg_replace('/[^a-z0-9_-]/', '', strtolower($post_type));
+    if ($post_type === '') {
+        return null;
+    }
+
+    $raw = trim(str_replace('{post_type}', $post_type, $structure), '/');
+    if ($raw === '' || $raw === '{slug}') {
+        return null;
+    }
+
+    $captures = [];
+    $parts = preg_split('/(\{[a-z_]+\})/', $raw, -1, PREG_SPLIT_DELIM_CAPTURE);
+    $pattern = '';
+    foreach ($parts as $part) {
+        if ($part === '') {
+            continue;
+        }
+        if ($part === '{slug}') {
+            $captures[] = 'slug';
+            $pattern .= '([^/]+)';
+            continue;
+        }
+        if ($part === '{year}') {
+            $captures[] = 'year';
+            $pattern .= '([0-9]{4})';
+            continue;
+        }
+        if ($part === '{category}' || preg_match('/^\{[a-z_]+\}$/', $part)) {
+            $captures[] = trim($part, '{}');
+            $pattern .= '([^/]+)';
+            continue;
+        }
+        $pattern .= preg_replace('/[.\+\?\^\$\[\]\(\)\{\}\|\\\\]/', '\\\\$0', $part);
+    }
+
+    $qs = ['post_type=' . $post_type];
+    $n = 1;
+    foreach ($captures as $token) {
+        if ($token === 'slug') {
+            $qs[] = 'slug=$' . $n;
+            $qs[] = 'name=$' . $n;
+        } elseif ($token === 'year') {
+            $qs[] = 'year=$' . $n;
+        } elseif ($token === 'category') {
+            $qs[] = 'term=$' . $n;
+        }
+        $n++;
+    }
+
+    $dollar = '$';
+    return 'RewriteRule ^' . $pattern . '/?' . $dollar . ' index.php?' . implode('&', $qs) . ' [L,QSA]';
+}
+
+/**
+ * Nested Modular Permalinks markers + RewriteRules for the current structures.
+ * Infrastructure rules (auth, api, uploads, existing files) stay outside this.
+ *
+ * @param array<string,string>|null $structures
+ */
+function build_permalink_htaccess_section(?array $structures = null): string {
+    if ($structures === null) {
+        $structures = get_permalink_structures();
+    }
+
+    uasort($structures, function ($a, $b): int {
+        if (!is_string($a) || !is_string($b)) {
+            return 0;
+        }
+        $segsA = substr_count(trim($a, '/'), '/');
+        $segsB = substr_count(trim($b, '/'), '/');
+        if ($segsA !== $segsB) {
+            return $segsB - $segsA;
+        }
+        return substr_count($a, '{') - substr_count($b, '{');
+    });
+
+    $rules = [];
+    foreach ($structures as $post_type => $structure) {
+        if (!is_string($structure) || $structure === '') {
+            continue;
+        }
+        $rule = permalink_structure_to_rewrite_rule((string) $post_type, $structure);
+        if ($rule !== null) {
+            $rules[] = $rule;
+        }
+    }
+
+    $body = $rules
+        ? implode("\n", $rules)
+        : '# Plain /{slug} types are handled by the front controller below.';
+
+    return "# BEGIN Modular Permalinks\n"
+         . $body . "\n"
+         . "# END Modular Permalinks";
+}
+
+/**
+ * Generate a minimal .htaccess block for installs that have no Modular section yet.
  *
  * @param string $base_path  e.g. "/modular" or "/" — the RewriteBase value
  */
@@ -332,23 +458,51 @@ function build_htaccess(string $base_path): string {
 }
 
 /**
- * Write the generated .htaccess, replacing only the Modular block.
- * Preserves any content outside the BEGIN/END markers.
+ * Insert or replace the nested Permalinks section. Never replaces the outer
+ * Modular block, so auth / api / uploads / docs rules stay intact.
+ */
+function merge_htaccess_permalink_rules(string $existing, string $permalinkBlock, string $base_path): string {
+    $permalinkBlock = trim($permalinkBlock);
+    $inner = '/# BEGIN Modular Permalinks\s*.*?# END Modular Permalinks[ \t]*\r?\n?/s';
+
+    if (preg_match($inner, $existing, $m, PREG_OFFSET_CAPTURE)) {
+        $start = $m[0][1];
+        return substr($existing, 0, $start) . $permalinkBlock . "\n" . substr($existing, $start + strlen($m[0][0]));
+    }
+
+    $injectBeforeFrontController = '/RewriteRule \^ index\.php \[L,QSA\][ \t]*\r?\n[ \t]*<\/IfModule>\s*# END Modular(?! Permalinks)/s';
+    if (preg_match($injectBeforeFrontController, $existing, $m, PREG_OFFSET_CAPTURE)) {
+        $start = $m[0][1];
+        return substr($existing, 0, $start) . $permalinkBlock . "\n" . substr($existing, $start);
+    }
+
+    $injectBeforeClose = '/<\/IfModule>\s*# END Modular(?! Permalinks)/s';
+    if (preg_match($injectBeforeClose, $existing, $m, PREG_OFFSET_CAPTURE)) {
+        $start = $m[0][1];
+        return substr($existing, 0, $start) . $permalinkBlock . "\n" . substr($existing, $start);
+    }
+
+    $starter = build_htaccess($base_path);
+    if (preg_match($injectBeforeFrontController, $starter, $m, PREG_OFFSET_CAPTURE)) {
+        $start = $m[0][1];
+        $starter = substr($starter, 0, $start) . $permalinkBlock . "\n" . substr($starter, $start);
+    }
+    $existing = ltrim($existing);
+    return $existing === '' ? $starter . "\n" : $starter . "\n" . $existing;
+}
+
+/**
+ * Write permalink rewrite rules into .htaccess without replacing the Modular
+ * infrastructure block (auth proxy, api/uploads, existing-file short-circuit).
  *
  * @param string $htaccess_path  Absolute path to .htaccess
- * @param string $base_path      RewriteBase value
+ * @param string $base_path      RewriteBase value used only when no Modular block exists
+ * @param array<string,string>|null $structures
  */
-function write_htaccess(string $htaccess_path, string $base_path): bool {
-    $block    = build_htaccess($base_path);
-    $existing = is_readable($htaccess_path) ? file_get_contents($htaccess_path) : '';
-
-    // Replace the existing Modular block, or prepend if absent
-    $pattern = '/# BEGIN Modular.*?# END Modular\s*/s';
-    if (preg_match($pattern, $existing)) {
-        $new = preg_replace($pattern, $block . "\n", $existing);
-    } else {
-        $new = $block . "\n" . $existing;
-    }
+function write_htaccess(string $htaccess_path, string $base_path, ?array $structures = null): bool {
+    $permalinkBlock = build_permalink_htaccess_section($structures);
+    $existing = is_readable($htaccess_path) ? (string) file_get_contents($htaccess_path) : '';
+    $new = merge_htaccess_permalink_rules($existing, $permalinkBlock, $base_path);
 
     if (@file_put_contents($htaccess_path, $new) === false) {
         error_log("write_htaccess: cannot write to {$htaccess_path}");
