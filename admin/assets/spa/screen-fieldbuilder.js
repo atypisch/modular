@@ -63,13 +63,17 @@
     methods: {
       async bootstrap() {
         const store = window.__mdlr.store;
-        if (store && !store.ready) await store.loadPostTypes({ keepMockIfEmpty: false });
+        if (store && !store.ready) {
+          if (store.hydrate) await store.hydrate();
+          else await store.loadPostTypes({ keepMockIfEmpty: false });
+        }
         const rp = this.route.params || {};
         const DB = D();
         if (rp.group) {
           const g = rp.group === 'new'
-            ? { id:'new', name:'New field group', icon:'box', desc:'', active:true, fields:[], location:[[{param:'post_type',op:'==',value: rp.type || 'page'}]] }
-            : (DB.FIELD_GROUPS.find(x => x.id === rp.group) || DB.FIELD_GROUPS[0]);
+            ? { id:'new', name:'New field group', icon:'box', desc:'', active:true, fields:[], location:[[{param:'post_type',op:'==',value: rp.type || ''}]] }
+            : DB.FIELD_GROUPS.find(x => String(x.id) === String(rp.group));
+          if (!g) { alert('Field group not found — try again from Field groups.'); this.go('binding'); return; }
           this.group = g;
           this.groupName = g.name; this.groupIcon = g.icon;
           this.schema = (g.id === 'fg_project')
@@ -129,7 +133,16 @@
         }
         this.drag = null; this.dropAt = null;
       },
-      addField(type) { const f = this.makeField(type); this.schema.push(f); this.sel = f; this.cfgTab = 'general'; },
+      addField(type) {
+        const f = this.makeField(type);
+        let at = this.schema.length;
+        if (this.sel) {
+          const i = this.schema.findIndex(x => x === this.sel || (this.sel.id && x.id === this.sel.id));
+          if (i >= 0) at = i + 1;
+        }
+        this.schema.splice(at, 0, f);
+        this.sel = f; this.cfgTab = 'general';
+      },
       duplicate(i) { const c = JSON.parse(JSON.stringify(this.schema[i])); c.id = D().uid(); c.name += '_copy'; c.key = c.name; this.schema.splice(i+1, 0, c); },
       remove(i) { if (this.sel && this.schema[i] && this.sel.id === this.schema[i].id) this.sel = null; this.schema.splice(i, 1); },
       select(it) { this.sel = it; this.cfgTab = 'general'; },
@@ -165,7 +178,11 @@
           location: this.location || [], fields: this.schema || [],
         };
         window.__mdlr.store.saveFieldGroup(payload)
-          .then(() => { this.saving = false; this.flash('Field group saved'); })
+          .then((saved) => {
+            this.saving = false;
+            if (saved && saved.id) this.group = Object.assign({}, this.group || {}, saved);
+            this.flash('Field group saved');
+          })
           .catch((e) => { this.saving = false; console.error('[fieldbuilder] save failed', e); alert('Saving the field group failed. Check the console.'); });
       },
       flash(msg) { this.savedMsg = msg; if (this._flashTimer) clearTimeout(this._flashTimer); this._flashTimer = setTimeout(() => { this.savedMsg = ''; }, 2600); },
@@ -195,6 +212,7 @@
       ruleLabel(r) {
         if (r.param === 'post_type') { if (r.op === '!=' && !r.value) return 'All post types'; return (r.op==='!='?'Not ':'') + this.ptName(r.value); }
         if (r.param === 'post') { const p = D().POSTS.find(x => String(x.id) === String(r.value)); return 'Post: ' + (p ? p.title : r.value); }
+        if (r.param === 'post_slug') return 'Slug: ' + (r.value || '');
         if (r.param === 'post_template') return 'Template: ' + r.value;
         if (r.param === 'taxonomy') return this.termName(r.value);
         if (r.param === 'user_role') return 'Role: ' + r.value;

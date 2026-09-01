@@ -45,27 +45,42 @@
       ptObj() { return D().POST_TYPES.find(p => p.id === this.post.type) || {}; },
       statusClass() { return this.post.status === 'published' ? 'badge--ok' : this.post.status === 'scheduled' ? 'badge--info' : 'badge--warn'; },
       jsonCode() { return JSON.stringify({ title: this.post.title, slug: this.post.slug, status: this.post.status, data: this.values }, null, 2); },
+      leftoverTypeNames() {
+        return new Set(['tab_visuals', 'tab_header', 'image', 'gallery', 'featured_image', 'choose_header', 'header_image', 'header_gallery', 'header_movie']);
+      },
+      typeFields() { return this.schema.filter(f => f.prov !== 'shared'); },
+      typeFieldsForCard() {
+        const leftover = this.leftoverTypeNames;
+        if (!this.fieldGroups.length) return this.typeFields;
+        return this.typeFields.filter(f => !leftover.has(String(f.name || f.key || '')));
+      },
       // tabs come from the post-type schema's tab nodes (fallback: single Content tab)
       tabs() {
+        if (this.hideTypeCard) return [{ label: 'Content', icon: 'text', items: [] }];
+        const source = this.typeFieldsForCard;
         const tabs = []; let cur = { label: 'Content', icon: 'text', items: [] };
         let hasTab = false;
-        this.typeFields.forEach(f => {
+        source.forEach(f => {
           if (F().canonical(f.type) === 'tab') { hasTab = true; if (cur.items.length || tabs.length) tabs.push(cur); cur = { label: f.label, icon: f.icon || 'text', items: [] }; }
           else cur.items.push(f);
         });
         tabs.push(cur);
-        return hasTab ? tabs.filter(t => t.items.length) : [{ label: 'Content', icon: 'text', items: this.typeFields.filter(f => F().canonical(f.type) !== 'tab') }];
+        return hasTab ? tabs.filter(t => t.items.length) : [{ label: 'Content', icon: 'text', items: source.filter(f => F().canonical(f.type) !== 'tab') }];
       },
-      typeFields() { return this.schema.filter(f => f.prov !== 'shared'); },
+      typeFieldsUseful() {
+        return this.typeFieldsForCard.filter(f => F().canonical(f.type) !== 'tab');
+      },
+      hideTypeCard() { return this.fieldGroups.length > 0 && this.typeFieldsUseful.length === 0; },
       activeTabObj() { return this.tabs[this.activeTab] || this.tabs[0] || { items: [] }; },
-      // the editor's group cards for the active tab
       groups() {
         const out = [];
-        out.push({ id: 'type', label: this.activeTabObj.label, prov: 'type', loose: false, fields: (this.activeTabObj.items || []) });
+        if (!this.hideTypeCard) {
+          out.push({ id: 'type', label: this.activeTabObj.label, prov: 'type', loose: false, schemaForm: false, fields: (this.activeTabObj.items || []) });
+        }
         this.fieldGroups.forEach(fg => {
-          out.push({ id: 'fg' + fg.id, label: fg.name, icon: fg.icon, prov: 'shared', loose: false, fields: this.schema.filter(f => f._group === fg.id) });
+          out.push({ id: 'fg' + fg.id, label: fg.name, icon: fg.icon, prov: 'shared', loose: false, schemaForm: true, fields: this.schema.filter(f => String(f._group) === String(fg.id)) });
         });
-        this.perPostGroups.forEach(g => { out.push({ id: 'pp:' + g.id, ppId: g.id, label: g.label, prov: 'post', loose: true, fields: g.fields }); });
+        this.perPostGroups.forEach(g => { out.push({ id: 'pp:' + g.id, ppId: g.id, label: g.label, prov: 'post', loose: true, schemaForm: false, fields: g.fields }); });
         return out;
       },
       newFieldCats() {
@@ -79,7 +94,9 @@
       tmeta(t) { return (D().TYPE_MAP && D().TYPE_MAP[t]) || { icon: 'dot', cat: 'util', label: t }; },
       tcolor(t) { return (D().CAT_VAR && D().CAT_VAR[this.tmeta(t).cat]) || 'var(--ink-3)'; },
       fieldComp(f) { return F().component(f.type); },
-      isContainer(f) { return F().isContainer(f.type); },
+      isTab(f) { return F().canonical(f.type) === 'tab'; },
+      isFieldContainer(f) { const t = F().canonical(f.type); return F().isContainer(f.type) && t !== 'tab' && t !== 'accordion' && t !== 'columns'; },
+      isContainer(f) { return this.isFieldContainer(f); },
       ensure(f) { if (f.name && this.values[f.name] === undefined) this.values[f.name] = F().defaultValue(f); return this.values[f.name]; },
       gKey(g, i) { return g.id + ':' + i; },
       fCollapsed(g, i) { return !!this.collapsed[this.gKey(g, i)]; },
@@ -93,6 +110,35 @@
       buildBlocksMap() { const map = {}; (D().COMPONENTS || []).forEach(c => { const e = { name: c.name, icon: c.icon || 'layers', fields: c.fields || [] }; map[c.id] = e; if (c.slug) map[c.slug] = e; }); return map; },
       ptDbId() { const pt = D().POST_TYPES.find(p => p.id === this.post.type); return pt && pt._dbId; },
 
+      applyResolved(rf, isNew) {
+        if (!rf) return;
+        const ptSlug = (rf.post && rf.post.post_type && rf.post.post_type.slug) || this.post.type || '';
+        if (isNew) {
+          this.post = { id: null, title: '', slug: '', status: 'draft', order: 0, type: ptSlug, url: '' };
+          this.values = reactive({});
+          this.perPostGroups = [];
+        } else if (rf.post) {
+          this.post = { id: rf.post.id, title: rf.post.title || '', slug: rf.post.slug || '', status: rf.post.status || 'draft', order: Number(rf.post.order) || 0, type: ptSlug, url: rf.post.url || '' };
+          this.values = reactive(rf.values && typeof rf.values === 'object' ? rf.values : {});
+          const lay = rf.layout && typeof rf.layout === 'object' ? rf.layout : {};
+          if (Array.isArray(lay._perPostGroups)) {
+            this.perPostGroups = lay._perPostGroups.map(g => ({ id: g.id || D().uid(), label: g.label || 'Group', fields: (g.fields || []).map(f => Object.assign({ prov: 'post' }, f)) }));
+          } else if (Array.isArray(lay._perPost) && lay._perPost.length) {
+            this.perPostGroups = [{ id: D().uid(), label: 'Added to this item', fields: lay._perPost.map(f => Object.assign({ prov: 'post' }, f)) }];
+          } else { this.perPostGroups = []; }
+        }
+        this.schema = ((rf.schema && rf.schema.fields) || []).map(f => Object.assign({ prov: 'type' }, f));
+        this.fieldGroups = rf.field_groups || [];
+      },
+      loadLocalSchema(type) {
+        if (type) this.post.type = type;
+        const pt = D().POST_TYPES.find(p => p.id === this.post.type);
+        const sc = pt && pt._schema;
+        this.schema = ((sc && sc.fields) || (Array.isArray(sc) ? sc : [])).map(f => Object.assign({ prov: 'type' }, f));
+        this.fieldGroups = [];
+        this.values = reactive({});
+        this.perPostGroups = [];
+      },
       load() {
         const rp = this.route.params || {};
         const api = M.api;
@@ -101,28 +147,21 @@
           this.loading = true;
           api.get('/posts/' + rp.postId + '/resolved-fieldset').then(rf => {
             this.loading = false;
-            if (rf && rf.post) {
-              this.post = { id: rf.post.id, title: rf.post.title || '', slug: rf.post.slug || '', status: rf.post.status || 'draft', order: Number(rf.post.order) || 0, type: (rf.post.post_type && rf.post.post_type.slug) || '', url: rf.post.url || '' };
-              this.schema = ((rf.schema && rf.schema.fields) || []).map(f => Object.assign({ prov: 'type' }, f));
-              this.fieldGroups = rf.field_groups || [];
-              this.values = reactive(rf.values && typeof rf.values === 'object' ? rf.values : {});
-              // per-post containers (+ migration from the old flat _perPost format)
-              const lay = rf.layout && typeof rf.layout === 'object' ? rf.layout : {};
-              if (Array.isArray(lay._perPostGroups)) {
-                this.perPostGroups = lay._perPostGroups.map(g => ({ id: g.id || D().uid(), label: g.label || 'Group', fields: (g.fields || []).map(f => Object.assign({ prov: 'post' }, f)) }));
-              } else if (Array.isArray(lay._perPost) && lay._perPost.length) {
-                this.perPostGroups = [{ id: D().uid(), label: 'Added to this item', fields: lay._perPost.map(f => Object.assign({ prov: 'post' }, f)) }];
-              } else { this.perPostGroups = []; }
-            }
+            this.applyResolved(rf, false);
           }).catch(e => { this.loading = false; console.warn('[editor] resolved-fieldset failed', e && e.status); });
-        } else {
-          this.loading = false;
-          if (rp.type) this.post.type = rp.type;
-          const pt = D().POST_TYPES.find(p => p.id === this.post.type);
-          const sc = pt && pt._schema;
-          this.schema = ((sc && sc.fields) || (Array.isArray(sc) ? sc : [])).map(f => Object.assign({ prov: 'type' }, f));
-          this.values = reactive({});
+          return;
         }
+        const type = rp.type || this.post.type;
+        if (type) this.post.type = type;
+        if (api && type) {
+          this.loading = true;
+          api.get('/resolved-fieldset?post_type=' + encodeURIComponent(type))
+            .then(rf => { this.loading = false; this.applyResolved(rf, true); })
+            .catch(e => { this.loading = false; console.warn('[editor] resolved-fieldset preview failed', e && e.status); this.loadLocalSchema(type); });
+          return;
+        }
+        this.loading = false;
+        this.loadLocalSchema(type);
       },
 
       // ---- per-post containers (modular field groups on this item) ----
@@ -276,14 +315,16 @@
                   <input v-if="g.loose" class="fgroup-title" :value="g.label" @input="renameG(g,$event.target.value)" @click.stop placeholder="Group name">
                   <span v-else class="fgroup-title" style="cursor:pointer" @click="toggleGroup(g)">{{ g.label }}</span>
                   <span class="prov" :class="provClass(g.prov)"><Icon :name="provIcon(g.prov)" :size="11"/> {{ provLabel(g.prov) }}</span>
-                  <span class="t-meta">{{ g.fields.length }} field{{ g.fields.length===1?'':'s' }}</span>
+                  <span class="t-meta" v-if="!g.schemaForm">{{ g.fields.length }} field{{ g.fields.length===1?'':'s' }}</span>
                   <div class="grow"></div>
                   <button v-if="g.loose" class="iconbtn iconbtn--sm is-danger" @click.stop="removePPGroup(g)" title="Remove this container"><Icon name="x" :size="14"/></button>
                 </div>
                 <div class="fgroup-body" v-show="!gCollapsed(g)" @dragover="dOverGroup(g,$event)" @drop="dDropGroup(g,$event)">
-                  <div class="fgrid">
+                  <FieldRenderer v-if="g.schemaForm" :schema="g.fields" :model="values" :blocks="blocksMap" hideProv/>
+                  <div class="fgrid" v-else>
                     <template v-for="(f,fi) in g.fields" :key="f.id || f.name">
-                      <div class="fcell" :class="'w-'+(f.w||'full')">
+                      <div v-if="isTab(f)" class="fr-tabsec-h" style="grid-column:1/-1">{{ f.label }}</div>
+                      <div v-else class="fcell" :class="'w-'+(f.w||'full')">
                         <div class="drop-line" v-if="g.loose && drag && dropGid===g.ppId && dropAt===fi" style="margin:-4px 0 6px"></div>
                         <div class="ed-field" :class="{'is-collapsed': fCollapsed(g,fi), 'is-modular': f.prov==='post', 'is-dragging': drag && drag.ppId===g.ppId && drag.index===fi}"
                              @dragover="dOver(g,fi,$event)">

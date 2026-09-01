@@ -27,36 +27,69 @@ class ResolveController {
         $stmt->execute([$postId]);
         $post = $stmt->fetch(\PDO::FETCH_ASSOC);
         if (!$post) return ['error' => 'Post not found', 'code' => 404];
+        return $this->buildResolved($post);
+    }
 
-        $schema = json_decode($post['pt_schema'] ?? 'null', true);
+    /** GET /resolved-fieldset?post_type={slug}&slug= optional — fieldset for a not-yet-saved post. */
+    public function resolvedFieldsetPreview($ptSlug, $slug = '') {
+        $ptSlug = trim((string) $ptSlug);
+        if ($ptSlug === '') return ['error' => 'post_type is required', 'code' => 400];
+        $stmt = $this->db->prepare("SELECT id, name, slug, mode, `schema` FROM post_types WHERE slug = ? AND deleted_at IS NULL LIMIT 1");
+        $stmt->execute([$ptSlug]);
+        $pt = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$pt) return ['error' => 'Post type not found', 'code' => 404];
+        return $this->buildResolved([
+            'id' => 0,
+            'title' => '',
+            'slug' => (string) $slug,
+            'status' => 'draft',
+            'order' => 0,
+            'data' => null,
+            'component_data' => null,
+            'layout' => null,
+            'template' => '',
+            'featured_image' => null,
+            'post_type_id' => $pt['id'],
+            'post_type_name' => $pt['name'],
+            'post_type_slug' => $pt['slug'],
+            'post_type_mode' => $pt['mode'] ?? 'fixed',
+            'pt_schema' => $pt['schema'],
+        ]);
+    }
+
+    private function buildResolved(array $post): array {
+        $schema = is_array($post['pt_schema'] ?? null) ? $post['pt_schema'] : json_decode($post['pt_schema'] ?? 'null', true);
         $fields = is_array($schema) && isset($schema['fields']) ? $schema['fields'] : (is_array($schema) ? $schema : []);
-        // tag provenance for fields that come from the post type definition
         $fields = array_map(function ($f) {
             if (is_array($f) && !isset($f['prov'])) $f['prov'] = 'type';
             return $f;
         }, $fields);
 
-        // Merge active field groups whose location matches this post type (prov = shared).
         $matchedGroups = [];
-        $ptSlug = $post['post_type_slug'];
+        $locCtx = [
+            'post_type_slug' => (string) ($post['post_type_slug'] ?? ''),
+            'post_type_id' => (string) ((int) $post['post_type_id']),
+            'id' => (string) ((int) ($post['id'] ?? 0)),
+            'slug' => (string) ($post['slug'] ?? ''),
+            'template' => trim((string) ($post['template'] ?? '')),
+        ];
         $fgStmt = $this->db->query("SELECT id, name, icon, location, position, fields FROM field_groups WHERE active = 1 AND deleted_at IS NULL ORDER BY `order`, name");
         foreach ($fgStmt->fetchAll(\PDO::FETCH_ASSOC) as $fg) {
-            $location = json_decode($fg['location'] ?? 'null', true);
-            if (!$this->locationMatches($location, $ptSlug)) continue;
-            $fgFields = json_decode($fg['fields'] ?? 'null', true);
-            if (is_array($fgFields)) {
-                foreach ($fgFields as $f) {
-                    if (is_array($f)) { $f['prov'] = 'shared'; $f['_group'] = (int)$fg['id']; $fields[] = $f; }
-                }
+            $location = is_string($fg['location'] ?? null) ? json_decode($fg['location'], true) : ($fg['location'] ?? null);
+            if (!$this->locationMatches($location, $locCtx)) continue;
+            $fgFields = is_string($fg['fields'] ?? null) ? json_decode($fg['fields'], true) : ($fg['fields'] ?? null);
+            foreach ($this->normalizeFieldList($fgFields) as $f) {
+                $f['prov'] = 'shared';
+                $f['_group'] = (int) $fg['id'];
+                $fields[] = $f;
             }
             $matchedGroups[] = ['id' => (int)$fg['id'], 'name' => $fg['name'], 'icon' => $fg['icon'], 'position' => $fg['position']];
         }
 
-        $values = json_decode($post['data'] ?? 'null', true);
+        $values = is_array($post['data'] ?? null) ? $post['data'] : json_decode($post['data'] ?? 'null', true);
         if (!is_array($values)) $values = json_decode($post['component_data'] ?? 'null', true) ?: [];
-        $layout = json_decode($post['layout'] ?? 'null', true);
+        $layout = is_array($post['layout'] ?? null) ? $post['layout'] : json_decode($post['layout'] ?? 'null', true);
 
-        // Public front-end URL (so the editor's View / Preview links work).
         $core = defined('CORE_PATH') ? CORE_PATH : dirname(__DIR__);
         if (!function_exists('get_post_permalink')) {
             foreach (['/functions/permalinks.php', '/functions/template-helpers.php'] as $f) {
@@ -66,20 +99,18 @@ class ResolveController {
         if (!function_exists('md_upload_url') && is_file($core . '/functions/http.php')) {
             require_once $core . '/functions/http.php';
         }
-        $url = function_exists('get_post_permalink') ? get_post_permalink($post['post_type_slug'], $post['slug']) : '';
+        $url = ((int) ($post['id'] ?? 0) > 0 && function_exists('get_post_permalink'))
+            ? get_post_permalink($post['post_type_slug'], $post['slug'])
+            : '';
 
-        // Hydrate image/file fields into the {id,name,url,w,h} object the editor expects.
-        // Stored values may be a bare media id (legacy) or — for featured_image — live only
-        // in the posts.featured_image column. Without this the image field renders empty even
-        // though the front-end (which reads the column) shows the picture.
         $values = $this->hydrateImageFields($fields, is_array($values) ? $values : [], $post);
 
         return [
             'post' => [
-                'id' => (int)$post['id'],
-                'title' => $post['title'],
-                'slug' => $post['slug'],
-                'status' => $post['status'],
+                'id' => (int) ($post['id'] ?? 0),
+                'title' => $post['title'] ?? '',
+                'slug' => $post['slug'] ?? '',
+                'status' => $post['status'] ?? 'draft',
                 'order' => (int) ($post['order'] ?? 0),
                 'url' => $url,
                 'post_type' => ['id' => (int)$post['post_type_id'], 'name' => $post['post_type_name'], 'slug' => $post['post_type_slug'], 'mode' => $post['post_type_mode'] ?? 'fixed'],
@@ -155,21 +186,54 @@ class ResolveController {
         return $values;
     }
 
-    /** True if any OR-group's AND-rules match the given post type slug. */
-    private function locationMatches($location, string $ptSlug): bool {
-        if (!is_array($location) || !count($location)) return false;
+    /** Flatten a field-group `fields` payload to a list of field defs. */
+    private function normalizeFieldList($raw): array {
+        if (is_string($raw)) {
+            $raw = json_decode($raw, true);
+        }
+        if (!is_array($raw)) {
+            return [];
+        }
+        if (isset($raw['fields']) && is_array($raw['fields']) && !isset($raw['type']) && !isset($raw['name'])) {
+            $raw = $raw['fields'];
+        }
+        $out = [];
+        foreach ($raw as $f) {
+            if (is_array($f) && (isset($f['type']) || isset($f['name']) || isset($f['key']))) {
+                $out[] = $f;
+            }
+        }
+        return $out;
+    }
+
+    /** True if any OR-group's AND-rules match this post (type, id, slug, template). */
+    private function locationMatches($location, array $ctx): bool {
+        if (!is_array($location) || !count($location)) return true;
+        $ptSlug = (string) ($ctx['post_type_slug'] ?? '');
+        $ptId = (string) ($ctx['post_type_id'] ?? '');
+        $postId = (string) ($ctx['id'] ?? '');
+        $slug = (string) ($ctx['slug'] ?? '');
+        $template = (string) ($ctx['template'] ?? '');
         foreach ($location as $orGroup) {
             if (!is_array($orGroup) || !count($orGroup)) continue;
             $all = true;
             foreach ($orGroup as $rule) {
-                $param = $rule['param'] ?? '';
-                $op = $rule['op'] ?? '==';
-                $val = $rule['value'] ?? '';
+                $param = (string) ($rule['param'] ?? '');
+                $op = (string) ($rule['op'] ?? '==');
+                $val = (string) ($rule['value'] ?? '');
                 if ($param === 'post_type') {
-                    $ok = $op === '!=' ? ($val !== $ptSlug) : ($val === $ptSlug || $val === '');
-                    if (!$ok) { $all = false; break; }
+                    $ptEqual = ($val === $ptSlug || ($val !== '' && $val === $ptId));
+                    $ok = $op === '!=' ? ($val !== '' && !$ptEqual) : ($ptEqual || $val === '');
+                } elseif ($param === 'post') {
+                    $ok = $op === '!=' ? ($val !== $postId) : ($val === $postId);
+                } elseif ($param === 'post_slug') {
+                    $ok = $op === '!=' ? ($val !== $slug) : ($val === $slug);
+                } elseif ($param === 'post_template') {
+                    $ok = $op === '!=' ? ($val !== $template) : ($val === $template);
+                } else {
+                    continue;
                 }
-                // other params (post/template/taxonomy/role) are not constrained here yet
+                if (!$ok) { $all = false; break; }
             }
             if ($all) return true;
         }

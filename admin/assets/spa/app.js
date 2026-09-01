@@ -81,6 +81,7 @@
     analytics: 'ScreenAnalytics',
     notifications: 'ScreenNotifications',
     library: 'ScreenLibrary',
+    fieldDemo: 'ScreenFieldDemo',
     modulePage: 'ScreenModulePage',
     systemUpdate: 'ScreenSystemUpdate',
   };
@@ -168,6 +169,9 @@
       if (params.type) q.set('type', params.type);
       return path + '?' + q.toString() + '#editor';
     }
+    if (name === 'fieldBuilder' && params.group) {
+      return path + '?group=' + encodeURIComponent(params.group) + '#fieldBuilder';
+    }
     if (name === 'fieldBuilder' && params.type) {
       return path + '?type=' + encodeURIComponent(params.type) + '#fieldBuilder';
     }
@@ -225,7 +229,8 @@
     if (hashRoute && SCREEN[hashRoute]) {
       route.name = hashRoute;
       route.params = {};
-      if (hashRoute === 'fieldBuilder' && qs.get('type')) route.params.type = qs.get('type');
+      if (hashRoute === 'fieldBuilder' && qs.get('group')) route.params.group = qs.get('group');
+      else if (hashRoute === 'fieldBuilder' && qs.get('type')) route.params.type = qs.get('type');
       else if (hashRoute === 'editor' && postId) {
         route.params = { postId: postId };
         const type = qs.get('type'); if (type) route.params.type = type;

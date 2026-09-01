@@ -50,6 +50,8 @@
 .fgroup-title:focus { background: var(--surface-2); box-shadow: 0 0 0 2px var(--ring); }
 .fgroup-actions { display: flex; gap: 1px; }
 .fgroup-body { padding: 18px; }
+.fgroup-body > .fr .tabs { margin-bottom: 16px; gap: 4px; flex-wrap: wrap; }
+.fgroup-body > .fr .fr-field { margin-bottom: 2px; }
 
 /* field grid (the HOW columns) */
 .fgrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px 20px; }

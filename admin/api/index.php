@@ -624,6 +624,11 @@ $router->addRoute('GET', '/api/v1/stats/analytics', function() { return (new Sta
 $router->addRoute('GET', '/api/v1/stats/reports', function() { return (new StatsController($GLOBALS['db']))->reports(); }, ['auth']);
 
 // Resolve: effective fieldset + revisions per post
+$router->addRoute('GET', '/api/v1/resolved-fieldset', function() use ($mkResult) {
+    $pt = trim((string) ($_GET['post_type'] ?? $_GET['type'] ?? ''));
+    $slug = trim((string) ($_GET['slug'] ?? ''));
+    return $mkResult((new ResolveController($GLOBALS['db']))->resolvedFieldsetPreview($pt, $slug));
+}, ['auth']);
 $router->addRoute('GET', '/api/v1/posts/{id}/resolved-fieldset', function($id) use ($mkResult) { return $mkResult((new ResolveController($GLOBALS['db']))->resolvedFieldset($id)); }, ['auth']);
 $router->addRoute('GET', '/api/v1/posts/{id}/revisions', function($id) { return (new ResolveController($GLOBALS['db']))->revisions($id); }, ['auth']);
 
