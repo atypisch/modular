@@ -402,29 +402,45 @@ class MediaController {
     }
 
     public function delete($id) {
-        $media = $this->show($id);
-        if (isset($media['error'])) {
-            return $media;
+        $id = (int) $id;
+        $stmt = $this->db->prepare("SELECT file_path, variants FROM media WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $stmt->execute([$id]);
+        $media = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$media) {
+            return ['error' => 'Media not found', 'code' => 404];
         }
 
-        // Hard delete: remove the original file AND every generated variant/format.
         $paths = [];
-        if (!empty($media['file_path'])) $paths[] = $media['file_path'];
+        if (!empty($media['file_path'])) {
+            $paths[] = $media['file_path'];
+        }
         $variants = $media['variants'];
-        if (is_string($variants)) $variants = json_decode($variants, true);
+        if (is_string($variants)) {
+            $variants = json_decode($variants, true);
+        }
         if (is_array($variants)) {
             foreach ($variants as $v) {
-                if (is_array($v) && !empty($v['path'])) $paths[] = $v['path'];
+                if (is_array($v) && !empty($v['path'])) {
+                    $paths[] = $v['path'];
+                }
             }
         }
         foreach ($paths as $webPath) {
             $abs = $this->physicalPath($webPath);
-            if ($abs && is_file($abs)) @unlink($abs);
+            if ($abs && is_file($abs)) {
+                @unlink($abs);
+            }
         }
 
-        // Remove the database row.
-        $stmt = $this->db->prepare("DELETE FROM media WHERE id = ?");
-        $stmt->execute([$id]);
+        try {
+            $del = $this->db->prepare("DELETE FROM media WHERE id = ?");
+            $del->execute([$id]);
+        } catch (\PDOException $e) {
+            error_log('media hard delete failed: ' . $e->getMessage());
+            $soft = $this->db->prepare("UPDATE media SET deleted_at = NOW(), updated_at = NOW() WHERE id = ?");
+            $soft->execute([$id]);
+            return ['message' => 'Media deleted', 'hard_deleted' => false];
+        }
 
         return ['message' => 'Media deleted', 'hard_deleted' => true];
     }

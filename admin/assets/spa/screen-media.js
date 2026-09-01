@@ -236,17 +236,25 @@
       },
       async removeIds(ids) {
         const store = window.__mdlr.store;
-        if (!store || !store.deleteMedia) return;
+        if (!store || !store.deleteMedia) {
+          alert('Delete is not available. Reload the admin and try again.');
+          return;
+        }
         this.deleting = true;
         const failed = [];
         for (const id of ids) {
           try { await store.deleteMedia(id); }
-          catch (e) { console.error('[media] delete failed', id, e); failed.push(id); }
+          catch (e) {
+            console.error('[media] delete failed', id, e);
+            failed.push(id);
+          }
         }
         this.sel = this.sel.filter(id => failed.indexOf(id) >= 0);
         if (this.detail && ids.indexOf(this.detail.id) >= 0 && failed.indexOf(this.detail.id) < 0) this.detail = null;
         this.deleting = false;
-        if (failed.length) alert('Could not delete ' + failed.length + ' file' + (failed.length === 1 ? '' : 's') + '.');
+        if (failed.length) {
+          alert('Could not delete ' + failed.length + ' file' + (failed.length === 1 ? '' : 's') + '.');
+        }
       },
       openFilePicker() { const el = this.$refs.fileInput; if (el) el.click(); },
       async onFiles(e) {
@@ -296,9 +304,9 @@
             <span class="media-thumb" :style="{background: src(m) ? ('center/contain no-repeat url('+src(m)+')') : grad(m.hue), backgroundColor:'var(--paper-2)'}">
               <span class="media-lib-check" @click.stop><UiChk :modelValue="isSel(m.id)" @update:modelValue="toggle(m.id)"/></span>
               <span class="media-hover">
-                <button class="btn btn--soft btn--xs" @click.stop="open(m)"><Icon name="pencil" :size="13"/> Edit</button>
-                <button class="btn btn--soft btn--xs" @click.stop="cropping=m"><Icon name="crop" :size="13"/> Crop</button>
-                <button class="btn btn--soft btn--xs" @click.stop="removeOne(m)"><Icon name="trash" :size="13"/> Delete</button>
+                <button type="button" class="btn btn--soft btn--xs" @click.stop="open(m)"><Icon name="pencil" :size="13"/> Edit</button>
+                <button type="button" class="btn btn--soft btn--xs" @click.stop="cropping=m"><Icon name="crop" :size="13"/> Crop</button>
+                <button type="button" class="btn btn--soft btn--xs" @click.stop="removeOne(m)"><Icon name="trash" :size="13"/> Delete</button>
               </span>
               <span class="media-badge mono">{{ presetCount }}</span>
             </span>
@@ -327,7 +335,7 @@
                       <button @click="open(m)">Edit</button>
                       <button @click="cropping=m"><Icon name="crop" :size="12"/> Crop</button>
                       <button @click="viewFile(m)"><Icon name="eye" :size="12"/> View</button>
-                      <button class="is-danger" @click="removeOne(m)">Delete</button>
+                      <button type="button" class="is-danger" @click="removeOne(m)">Delete</button>
                     </div>
                   </div>
                 </div>
@@ -416,7 +424,7 @@
         </div>
       </div>
       <div class="drawer-foot">
-        <button class="btn btn--danger" style="margin-right:auto" @click="$emit('delete', m)"><Icon name="trash" :size="15"/> Delete</button>
+        <button type="button" class="btn btn--danger" style="margin-right:auto" @click="$emit('delete', m)"><Icon name="trash" :size="15"/> Delete</button>
         <button class="btn btn--ghost" @click="$emit('close')">Cancel</button>
         <button class="btn" @click="$emit('close')"><Icon name="check" :size="15"/> Save</button>
       </div>

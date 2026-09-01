@@ -472,6 +472,15 @@ $router->addRoute('DELETE', '/api/v1/media/{id}', function($id) {
     }
     return $result;
 }, ['auth']);
+$router->addRoute('POST', '/api/v1/media/{id}/delete', function($id) {
+    $controller = new MediaController($GLOBALS['db']);
+    $result = $controller->delete($id);
+    if (isset($result['code'])) {
+        http_response_code($result['code']);
+        unset($result['code']);
+    }
+    return $result;
+}, ['auth']);
 
 // Search routes
 $router->addRoute('GET', '/api/v1/search', function() {

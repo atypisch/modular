@@ -19,9 +19,10 @@
     async request(method, path, body, _retry) {
       const headers = { 'Accept': 'application/json' };
       const opts = { method, headers, credentials: 'same-origin' };
+      const mutating = method !== 'GET' && method !== 'HEAD';
+      if (mutating) headers['X-CSRF-TOKEN'] = BOOT.csrf || '';
       if (body !== undefined) {
         headers['Content-Type'] = 'application/json';
-        headers['X-CSRF-TOKEN'] = BOOT.csrf || '';
         opts.body = JSON.stringify(body);
       }
       const res = await fetch(this.base + path, opts);

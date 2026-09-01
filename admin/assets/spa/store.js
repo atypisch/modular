@@ -144,8 +144,8 @@
     },
     async deleteMedia(id) {
       const nid = Number(id);
-      if (isNaN(nid) || nid <= 0) return;
-      await api().del('/media/' + nid);
+      if (isNaN(nid) || nid <= 0) throw new Error('Invalid media id');
+      await api().post('/media/' + nid + '/delete', {});
       const list = D().MEDIA;
       const i = list.findIndex(m => Number(m.id) === nid);
       if (i >= 0) list.splice(i, 1);

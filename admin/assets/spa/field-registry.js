@@ -491,7 +491,7 @@
       // Resolve the live media item so the preview reflects the global crop
       // (crop regenerates variants; we show the cropped variant, not the original).
       media() { const v = this.modelValue; if (!v || v.id == null) return null; return (window.__mdlr.data.MEDIA || []).find(x => x.id === v.id) || null; },
-      imgBg() { const m = this.media; const u = (m && (m.preview || m.thumb)) || (this.modelValue && this.modelValue.url) || ''; return u; },
+      imgBg() { const m = this.media; const u = (m && (m.preview || m.url || m.thumb)) || (this.modelValue && this.modelValue.url) || ''; return u; },
       cropImg() { const v = this.modelValue || {}; const m = this.media; return Object.assign({}, v, { url: v.url || (m && m.url), crop: (m && m.crop) || v.crop || null, w: v.w || (m && m.w), h: v.h || (m && m.h) }); },
       // Chosen image format (crop preset) name, shown as a preview hint on the post.
       formatName() { const m = this.media; return (m && m.crop && m.crop.preset) || ''; },
@@ -521,16 +521,63 @@
 
   C.MdGallery = base({
     name: 'MdGallery',
-    data() { return { pickOpen: false, dragI: null, dropAt: null }; },
-    computed: { items() { return Array.isArray(this.modelValue) ? this.modelValue : []; } },
+    data() { return { pickOpen: false, dragI: null, dropAt: null, extra: {} }; },
+    computed: {
+      rawIds() {
+        let raw = this.modelValue;
+        if (raw && !Array.isArray(raw) && Array.isArray(raw.ids)) raw = raw.ids;
+        if (!Array.isArray(raw)) return [];
+        return raw.map(it => Number((it && typeof it === 'object') ? it.id : it)).filter(id => id > 0);
+      },
+      items() {
+        let raw = this.modelValue;
+        if (raw && !Array.isArray(raw) && Array.isArray(raw.ids)) raw = raw.ids;
+        if (!Array.isArray(raw)) return [];
+        return raw.map(it => {
+          const id = Number((it && typeof it === 'object') ? it.id : it);
+          if (!id) return null;
+          const mobile = !!(it && typeof it === 'object' && it.mobile);
+          const m = this.lookup(id);
+          if (m) {
+            return { id: m.id, hue: m.hue, name: m.name || (it && it.name) || '', w: m.w, h: m.h, url: m.url || (it && it.url) || '', thumb: m.thumb || m.preview || (it && it.thumb) || '', mobile };
+          }
+          const row = (it && typeof it === 'object') ? Object.assign({}, it) : { id };
+          row.mobile = mobile;
+          return row;
+        }).filter(it => it && it.id != null);
+      },
+    },
+    watch: { modelValue: { immediate: true, handler() { this.resolveMissing(); } } },
     methods: {
+      lookup(id) {
+        const nid = Number(id);
+        if (this.extra[nid]) return this.extra[nid];
+        const MEDIA = (window.__mdlr.data && window.__mdlr.data.MEDIA) || [];
+        return MEDIA.find(x => Number(x.id) === nid) || null;
+      },
+      mapRow(r) {
+        const v = (r.variants && typeof r.variants === 'object') ? r.variants : {};
+        const thumb = r.thumb_url || (v.thumb && v.thumb.path) || (v.small && v.small.path) || r.url || r.file_path || '';
+        return { id: Number(r.id), name: r.filename || r.name, hue: 30, w: Number(r.width) || null, h: Number(r.height) || null, url: r.url || r.file_path || '', thumb, preview: r.preview_url || r.url || thumb };
+      },
+      resolveMissing() {
+        const M = window.__mdlr;
+        if (!M.api) return;
+        const missing = this.rawIds.filter(id => !this.lookup(id));
+        if (!missing.length) return;
+        M.api.get('/media?ids=' + missing.join(',')).then(rows => {
+          const extra = Object.assign({}, this.extra);
+          (Array.isArray(rows) ? rows : []).forEach(r => {
+            if (!r || r.id == null) return;
+            extra[Number(r.id)] = this.mapRow(r);
+          });
+          this.extra = extra;
+        }).catch(() => {});
+      },
       grad(h) { return 'linear-gradient(135deg, hsl(' + h + ' 26% 82%), hsl(' + (h - 6) + ' 22% 64%))'; },
       bg(it) {
-        // Prefer the small, resolved thumbnail from the loaded media library so cells
-        // are KB-light and never broken on relative paths; fall back to the stored url.
-        const MEDIA = (window.__mdlr.data && window.__mdlr.data.MEDIA) || [];
-        const m = (it && it.id != null) ? MEDIA.find(x => x.id === it.id) : null;
-        const u = (m && (m.thumb || m.url)) || (it && it.url) || '';
+        const m = this.lookup(it && it.id);
+        const u = (m && (m.thumb || m.preview || m.url)) || (it && (it.thumb || it.url)) || '';
         return u ? ('center/cover no-repeat url(' + u + ')') : this.grad((it && it.hue) || 30);
       },
       addBatch(payload) { const arr = Array.isArray(payload) ? payload : [payload]; const add = arr.map(m => ({ id: m.id, hue: m.hue, name: m.name, w: m.w, h: m.h, url: m.url, mobile: !!m.mobile })); this.set(this.items.concat(add)); },
@@ -553,9 +600,9 @@
         <div class="gal" @dragover.prevent @drop="dDrop">
           <template v-for="(it,i) in items" :key="it.id||i">
             <div class="gal-dropline" v-if="dragI!=null && dropAt===i"></div>
-            <div class="gal-cell" :class="{'is-dragging':dragI===i, 'is-mobile': !!(it && it.mobile)}" :style="{ background: bg(it) }" draggable="true" @dragstart="dStart(i,$event)" @dragend="dragI=null;dropAt=null" @dragover="dOver(i,$event)" :title="it.name">
+            <div class="gal-cell" :class="{'is-dragging':dragI===i, 'is-mobile': !!it.mobile}" :style="{ background: bg(it) }" draggable="true" @dragstart="dStart(i,$event)" @dragend="dragI=null;dropAt=null" @dragover="dOver(i,$event)" :title="it.name">
               <button class="iconbtn iconbtn--sm is-danger gal-rm" @click.stop="remove(i)"><Icon name="x" :size="12"/></button>
-              <button class="gal-flag" :class="{'is-on': !!(it && it.mobile)}" @click.stop="toggleMobile(i)" title="Show in the mobile row on the public page">Mobile</button>
+              <button class="gal-flag" :class="{'is-on': !!it.mobile}" @click.stop="toggleMobile(i)" title="Show in the mobile row on the public page">Mobile</button>
             </div>
           </template>
           <div class="gal-dropline" v-if="dragI!=null && dropAt===items.length"></div>
@@ -590,7 +637,7 @@
       // into {id,title,…} objects so the selected pane shows titles, not "#id".
       selected() {
         const v = this.modelValue;
-        const arr = Array.isArray(v) ? v : (v ? [v] : []);
+        const arr = Array.isArray(v) ? v : (v && Array.isArray(v.ids) ? v.ids : (v ? [v] : []));
         if (!arr.length) return [];
         const byId = {};
         this.available.forEach(p => { byId[p.id] = p; });
@@ -600,6 +647,8 @@
         });
       },
       selectedIds() { return this.selected.map(s => (s && typeof s === 'object') ? s.id : s); },
+      max() { return Number(this.definition.max) || 0; },
+      atMax() { return !this.single && this.max > 0 && this.selectedIds.length >= this.max; },
       filtered() {
         const q = this.search.trim().toLowerCase();
         return this.available.filter(p => !this.selectedIds.includes(p.id) && (!this.ptFilter || p.type === this.ptFilter) && (!q || (p.title || '').toLowerCase().includes(q)));
@@ -611,12 +660,14 @@
         const seen = {}; this.available.forEach(p => { if (p.type) seen[p.type] = p.typeName || p.type; });
         return Object.keys(seen).map(k => ({ value: k, label: seen[k] }));
       },
+      ptCount() { return (M.data.POST_TYPES || []).length; },
     },
     mounted() { this.load(); },
     watch: {
       modelValue() { this.resolveMissing(); },
       search() { this.renderN = 30; },
       ptFilter() { this.renderN = 30; },
+      ptCount() { this.load(); },
     },
     methods: {
       load() {
@@ -646,7 +697,7 @@
       resolveMissing() {
         if (!M.api) return;
         const v = this.modelValue;
-        const arr = Array.isArray(v) ? v : (v ? [v] : []);
+        const arr = Array.isArray(v) ? v : (v && Array.isArray(v.ids) ? v.ids : (v ? [v] : []));
         const byId = {}; this.available.forEach(p => { byId[p.id] = p; });
         const ptName = (slug, id) => { const t = (M.data.POST_TYPES || []).find(x => x.slug === slug || x._dbId === id || x.id === slug); return t ? t.name : ''; };
         [...new Set(arr.filter(s => s != null && typeof s !== 'object' && !byId[s] && !this.resolvedById[s]))].forEach(id => {
@@ -662,7 +713,10 @@
       // pane resolves ids → titles for display only.
       add(p) {
         if (this.single) this.set(p.id);
-        else this.set(this.selectedIds.concat([p.id]));
+        else {
+          if (this.atMax || this.selectedIds.includes(p.id)) return;
+          this.set(this.selectedIds.concat([p.id]));
+        }
       },
       remove(id) {
         const r = this.selectedIds.filter(x => x !== id);
@@ -695,7 +749,7 @@
           </div>
           <div class="acf-rel-list" @scroll="onScroll">
             <div v-if="loading" class="t-meta" style="padding:10px;text-align:center">Loading…</div>
-            <button type="button" v-for="p in visible" :key="p.id" class="acf-rel-item" @click="add(p)" :disabled="single && selected.length">
+            <button type="button" v-for="p in visible" :key="p.id" class="acf-rel-item" @click="add(p)" :disabled="(single && selected.length) || atMax">
               <div class="rel-item-main"><strong>{{ p.title }}</strong><span class="t-meta">{{ p.typeName }} · {{ p.status }}</span></div>
               <Icon name="plus" :size="15" class="muted"/>
             </button>
@@ -704,7 +758,7 @@
           </div>
         </div>
         <div class="acf-rel-pane">
-          <div class="acf-rel-head"><span class="t-meta">{{ single ? 'Selected' : 'Selected (' + selectedIds.length + ')' }}</span></div>
+          <div class="acf-rel-head"><span class="t-meta">{{ single ? 'Selected' : ('Selected (' + selectedIds.length + (max ? '/' + max : '') + ')') }}</span></div>
           <div class="acf-rel-list" @dragover.prevent @drop="dDrop">
             <template v-for="(item,i) in selected" :key="(item&&item.id)||i">
               <div class="acf-rel-dropline" v-if="dragI!=null && dropAt===i"></div>

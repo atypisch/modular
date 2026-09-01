@@ -130,7 +130,7 @@
       applyPayload(data) {
         if (!data || typeof data !== 'object') return;
         if (data.site_url) this.base = String(data.site_url).replace(/\/$/, '');
-        this.applyStructures(data.structures || {});
+        this.applyStructures(data.structures || data.permalink_structure || {});
         const ht = data.htaccess || {};
         this.htaccessPath = ht.path || '';
         this.htaccessContent = ht.content || '';
@@ -142,7 +142,7 @@
         const api = window.__mdlr.api;
         if (!api) { this.loading = false; this.err = 'API is not available.'; return; }
         this.loading = true; this.err = '';
-        api.get('/settings/permalinks')
+        api.get('/settings?permalinks=1')
           .then(data => { this.applyPayload(data); })
           .catch(e => { this.err = (e && e.data && e.data.error) || 'Could not load permalinks.'; })
           .then(() => { this.loading = false; });
@@ -151,7 +151,7 @@
         const api = window.__mdlr.api;
         if (!api || this.saving) return;
         this.saving = true; this.err = ''; this.warn = ''; this.saved = false;
-        api.put('/settings/permalinks', { structures: this.collectStructures() })
+        api.put('/settings', { structures: this.collectStructures() })
           .then(data => {
             this.applyPayload(data);
             this.saved = !this.warn;

@@ -16,6 +16,10 @@ class SettingsController {
 
     /** GET /settings — all options as a flat map (JSON values decoded). */
     public function index() {
+        if (!empty($_GET['permalinks'])) {
+            $this->loadPermalinksLib();
+            return $this->permalinksPayload();
+        }
         $stmt = $this->db->query("SELECT option_name, option_value FROM settings");
         $out = [];
         foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
@@ -27,6 +31,9 @@ class SettingsController {
     /** PUT /settings — body { options: { name: value, ... } }; upsert each. */
     public function update() {
         $in = $this->body();
+        if (isset($in['structures']) && is_array($in['structures'])) {
+            return $this->savePermalinks($in);
+        }
         $options = $in['options'] ?? $in; // accept either {options:{}} or a flat map
         if (!is_array($options)) return ['error' => 'options must be an object', 'code' => 400];
         $n = 0;
@@ -60,9 +67,9 @@ class SettingsController {
     }
 
     /** PUT /settings/permalinks — save structures and merge rewrite rules into .htaccess. */
-    public function savePermalinks() {
+    public function savePermalinks(?array $in = null) {
         $this->loadPermalinksLib();
-        $in = $this->body();
+        $in = $in ?? $this->body();
         $incoming = $in['structures'] ?? null;
         if (!is_array($incoming)) {
             return ['error' => 'structures must be an object', 'code' => 400];

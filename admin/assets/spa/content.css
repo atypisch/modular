@@ -304,8 +304,8 @@
 .crop2-side-head strong { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); }
 
 .media-card--lib { cursor: default; }
-.media-hover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6px; opacity: 0; background: rgba(34,31,26,0.32); border-radius: var(--r-md); transition: opacity var(--dur); z-index: 1; }
-.media-card--lib:hover .media-hover { opacity: 1; }
+.media-hover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; padding: 8px; opacity: 0; pointer-events: none; background: rgba(34,31,26,0.32); border-radius: var(--r-md); transition: opacity var(--dur); z-index: 1; }
+.media-card--lib:hover .media-hover { opacity: 1; pointer-events: auto; }
 
 @media (max-width: 900px) { .crop2-wrap { grid-template-columns: 1fr; } .crop2-main { border-right: 0; border-bottom: 1px solid var(--line); } }
 
