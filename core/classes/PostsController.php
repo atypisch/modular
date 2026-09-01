@@ -306,8 +306,14 @@ class PostsController {
             return ['error' => 'Slug already exists for this post type', 'code' => 409];
         }
         
-        $publishedAt = ($status === 'published') ? date('Y-m-d H:i:s') : null;
-        
+        $publishedAt = array_key_exists('published_at', $input)
+            ? $this->normalizePublishedAt($input['published_at'])
+            : null;
+        $publishErr = $this->applyPublishState($status, $publishedAt);
+        if ($publishErr) {
+            return $publishErr;
+        }
+
         $fiId = $this->featuredImageId($input['data'] ?? null);
         $featuredCol = ($fiId !== null && $fiId > 0) ? $fiId : null;
 
@@ -358,11 +364,12 @@ class PostsController {
             }
         }
         
-        $publishedAt = $existing['published_at'];
-        if ($status === 'published' && !$publishedAt) {
-            $publishedAt = date('Y-m-d H:i:s');
-        } elseif ($status !== 'published') {
-            $publishedAt = null;
+        $publishedAt = array_key_exists('published_at', $input)
+            ? $this->normalizePublishedAt($input['published_at'])
+            : ($existing['published_at'] ?: null);
+        $publishErr = $this->applyPublishState($status, $publishedAt);
+        if ($publishErr) {
+            return $publishErr;
         }
         
         // Keep the featured_image column in sync with data.featured_image (front-end reads
@@ -492,6 +499,39 @@ class PostsController {
         $text = preg_replace('/[^a-z0-9-]/', '-', $text);
         $text = preg_replace('/-+/', '-', $text);
         return trim($text, '-');
+    }
+
+    /** Accept datetime-local or SQL datetime; empty becomes null. */
+    private function normalizePublishedAt($raw): ?string {
+        if ($raw === null) return null;
+        $raw = trim((string) $raw);
+        if ($raw === '') return null;
+        $raw = str_replace('T', ' ', $raw);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            $raw .= ' 00:00:00';
+        }
+        $ts = strtotime($raw);
+        if ($ts === false) return null;
+        return date('Y-m-d H:i:s', $ts);
+    }
+
+    /** Keep scheduled dates; fill published_at when going live now. Returns an error payload or null. */
+    private function applyPublishState(string &$status, ?string &$publishedAt): ?array {
+        $allowed = ['draft', 'published', 'scheduled', 'private'];
+        if (!in_array($status, $allowed, true)) {
+            $status = 'draft';
+        }
+        if ($status === 'scheduled') {
+            if (!$publishedAt) {
+                return ['error' => 'A publication date is required to schedule', 'code' => 400];
+            }
+            if (strtotime($publishedAt) <= time()) {
+                $status = 'published';
+            }
+        } elseif ($status === 'published' && !$publishedAt) {
+            $publishedAt = date('Y-m-d H:i:s');
+        }
+        return null;
     }
 }
 

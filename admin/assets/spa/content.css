@@ -155,6 +155,11 @@
 .rail-head { display: flex; align-items: center; gap: 7px; padding: 11px 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--line); }
 .rail-body { padding: 14px; }
 .rail-body .field { margin-bottom: 13px; }
+.rail-datetime { display: flex; align-items: center; gap: 6px; }
+.rail-datetime .inp { flex: 1; min-width: 0; }
+.rail-datetime .btn { flex: none; }
+.rail-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; padding-top: 12px; border-top: 1px solid var(--line); }
+.rail-actions .btn { width: 100%; }
 .rail-card--quiet { background: transparent; border-style: dashed; }
 .rail-card--quiet .rail-head { border-bottom: 0; }
 .rail-card--quiet .rail-body { padding-top: 0; }

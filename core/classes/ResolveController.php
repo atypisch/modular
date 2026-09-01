@@ -112,6 +112,7 @@ class ResolveController {
                 'slug' => $post['slug'] ?? '',
                 'status' => $post['status'] ?? 'draft',
                 'order' => (int) ($post['order'] ?? 0),
+                'published_at' => $post['published_at'] ?? null,
                 'url' => $url,
                 'post_type' => ['id' => (int)$post['post_type_id'], 'name' => $post['post_type_name'], 'slug' => $post['post_type_slug'], 'mode' => $post['post_type_mode'] ?? 'fixed'],
             ],

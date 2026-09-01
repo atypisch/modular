@@ -23,7 +23,8 @@
     inject: ['go', 'route', 'ui'],
     data() {
       return {
-        post: { id: null, title: '', slug: '', status: 'draft', order: 0, type: '', url: '' },
+        post: { id: null, title: '', slug: '', status: 'draft', order: 0, published_at: '', type: '', url: '' },
+        savedStatus: 'draft',
         schema: [],            // post-type fields (prov type) + shared-group fields (prov shared, _group)
         fieldGroups: [],       // matched shared groups [{id,name,icon}]
         perPostGroups: [],     // per-post field-group containers (prov post), drag fields between them
@@ -44,7 +45,48 @@
     computed: {
       ptObj() { return D().POST_TYPES.find(p => p.id === this.post.type) || {}; },
       statusClass() { return this.post.status === 'published' ? 'badge--ok' : this.post.status === 'scheduled' ? 'badge--info' : 'badge--warn'; },
-      jsonCode() { return JSON.stringify({ title: this.post.title, slug: this.post.slug, status: this.post.status, data: this.values }, null, 2); },
+      jsonCode() { return JSON.stringify({ title: this.post.title, slug: this.post.slug, status: this.post.status, published_at: this.post.published_at, data: this.values }, null, 2); },
+      isPublishDateFuture() {
+        const d = this.parsePublishAt();
+        return !!(d && d.getTime() > Date.now() + 15000);
+      },
+      primaryAction() {
+        if (this.savedStatus === 'published') return 'save';
+        if (this.isPublishDateFuture) return 'schedule';
+        return 'publish';
+      },
+      primaryActionLabel() {
+        if (this.saving) return 'Saving…';
+        const a = this.primaryAction;
+        if (a === 'save') return 'Save';
+        if (a === 'schedule') return 'Schedule';
+        return 'Publish';
+      },
+      primaryActionIcon() {
+        const a = this.primaryAction;
+        if (a === 'save') return 'save';
+        if (a === 'schedule') return 'clock';
+        return 'globe';
+      },
+      showSaveDraft() { return this.savedStatus !== 'published'; },
+      publishAtLocal: {
+        get() {
+          const d = this.parsePublishAt();
+          if (!d) return '';
+          const pad = (n) => String(n).padStart(2, '0');
+          return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        },
+        set(v) {
+          if (!v) { this.post.published_at = ''; return; }
+          const s = String(v);
+          this.post.published_at = s.replace('T', ' ') + (s.length <= 16 ? ':00' : '');
+        },
+      },
+      publishHint() {
+        if (this.savedStatus === 'published') return 'Live. Changing the date updates the publication time; the post stays published.';
+        if (this.isPublishDateFuture) return 'This date is in the future, so the primary action is Schedule.';
+        return 'Leave empty to publish immediately. A future date turns Publish into Schedule.';
+      },
       leftoverTypeNames() {
         return new Set(['tab_visuals', 'tab_header', 'image', 'gallery', 'featured_image', 'choose_header', 'header_image', 'header_gallery', 'header_movie']);
       },
@@ -114,11 +156,13 @@
         if (!rf) return;
         const ptSlug = (rf.post && rf.post.post_type && rf.post.post_type.slug) || this.post.type || '';
         if (isNew) {
-          this.post = { id: null, title: '', slug: '', status: 'draft', order: 0, type: ptSlug, url: '' };
+          this.post = { id: null, title: '', slug: '', status: 'draft', order: 0, published_at: '', type: ptSlug, url: '' };
+          this.savedStatus = 'draft';
           this.values = reactive({});
           this.perPostGroups = [];
         } else if (rf.post) {
-          this.post = { id: rf.post.id, title: rf.post.title || '', slug: rf.post.slug || '', status: rf.post.status || 'draft', order: Number(rf.post.order) || 0, type: ptSlug, url: rf.post.url || '' };
+          this.post = { id: rf.post.id, title: rf.post.title || '', slug: rf.post.slug || '', status: rf.post.status || 'draft', order: Number(rf.post.order) || 0, published_at: rf.post.published_at || '', type: ptSlug, url: rf.post.url || '' };
+          this.savedStatus = this.post.status;
           this.values = reactive(rf.values && typeof rf.values === 'object' ? rf.values : {});
           const lay = rf.layout && typeof rf.layout === 'object' ? rf.layout : {};
           if (Array.isArray(lay._perPostGroups)) {
@@ -208,20 +252,60 @@
       gDrop() { if (this.groupDrag == null) { this.gEnd(); return; } let at = this.groupDropAt == null ? this.perPostGroups.length : this.groupDropAt; const it = this.perPostGroups[this.groupDrag]; this.perPostGroups.splice(this.groupDrag, 1); if (this.groupDrag < at) at -= 1; this.perPostGroups.splice(at, 0, it); this.gEnd(); },
       gEnd() { this.groupDrag = null; this.groupDropAt = null; },
 
+      parsePublishAt() {
+        const s = String(this.post.published_at || '').trim();
+        if (!s) return null;
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+        if (!m) return null;
+        return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+      },
+      setPublishNow() {
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        this.post.published_at = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00';
+      },
+      saveFlash(action) {
+        if (action === 'publish') return 'Published';
+        if (action === 'schedule') return 'Scheduled';
+        if (action === 'draft') return 'Saved as draft';
+        return 'Updated';
+      },
       flash(msg) { this.savedMsg = msg; if (this._flashTimer) clearTimeout(this._flashTimer); this._flashTimer = setTimeout(() => { this.savedMsg = ''; }, 2600); },
-      save() {
+      save(action) {
         const api = M.api; if (!api) return;
+        if (action === 'schedule' && !this.isPublishDateFuture) {
+          alert('Set a publication date in the future to schedule this post.');
+          return;
+        }
+        if (action === 'publish') {
+          this.post.status = 'published';
+          if (!String(this.post.published_at || '').trim()) this.setPublishNow();
+        } else if (action === 'schedule') {
+          this.post.status = 'scheduled';
+        } else if (action === 'draft') {
+          this.post.status = 'draft';
+        } else if (action === 'save' && this.savedStatus === 'published') {
+          this.post.status = 'published';
+        }
         this.saving = true;
         const rp = this.route.params || {};
         const layout = { _perPostGroups: this.perPostGroups.map(g => ({ id: g.id, label: g.label, fields: g.fields.map(f => ({ id: f.id, label: f.label, name: f.name, key: f.key, type: f.type, required: f.required, instructions: f.instructions, w: f.w })) })) };
-        const body = { title: this.post.title, slug: this.post.slug, status: this.post.status, order: Number(this.post.order) || 0, data: this.values, layout };
+        const body = { title: this.post.title, slug: this.post.slug, status: this.post.status, order: Number(this.post.order) || 0, published_at: this.post.published_at || null, data: this.values, layout };
         const isNew = !this.post.id || rp.postId === 'new';
         const req = isNew ? api.post('/posts', Object.assign({ post_type_id: this.ptDbId() }, body)) : api.put('/posts/' + this.post.id, body);
         return req.then((saved) => {
           this.saving = false;
-          if (saved && saved.id) { this.post.id = saved.id; if (saved.slug) this.post.slug = saved.slug; if (saved.status) this.post.status = saved.status; if (saved.url) this.post.url = saved.url; }
-          if (isNew && saved && saved.id) this.go('editor', { postId: saved.id, type: this.post.type, flash: 'Created' });
-          else this.flash('Updated');
+          if (saved && saved.error) { alert(saved.error); return saved; }
+          if (saved && saved.id) {
+            this.post.id = saved.id;
+            if (saved.slug) this.post.slug = saved.slug;
+            if (saved.status) this.post.status = saved.status;
+            if (saved.published_at !== undefined) this.post.published_at = saved.published_at || '';
+            if (saved.url) this.post.url = saved.url;
+            this.savedStatus = this.post.status;
+          }
+          if (isNew && saved && saved.id) this.go('editor', { postId: saved.id, type: this.post.type, flash: this.saveFlash(action) });
+          else this.flash(this.saveFlash(action));
           return saved;
         }).catch(e => { this.saving = false; console.error('[editor] save failed', e); alert('Saving the post failed. Check the console.'); });
       },
@@ -274,7 +358,8 @@
           <span class="badge" :class="statusClass"><span class="badge--dot" style="margin-right:2px"></span>{{ post.status }}</span>
           <button class="btn btn--ghost btn--sm" @click="jsonOpen=true" title="View API output"><Icon name="code" :size="15"/> <span class="hide-sm">JSON</span></button>
           <button class="btn btn--ghost btn--sm" @click="viewPost" title="Open the public page"><Icon name="external" :size="15"/> <span class="hide-sm">View</span></button>
-          <button class="btn" :disabled="saving" @click="save"><Icon name="save" :size="15"/> {{ saving ? 'Saving…' : 'Save' }}</button>
+          <button v-if="showSaveDraft" class="btn btn--ghost" :disabled="saving" @click="save('draft')"><Icon name="file" :size="15"/> <span class="hide-sm">Save as draft</span></button>
+          <button class="btn" :disabled="saving" @click="save(primaryAction)"><Icon :name="primaryActionIcon" :size="15"/> {{ primaryActionLabel }}</button>
         </div>
       </div>
 
@@ -374,18 +459,21 @@
           <div class="rail-card">
             <div class="rail-head">Publish</div>
             <div class="rail-body">
-              <div class="field"><label class="field-label">Status</label>
-                <UiSelect v-model="post.status">
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="private">Private</option>
-                </UiSelect>
+              <div class="field"><label class="field-label">Publication date</label>
+                <div class="rail-datetime">
+                  <input class="inp" type="datetime-local" v-model="publishAtLocal">
+                  <button type="button" class="btn btn--ghost btn--sm" @click="setPublishNow">Now</button>
+                </div>
+                <div class="t-meta" style="margin-top:6px">{{ publishHint }}</div>
               </div>
               <div class="field"><label class="field-label">Slug</label><input class="inp mono" v-model="post.slug" placeholder="auto"></div>
-              <div class="field" style="margin:0"><label class="field-label">Order</label>
+              <div class="field"><label class="field-label">Order</label>
                 <input class="inp" type="number" step="1" v-model.number="post.order" placeholder="0">
                 <div class="t-meta" style="margin-top:6px">Lowest first. Dragging rows in the overview writes this same number.</div>
+              </div>
+              <div class="rail-actions">
+                <button class="btn" :disabled="saving" @click="save(primaryAction)"><Icon :name="primaryActionIcon" :size="15"/> {{ primaryActionLabel }}</button>
+                <button v-if="showSaveDraft" class="btn btn--ghost" :disabled="saving" @click="save('draft')"><Icon name="file" :size="15"/> Save as draft</button>
               </div>
             </div>
           </div>
