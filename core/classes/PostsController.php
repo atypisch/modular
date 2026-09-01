@@ -478,12 +478,59 @@ class PostsController {
         $stmt = $this->db->prepare("
             UPDATE posts
             SET deleted_at = NOW(), updated_by = ?, updated_at = NOW()
-            WHERE id = ?
+            WHERE id = ? AND deleted_at IS NULL
         ");
         $stmt->execute([$userId, $id]);
 
+        if ($stmt->rowCount() === 0) {
+            $check = $this->db->prepare("SELECT id FROM posts WHERE id = ? LIMIT 1");
+            $check->execute([$id]);
+            if (!$check->fetch()) {
+                return ['error' => 'Post not found', 'code' => 404];
+            }
+            return ['message' => 'Post already in trash'];
+        }
+
         $this->invalidatePostCache();
         return ['message' => 'Post deleted'];
+    }
+
+    public function restore($id) {
+        $userId = $GLOBALS['current_user']['user_id'] ?? 1;
+
+        $stmt = $this->db->prepare("
+            UPDATE posts
+            SET deleted_at = NULL, updated_by = ?, updated_at = NOW()
+            WHERE id = ? AND deleted_at IS NOT NULL
+        ");
+        $stmt->execute([$userId, $id]);
+
+        if ($stmt->rowCount() === 0) {
+            return ['error' => 'Post not found in trash', 'code' => 404];
+        }
+
+        $this->invalidatePostCache();
+        return $this->show($id);
+    }
+
+    public function destroyPermanent($id) {
+        if (!function_exists('admin_posts_permanently_delete')) {
+            require_once dirname(__DIR__) . '/functions/admin.php';
+        }
+
+        $stmt = $this->db->prepare("SELECT id FROM posts WHERE id = ? AND deleted_at IS NOT NULL LIMIT 1");
+        $stmt->execute([$id]);
+        if (!$stmt->fetch()) {
+            return ['error' => 'Post not found in trash', 'code' => 404];
+        }
+
+        $removed = admin_posts_permanently_delete($this->db, [(int) $id]);
+        if ($removed < 1) {
+            return ['error' => 'Could not delete post', 'code' => 400];
+        }
+
+        $this->invalidatePostCache();
+        return ['message' => 'Post permanently deleted'];
     }
     
     private function createRevision($postId, $userId, $title, $componentData, $metaData) {

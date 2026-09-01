@@ -309,9 +309,8 @@
         const dbId = pt && pt._dbId;
         const api = window.__mdlr.api;
         if (!dbId || !api) {
-          // fallback to mock while post types hydrate
-          this.items = D().POSTS.filter(p => p.type === pt.id).map(p => ({ ...p, slug: p.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''), _trash:false }));
-          this.total = this.items.length;
+          this.items = [];
+          this.total = 0;
           return;
         }
         const params = new URLSearchParams();
@@ -362,16 +361,56 @@
       singular(){ return this.pt.name.replace(/s$/,'').toLowerCase(); },
       openEditor(p){ this.go('editor',{postId:p.id,type:this.pt.id}); },
       quickEdit(p){ this.quickId = p.id; this.qdraft = JSON.parse(JSON.stringify(p)); },
-      saveQuick(){ const i = this.items.findIndex(x => x.id===this.quickId); if(i>=0) Object.assign(this.items[i], this.qdraft); this.quickId=null; this.qdraft=null; },
+      saveQuick() {
+        const store = window.__mdlr.store;
+        if (!store || !this.qdraft || isNaN(Number(this.quickId))) return;
+        store.updatePost(this.quickId, {
+          title: this.qdraft.title,
+          slug: this.qdraft.slug,
+          status: this.qdraft.status,
+        }).then(() => {
+          const i = this.items.findIndex(x => x.id === this.quickId);
+          if (i >= 0) Object.assign(this.items[i], this.qdraft);
+          this.quickId = null; this.qdraft = null;
+        }).catch((e) => { console.warn('[content] quick save failed', e && e.status); });
+      },
       cancelQuick(){ this.quickId=null; this.qdraft=null; },
-      trash(p){ p._trash = true; },
-      duplicate(p){ const i=this.items.indexOf(p); const c=JSON.parse(JSON.stringify(p)); c.id='n'+Math.random().toString(36).slice(2,7); c.title=p.title+' copy'; c.slug=c.slug+'-copy'; c.status='draft'; c._trash=false; this.items.splice(i+1,0,c); },
-      restore(p){ p._trash = false; },
-      destroy(p){ this.items = this.items.filter(x => x.id !== p.id); },
+      trash(p) {
+        const store = window.__mdlr.store;
+        if (!store || isNaN(Number(p.id))) return;
+        store.deletePost(p.id).then(() => this.load()).catch((e) => { console.warn('[content] trash failed', e && e.status); });
+      },
+      duplicate(p) {
+        const api = window.__mdlr.api;
+        const pt = this.pt;
+        if (!api || !pt || !pt._dbId || isNaN(Number(p.id))) return;
+        api.post('/posts', {
+          post_type_id: pt._dbId,
+          title: (p.title || 'Untitled') + ' copy',
+          slug: ((p.slug || 'item') + '-copy').replace(/-copy(-copy)+$/g, '-copy'),
+          status: 'draft',
+        }).then(() => this.load()).catch((e) => { console.warn('[content] duplicate failed', e && e.status); });
+      },
+      restore(p) {
+        const store = window.__mdlr.store;
+        if (!store || isNaN(Number(p.id))) return;
+        store.restorePost(p.id).then(() => this.load()).catch((e) => { console.warn('[content] restore failed', e && e.status); });
+      },
+      destroy(p) {
+        const store = window.__mdlr.store;
+        if (!store || isNaN(Number(p.id))) return;
+        store.permanentlyDeletePost(p.id).then(() => this.load()).catch((e) => { console.warn('[content] permanent delete failed', e && e.status); });
+      },
       view(p){ const u = (p && p.url) || ((window.__MDLR&&window.__MDLR.baseUrl||'') + '/' + this.pt.id + '/' + (p&&p.slug||'')); window.open(u, '_blank', 'noopener'); },
       toggle(id){ const i=this.sel.indexOf(id); if(i>=0)this.sel.splice(i,1); else this.sel.push(id); },
       toggleAll(){ this.sel = this.allOn ? [] : this.filtered.map(p=>p.id); },
-      bulkTrash(){ this.items.forEach(p=>{ if(this.sel.includes(p.id)) p._trash=true; }); this.sel=[]; },
+      bulkTrash() {
+        const store = window.__mdlr.store;
+        if (!store) return;
+        Promise.all(this.sel.filter(id => !isNaN(Number(id))).map(id => store.deletePost(id)))
+          .then(() => { this.sel = []; this.load(); })
+          .catch((e) => { console.warn('[content] bulk trash failed', e && e.status); });
+      },
     },
     template: `
     <div class="page page--wide fade-up">

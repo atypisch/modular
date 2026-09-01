@@ -3,11 +3,14 @@
   window.__mdlr = window.__mdlr || { comps: {} };
   const C = window.__mdlr.comps;
 
-  const _PT = window.__mdlr.data.POST_TYPES, _TX = window.__mdlr.data.TAXONOMIES;
-  const taxFor = (typeId) => { const pt = _PT.find(p => p.id === typeId); return ((pt && pt.taxonomies) || []).map(id => _TX.find(t => t.id === id)).filter(Boolean); };
+  const D = () => window.__mdlr.data;
+  const taxFor = (typeId) => {
+    const pt = D().POST_TYPES.find(p => p.id === typeId);
+    return ((pt && pt.taxonomies) || []).map(id => D().TAXONOMIES.find(t => t.id === id)).filter(Boolean);
+  };
   const plural = (n) => /s$/i.test(n) ? n : n + 's';
   function buildContentItems() {
-    return _PT.filter(t => t.inMenu).map(t => ({
+    return D().POST_TYPES.filter(t => t.inMenu).map(t => ({
       name:'content', label: plural(t.name), icon: t.icon, params:{ type:t.id },
       children:[
         { label:'All '+plural(t.name).toLowerCase(), name:'content', params:{ type:t.id } },

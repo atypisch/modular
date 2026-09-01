@@ -350,7 +350,30 @@ $router->addRoute('PUT', '/api/v1/posts/{id}', function($id) {
 
 $router->addRoute('DELETE', '/api/v1/posts/{id}', function($id) {
     $controller = new PostsController($GLOBALS['db']);
-    return $controller->delete($id);
+    if (!empty($_GET['permanent'])) {
+        $result = $controller->destroyPermanent($id);
+        if (isset($result['code'])) {
+            http_response_code($result['code']);
+            unset($result['code']);
+        }
+        return $result;
+    }
+    $result = $controller->delete($id);
+    if (isset($result['code'])) {
+        http_response_code($result['code']);
+        unset($result['code']);
+    }
+    return $result;
+}, ['auth']);
+
+$router->addRoute('POST', '/api/v1/posts/{id}/restore', function($id) {
+    $controller = new PostsController($GLOBALS['db']);
+    $result = $controller->restore($id);
+    if (isset($result['code'])) {
+        http_response_code($result['code']);
+        unset($result['code']);
+    }
+    return $result;
 }, ['auth']);
 
 // Forms routes
