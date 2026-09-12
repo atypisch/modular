@@ -32,7 +32,9 @@ foreach ($migrations as $file) {
         }
         
         echo "Running migration {$version} ({$name})...\n";
-        require $file;
+        // Own scope, so a migration's variables cannot overwrite $version/$name.
+        (static function (string $path): void { require $path; })($file);
+        $migration->recordMigration($version, $name);
     }
 }
 
