@@ -117,6 +117,17 @@ if (!function_exists('check_database_tables')) {
     }
 }
 
+if (!function_exists('md_run_migration_file')) {
+    /**
+     * Include a migration in a scope of its own. Migrations are plain scripts
+     * that read $GLOBALS['db'], so they need nothing from the caller, and this
+     * keeps their variables away from the runner's.
+     */
+    function md_run_migration_file(string $file): void {
+        require $file;
+    }
+}
+
 if (!function_exists('run_pending_migrations')) {
     /**
      * Run any pending database migrations.
@@ -138,6 +149,19 @@ if (!function_exists('run_pending_migrations')) {
             $migrationsDir = CORE_PATH . '/migrations';
             $files = glob($migrationsDir . '/*_*.php');
             sort($files);
+
+            // Batch the "has this version run?" check into one query instead of
+            // one SELECT per migration file (previously up to 25+ queries on every
+            // admin/public request even when nothing was pending).
+            $alreadyRun = [];
+            try {
+                $stmt = $GLOBALS['db']->query("SELECT version FROM schema_migrations");
+                $alreadyRun = array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));
+            } catch (\Throwable $e) {
+                // Table may not exist yet on a brand-new install; Migration's
+                // constructor already created it, so fall back to "nothing ran".
+            }
+
             foreach ($files as $file) {
                 $basename = basename($file);
                 if (!preg_match('/^(\d+)_(.+)\.php$/', $basename, $matches)) {
@@ -145,12 +169,16 @@ if (!function_exists('run_pending_migrations')) {
                 }
                 $version = $matches[1];
                 $name = $matches[2];
-                if ($migration->hasRun($version)) {
+                if (isset($alreadyRun[$version])) {
                     continue;
                 }
                 ob_start();
                 try {
-                    require $file;
+                    // Include in its own scope. A migration that happens to use a
+                    // variable named $version, $name or $file would otherwise
+                    // overwrite this loop's bookkeeping and the wrong version gets
+                    // recorded, which blocks every later migration.
+                    md_run_migration_file($file);
                     $migration->recordMigration($version, $name);
                     $ran[] = $version . '_' . $name;
                 } finally {

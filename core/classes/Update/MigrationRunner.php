@@ -38,7 +38,12 @@ class MigrationRunner {
             }
             ob_start();
             try {
-                require $file;
+                // Own scope: see md_run_migration_file() in core/functions/database.php.
+                if (function_exists('md_run_migration_file')) {
+                    md_run_migration_file($file);
+                } else {
+                    (static function (string $path): void { require $path; })($file);
+                }
                 $migration->recordMigration($version, $name);
                 $ran[] = $version . '_' . $name;
             } finally {
