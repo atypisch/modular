@@ -57,7 +57,8 @@
         ]},
       ]},
       { label: 'Structure', items: [
-        { name:'binding', label:'Field groups', icon:'git' },
+        // Post types first: they carry a type's own fields. Field groups only
+        // add extra fields on top, conditionally.
         { name:'postTypes', label:'Post types', icon:'database', children:[
           { label:'All types', name:'postTypes' },
           { label:'Taxonomies', name:'taxonomies' },
