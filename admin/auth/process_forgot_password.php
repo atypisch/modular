@@ -82,11 +82,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($sent) {
             $_SESSION['success'] = 'A password reset link has been sent to your email address.';
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php?sent=1');
         } else {
             $_SESSION['error'] = 'Failed to send reset email. Please try again later.';
+            header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
         }
-
-        header('Location: ' . (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin') . '/auth/forgot_password.php');
         exit;
 
     } catch(PDOException $e) {

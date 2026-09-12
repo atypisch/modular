@@ -21,6 +21,7 @@
           ['Analytics','sigma',()=>go('dashboard',{tab:'analytics'})],
           ['Reports','table',()=>go('dashboard',{tab:'reports'})],
           ['Media library','image',()=>go('media',{})],
+          ['Field types','grid',()=>go('library',{})],
           ['Field groups','git',()=>go('binding',{})],
           ['Post types','database',()=>go('postTypes',{})],
           ['Taxonomies','pin',()=>go('taxonomies',{})],

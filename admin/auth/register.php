@@ -2,181 +2,121 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once dirname(dirname(__FILE__)) . '/config/config.php';
+require_once dirname(__DIR__) . '/config/config.php';
 require_once CORE_PATH . '/functions/csrf.php';
+require_once __DIR__ . '/_helpers.php';
 
-// Clear any existing messages
-$error = $_SESSION['error'] ?? '';
-$success = $_SESSION['success'] ?? '';
-unset($_SESSION['error']);
-unset($_SESSION['success']);
-
-$page_title = 'Register';
-$loginUrl = (defined('ADMIN_URL') ? ADMIN_URL : '/modular/admin');
-$loginUrl = rtrim((string) $loginUrl, '/') . '/auth/login.php';
-
-// Block registration unless explicitly enabled (settings → allow_registration).
-$registrationAllowed = false;
-if (isset($GLOBALS['db'])) {
-    try {
-        $stmt = $GLOBALS['db']->prepare("SELECT option_value FROM settings WHERE option_name = 'allow_registration' LIMIT 1");
-        $stmt->execute();
-        $registrationAllowed = in_array((string) $stmt->fetchColumn(), ['1', 'true', 'on', 'yes'], true);
-    } catch (Throwable $e) { $registrationAllowed = false; }
-}
-if (!$registrationAllowed) {
+if (!md_auth_registration_allowed()) {
     $_SESSION['error'] = 'Registration is disabled.';
-    header('Location: ' . $loginUrl);
+    header('Location: ' . md_auth_url('login.php'));
     exit;
 }
 
-$content = '
-    <div class="auth-container">
-        <div class="auth-card">
-            <h2 class="auth-title">Create Account</h2>
-            ' . ($error ? '<div class="alert alert-error">' . htmlspecialchars($error) . '</div>' : '') . '
-            ' . ($success ? '<div class="alert alert-success">' . htmlspecialchars($success) . '</div>' : '') . '
-            <form action="' . (defined('ADMIN_URL') ? ADMIN_URL : '') . '/auth/process_register.php" method="POST" class="auth-form">
-                ' . csrf_field() . '
-                <div class="form-group">
-                    <label for="full_name" class="form-label">Full Name</label>
-                    <input type="text" id="full_name" name="full_name" class="form-input" required>
-                </div>
-                <div class="form-group">
-                    <label for="email" class="form-label">Email</label>
-                    <input type="email" id="email" name="email" class="form-input" required>
-                </div>
-                <div class="form-group">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" name="password" class="form-input" required>
-                    <div class="password-requirements">
-                        <div class="requirement" data-requirement="length">
-                            <span class="icon">✗</span>
-                            <span class="text">At least 8 characters</span>
-                        </div>
-                        <div class="requirement" data-requirement="uppercase">
-                            <span class="icon">✗</span>
-                            <span class="text">At least one uppercase letter</span>
-                        </div>
-                        <div class="requirement" data-requirement="lowercase">
-                            <span class="icon">✗</span>
-                            <span class="text">At least one lowercase letter</span>
-                        </div>
-                        <div class="requirement" data-requirement="number">
-                            <span class="icon">✗</span>
-                            <span class="text">At least one number</span>
-                        </div>
-                        <div class="requirement" data-requirement="special">
-                            <span class="icon">✗</span>
-                            <span class="text">At least one special character</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="confirm_password" class="form-label">Confirm Password</label>
-                    <input type="password" id="confirm_password" name="confirm_password" class="form-input" required>
-                    <div class="password-match" style="display: none;">
-                        <span class="icon">✗</span>
-                        <span class="text">Passwords do not match</span>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <button type="submit" class="btn btn-primary w-full" id="submit-btn" disabled>Register</button>
-                </div>
-                <div class="auth-links">
-                    <a href="' . esc_url($loginUrl) . '" class="text-blue-600 hover:text-blue-800">Already have an account? Login</a>
-                </div>
-            </form>
-        </div>
-    </div>
-';
+$page_title = 'Create account';
+$flash = md_auth_flash();
 
-// Include header
-require_once dirname(dirname(__FILE__)) . '/templates/header.php';
+$content = md_auth_shell_open() . '
+        <h2 class="auth-h">Create your account</h2>
+        <p class="auth-lead">Start modelling content in minutes.</p>
+        ' . $flash . '
+        <form action="' . htmlspecialchars(md_auth_url('process_register.php')) . '" method="POST" class="auth-form" id="register-form">
+          ' . csrf_field() . '
+          <div class="field">
+            <label class="field-label" for="full_name">Full name</label>
+            <input class="inp" type="text" id="full_name" name="full_name" placeholder="Marten Timan" required autocomplete="name">
+          </div>
+          <div class="field">
+            <label class="field-label" for="email">Work email</label>
+            <input class="inp" type="email" id="email" name="email" placeholder="you@studio.nl" required autocomplete="username">
+          </div>
+          <div class="field">
+            <label class="field-label" for="password">Password</label>
+            <div class="auth-pwfield">
+              <input class="inp" type="password" id="password" name="password" placeholder="At least 8 characters" required autocomplete="new-password">
+              <button type="button" class="auth-pwtoggle" data-toggle="password" aria-label="Show password">' . md_auth_icon('eye') . '</button>
+            </div>
+            <div class="auth-strength" id="strength" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+            <ul class="password-requirements">
+              <li class="requirement" data-requirement="length">At least 8 characters</li>
+              <li class="requirement" data-requirement="uppercase">One uppercase letter</li>
+              <li class="requirement" data-requirement="lowercase">One lowercase letter</li>
+              <li class="requirement" data-requirement="number">One number</li>
+              <li class="requirement" data-requirement="special">One special character</li>
+            </ul>
+          </div>
+          <div class="field">
+            <label class="field-label" for="confirm_password">Confirm password</label>
+            <input class="inp" type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password">
+            <div class="password-match" id="password-match" hidden></div>
+          </div>
+          <button type="submit" class="btn btn--accent auth-submit" id="submit-btn" disabled>Create account</button>
+        </form>
+        <div class="auth-alt">Already have an account? <a class="auth-link" href="' . htmlspecialchars(md_auth_url('login.php')) . '">Sign in</a></div>
+' . md_auth_shell_close();
 
-// Output content
-echo $content;
-?>
-
+$additional_scripts = <<<'JS'
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const password = document.getElementById('password');
-        const confirmPassword = document.getElementById('confirm_password');
-        const submitBtn = document.getElementById('submit-btn');
-        const matchElement = document.querySelector('.password-match');
-        const requirements = {
-            length: /.{8,}/,
-            uppercase: /[A-Z]/,
-            lowercase: /[a-z]/,
-            number: /[0-9]/,
-            special: /[^A-Za-z0-9]/
-        };
+document.addEventListener('DOMContentLoaded', function () {
+  var password = document.getElementById('password');
+  var confirmPassword = document.getElementById('confirm_password');
+  var submitBtn = document.getElementById('submit-btn');
+  var matchEl = document.getElementById('password-match');
+  var bars = document.querySelectorAll('#strength span');
+  var requirements = {
+    length: /.{8,}/,
+    uppercase: /[A-Z]/,
+    lowercase: /[a-z]/,
+    number: /[0-9]/,
+    special: /[^A-Za-z0-9]/
+  };
 
-        function updateRequirement(requirement, isValid) {
-            const element = document.querySelector(`[data-requirement="${requirement}"]`);
-            const icon = element.querySelector('.icon');
-            const text = element.querySelector('.text');
-            
-            if (isValid) {
-                icon.textContent = '✓';
-                icon.style.color = '#28a745';
-                text.style.color = '#28a745';
-            } else {
-                icon.textContent = '✗';
-                icon.style.color = '#dc3545';
-                text.style.color = '#dc3545';
-            }
-        }
+  function strengthScore(v) {
+    var s = 0;
+    if (v.length >= 8) s++;
+    if (/[A-Z]/.test(v)) s++;
+    if (/[0-9]/.test(v)) s++;
+    if (/[^A-Za-z0-9]/.test(v)) s++;
+    return s;
+  }
 
-        function validatePassword() {
-            const value = password.value;
-            let isValid = true;
-
-            for (const [requirement, regex] of Object.entries(requirements)) {
-                const requirementValid = regex.test(value);
-                updateRequirement(requirement, requirementValid);
-                if (!requirementValid) isValid = false;
-            }
-
-            return isValid;
-        }
-
-        function validateConfirmPassword() {
-            const isMatch = password.value === confirmPassword.value && password.value !== '';
-            matchElement.style.display = confirmPassword.value ? 'block' : 'none';
-            
-            const icon = matchElement.querySelector('.icon');
-            const text = matchElement.querySelector('.text');
-            
-            if (isMatch) {
-                icon.textContent = '✓';
-                icon.style.color = '#28a745';
-                text.textContent = 'Passwords match';
-                text.style.color = '#28a745';
-            } else {
-                icon.textContent = '✗';
-                icon.style.color = '#dc3545';
-                text.textContent = 'Passwords do not match';
-                text.style.color = '#dc3545';
-            }
-
-            return isMatch;
-        }
-
-        function updateSubmitButton() {
-            submitBtn.disabled = !(validatePassword() && validateConfirmPassword());
-        }
-
-        password.addEventListener('input', () => {
-            validatePassword();
-            if (confirmPassword.value) validateConfirmPassword();
-            updateSubmitButton();
-        });
-
-        confirmPassword.addEventListener('input', () => {
-            validateConfirmPassword();
-            updateSubmitButton();
-        });
+  function validatePassword() {
+    var value = password.value;
+    var ok = true;
+    Object.keys(requirements).forEach(function (key) {
+      var valid = requirements[key].test(value);
+      var el = document.querySelector('[data-requirement="' + key + '"]');
+      if (el) el.classList.toggle('is-ok', valid);
+      if (!valid) ok = false;
     });
+    var score = strengthScore(value);
+    bars.forEach(function (b, i) { b.classList.toggle('on', i < score); });
+    return ok;
+  }
+
+  function validateConfirm() {
+    var match = password.value !== '' && password.value === confirmPassword.value;
+    if (!confirmPassword.value) {
+      matchEl.hidden = true;
+      return false;
+    }
+    matchEl.hidden = false;
+    matchEl.textContent = match ? 'Passwords match' : 'Passwords do not match';
+    matchEl.classList.toggle('is-ok', match);
+    matchEl.classList.toggle('is-bad', !match);
+    return match;
+  }
+
+  function update() {
+    submitBtn.disabled = !(validatePassword() && validateConfirm());
+  }
+
+  password.addEventListener('input', update);
+  confirmPassword.addEventListener('input', update);
+  update();
+});
 </script>
-<?php require_once dirname(dirname(__FILE__)) . '/templates/footer.php'; ?>
+JS;
+
+require_once dirname(__DIR__) . '/templates/header.php';
+echo $content;
+require_once dirname(__DIR__) . '/templates/footer.php';

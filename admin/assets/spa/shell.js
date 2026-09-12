@@ -63,7 +63,12 @@
           { label:'Taxonomies', name:'taxonomies' },
         ]},
         { name:'components', label:'Blocks', icon:'layers' },
-        { name:'library', label:'Field types', icon:'grid' },
+        // Field types = catalog (reference). Field groups live under it —
+        // they compose those types into entry forms.
+        { name:'library', label:'Field types', icon:'grid', children:[
+          { label:'All field types', name:'library' },
+          { label:'Field groups', name:'binding' },
+        ]},
         { name:'forms', label:'Forms', icon:'form' },
       ]},
       { label: 'Automation', items: [
@@ -152,7 +157,7 @@
                 <Icon v-if="it.children && !collapsed" :name="isOpen(it)?'chevDown':'chevRight'" :size="14" class="side-chev"/>
               </button>
               <div v-if="it.children && isOpen(it) && !collapsed" class="side-sub">
-                <button v-for="(c,ci) in it.children" :key="ci" class="side-subitem" :class="{'is-on': c.route ? (route.name==='modulePage' && route.params && route.params.url===c.params.url) : matches(c)}" @click="c.route ? go(c.route, c.params) : (c.href ? goHref(c.href) : go(c.name, c.params))">{{ c.label }}</button>
+                <button v-for="(c,ci) in it.children" :key="ci" class="side-subitem" :class="{'is-on': subOn(c)}" @click="c.route ? go(c.route, c.params) : (c.href ? goHref(c.href) : go(c.name, c.params))">{{ c.label }}</button>
               </div>
             </template>
           </div>
@@ -178,9 +183,17 @@
           <div class="crumbs">
             <Icon name="home" :size="15" class="muted"/>
             <span class="crumb-sep">/</span>
-            <span class="crumb">{{ ptName || crumbFor(route.name) }}</span>
-            <template v-if="route.name==='editor'"><span class="crumb-sep">/</span><span class="crumb crumb--here">Edit</span></template>
-            <template v-if="route.name==='fieldBuilder'"><span class="crumb-sep">/</span><span class="crumb crumb--here">Edit group</span></template>
+            <template v-if="route.name==='binding' || route.name==='fieldBuilder'">
+              <button class="crumb crumb--link" type="button" @click="go('library')">Field types</button>
+              <span class="crumb-sep">/</span>
+              <button v-if="route.name==='fieldBuilder'" class="crumb crumb--link" type="button" @click="go('binding')">Field groups</button>
+              <span v-else class="crumb crumb--here">Field groups</span>
+              <template v-if="route.name==='fieldBuilder'"><span class="crumb-sep">/</span><span class="crumb crumb--here">Edit group</span></template>
+            </template>
+            <template v-else>
+              <span class="crumb">{{ ptName || crumbFor(route.name) }}</span>
+              <template v-if="route.name==='editor'"><span class="crumb-sep">/</span><span class="crumb crumb--here">Edit</span></template>
+            </template>
           </div>
           <div class="topbar-search" @click="ui.cmdk = true">
             <Icon name="search" :size="15"/>
@@ -315,7 +328,19 @@
         return true;
       },
       isOn(it) { return !it.children && this.matches(it); },
-      isOpen(it) { if (!it.children) return false; if (it._mod) return !!this.openMods[it.label]; return this.matches(it) || it.children.some(c => this.matches(c)); },
+      subOn(c) {
+        if (c.route) return this.route.name === 'modulePage' && this.route.params && this.route.params.url === c.params.url;
+        if (c.name === 'binding' && this.route.name === 'fieldBuilder' && !(this.route.params && this.route.params.type)) return true;
+        return this.matches(c);
+      },
+      isOpen(it) {
+        if (!it.children) return false;
+        if (it._mod) return !!this.openMods[it.label];
+        if (this.matches(it) || it.children.some(c => this.subOn(c))) return true;
+        if (it.name === 'library' && (this.route.name === 'fieldBuilder' || this.route.name === 'binding')) return true;
+        if (it.name === 'postTypes' && (this.route.name === 'taxonomies' || (this.route.name === 'fieldBuilder' && this.route.params && this.route.params.type))) return true;
+        return false;
+      },
       goItem(it) {
         if (it._mod) { if (it.children && it.children.length) { this.openMods[it.label] = !this.openMods[it.label]; } else if (it.route) { this.go(it.route, it.params); } return; }
         if (it.href) { window.location.href = it.href; return; }

@@ -5,7 +5,9 @@
  * Generates a production release ZIP from the current source tree.
  *
  * Usage (CLI):
- *   php core/build/build.php
+ *   php core/build/build.php                  release ZIP
+ *   php core/build/build.php spa              concatenate admin SPA scripts/styles into
+ *                                             admin/assets/spa/app.bundle.{js,css}
  *
  * Output:
  *   /release/modular-{version}.zip
@@ -43,6 +45,18 @@ if (!is_array($build) || empty($build['version'])) {
 
 $version   = $build['version'];
 $buildDate = $build['build_date'] ?? date('Y-m-d');
+
+
+// ---- Sub-commands -------------------------------------------------------
+$command = $argv[1] ?? '';
+if ($command === 'spa') {
+    build_spa($rootDir, $build);
+    exit(0);
+}
+if ($command !== '' && $command !== 'release') {
+    fwrite(STDERR, "ERROR: Unknown command '{$command}'. Use: spa\n");
+    exit(1);
+}
 
 echo "Building Modular CMS v{$version} ({$buildDate})\n";
 
@@ -208,6 +222,43 @@ function add_dir_to_zip(ZipArchive $zip, string $dir, string $zipBase): void {
 /**
  * Recursively remove a directory.
  */
+
+/**
+ * Concatenate the SPA scripts and styles listed in build.json into
+ * admin/assets/spa/app.bundle.js / app.bundle.css.
+ */
+function build_spa(string $rootDir, array $build): void {
+    $spaDir  = $rootDir . '/admin/assets/spa';
+    $scripts = $build['spa_scripts'] ?? [];
+    $styles  = $build['spa_styles'] ?? [];
+    if (!is_array($scripts) || $scripts === [] || !is_array($styles) || $styles === []) {
+        fwrite(STDERR, "ERROR: build.json is missing 'spa_scripts' / 'spa_styles'.\n");
+        exit(1);
+    }
+
+    $concat = function (array $files, string $separator) use ($spaDir): string {
+        $parts = [];
+        foreach ($files as $file) {
+            $abs = $spaDir . '/' . $file;
+            if (!is_readable($abs)) {
+                fwrite(STDERR, "ERROR: SPA source not found: admin/assets/spa/{$file}\n");
+                exit(1);
+            }
+            $parts[] = "/* file: {$file} */\n" . rtrim(file_get_contents($abs), "\n") . "\n";
+        }
+        return implode($separator, $parts);
+    };
+
+    $jsOut  = $spaDir . '/app.bundle.js';
+    $cssOut = $spaDir . '/app.bundle.css';
+    file_put_contents($jsOut, $concat($scripts, ";\n"));
+    file_put_contents($cssOut, $concat($styles, "\n"));
+
+    echo "SPA bundle written:\n";
+    printf("  %-38s %7.1f KB (%d files)\n", 'admin/assets/spa/app.bundle.js', filesize($jsOut) / 1024, count($scripts));
+    printf("  %-38s %7.1f KB (%d files)\n", 'admin/assets/spa/app.bundle.css', filesize($cssOut) / 1024, count($styles));
+}
+
 function remove_dir(string $dir): void {
     if (!is_dir($dir)) {
         return;

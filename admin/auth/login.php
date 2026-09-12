@@ -2,60 +2,42 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once dirname(dirname(__FILE__)) . '/config/config.php';
+require_once dirname(__DIR__) . '/config/config.php';
 require_once CORE_PATH . '/functions/csrf.php';
+require_once __DIR__ . '/_helpers.php';
 
-// Registration toggle (settings → allow_registration). Off by default; when off,
-// the sign-up link is hidden here and the register page itself is blocked.
-$registrationAllowed = false;
-if (isset($GLOBALS['db'])) {
-    try {
-        $stmt = $GLOBALS['db']->prepare("SELECT option_value FROM settings WHERE option_name = 'allow_registration' LIMIT 1");
-        $stmt->execute();
-        $registrationAllowed = in_array((string) $stmt->fetchColumn(), ['1', 'true', 'on', 'yes'], true);
-    } catch (Throwable $e) { $registrationAllowed = false; }
-}
-$registerLink = $registrationAllowed
-    ? '<a href="' . (function_exists('admin_url') ? admin_url('auth/register.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/register.php' : '/modular/admin/auth/register.php')) . '">Create an account</a>'
-    : '';
+$registrationAllowed = md_auth_registration_allowed();
+$page_title = 'Sign in';
+$flash = md_auth_flash();
 
-$page_title = 'Login';
-$content = '
-    <div class="auth-container">
-        <div class="auth-card">
-            <h2 class="auth-title">Login</h2>
-            ' . (isset($_SESSION['error']) ? '<div class="alert alert-error" style="margin-bottom: 1.5rem; padding: 0.75rem; background: #fee; border: 1px solid #fcc; border-radius: 6px; color: #c33; font-size: 13px;">' . htmlspecialchars($_SESSION['error']) . '</div>' : '') . '
-            ' . (isset($_SESSION['success']) ? '<div class="alert alert-success" style="margin-bottom: 1.5rem; padding: 0.75rem; background: #efe; border: 1px solid #cfc; border-radius: 6px; color: #3c3; font-size: 13px;">' . htmlspecialchars($_SESSION['success']) . '</div>' : '') . '
-            <form action="' . (function_exists('admin_url') ? admin_url('auth/process_login.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/process_login.php' : '/modular/admin/auth/process_login.php')) . '" method="POST" class="auth-form">
-                ' . csrf_field() . '
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" class="form-input" required autocomplete="email">
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" class="form-input" required autocomplete="current-password">
-                </div>
-                <div class="form-group">
-                    <button type="submit" class="btn btn-primary">Login</button>
-                </div>
-            </form>
-            <div class="auth-links" style="clear: both;">
-                <a href="' . (function_exists('admin_url') ? admin_url('auth/forgot_password.php') : (defined('ADMIN_URL') ? ADMIN_URL . '/auth/forgot_password.php' : '/modular/admin/auth/forgot_password.php')) . '">Forgot Password?</a>
-                ' . $registerLink . '
+$content = md_auth_shell_open() . '
+        <h2 class="auth-h">Welcome back</h2>
+        <p class="auth-lead">Sign in to your Modular workspace.</p>
+        ' . $flash . '
+        <form action="' . htmlspecialchars(md_auth_url('process_login.php')) . '" method="POST" class="auth-form">
+          ' . csrf_field() . '
+          <div class="field">
+            <label class="field-label" for="email">Email</label>
+            <input class="inp" type="email" id="email" name="email" placeholder="you@studio.nl" required autocomplete="username">
+          </div>
+          <div class="field">
+            <label class="field-label" for="password">Password</label>
+            <div class="auth-pwfield">
+              <input class="inp" type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+              <button type="button" class="auth-pwtoggle" data-toggle="password" aria-label="Show password">' . md_auth_icon('eye') . '</button>
             </div>
-        </div>
-    </div>
-';
+          </div>
+          <div class="auth-rowsplit">
+            <label class="auth-check"><input type="checkbox" name="remember" value="1"> Remember me</label>
+            <a class="auth-link" href="' . htmlspecialchars(md_auth_url('forgot_password.php')) . '">Forgot password?</a>
+          </div>
+          <button type="submit" class="btn btn--accent auth-submit">Sign in</button>
+        </form>
+        ' . ($registrationAllowed
+            ? '<div class="auth-alt">New to Modular? <a class="auth-link" href="' . htmlspecialchars(md_auth_url('register.php')) . '">Create an account</a></div>'
+            : '') . '
+' . md_auth_shell_close();
 
-// Clear any existing session messages
-unset($_SESSION['error']);
-unset($_SESSION['success']);
-
-// Include header
-require_once dirname(dirname(__FILE__)) . '/templates/header.php';
-
-// Output content
+require_once dirname(__DIR__) . '/templates/header.php';
 echo $content;
-
-require_once dirname(dirname(__FILE__)) . '/templates/footer.php';
+require_once dirname(__DIR__) . '/templates/footer.php';
