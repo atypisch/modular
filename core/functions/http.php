@@ -241,6 +241,301 @@ if (!function_exists('md_http_code')) {
 }
 
 // ---------------------------------------------------------------------------
+// Outbound fetches of user-supplied URLs (SSRF-safe)
+// ---------------------------------------------------------------------------
+
+if (!function_exists('md_registrable_domain')) {
+    /**
+     * The registrable domain of a host ("www.ekko.nl" -> "ekko.nl").
+     *
+     * No Public Suffix List dependency: the last two labels, or the last three when
+     * the last two form a known multi-part public suffix (co.uk, com.au, ...). This is
+     * exact for single-label suffixes such as .nl .be .de .fr .eu .com .org, which is
+     * what European venues use. For a multi-part suffix that is not listed it returns
+     * the suffix itself (e.g. "gov.xx"), so two unrelated sites on it would compare
+     * equal; callers that grant trust combine it with md_is_shared_host_domain() and
+     * never auto-trust bare suffix-looking results (see md_is_shared_host_domain()).
+     * IP literals and single-label hosts return ''.
+     */
+    function md_registrable_domain(string $host): string {
+        $host = strtolower(trim($host, " \t\n\r\0\x0B."));
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP) || strpos($host, '.') === false) {
+            return '';
+        }
+        $labels = explode('.', $host);
+        $n = count($labels);
+        static $multi = [
+            'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'me.uk', 'ltd.uk', 'plc.uk', 'net.uk', 'sch.uk',
+            'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au', 'co.nz', 'org.nz', 'net.nz',
+            'com.br', 'com.mx', 'com.ar', 'co.za', 'co.jp', 'ne.jp', 'or.jp', 'co.in', 'co.kr',
+            'com.tr', 'com.pl', 'com.ua', 'com.cn', 'com.hk', 'com.sg', 'co.il', 'com.es', 'com.pt',
+        ];
+        if ($n >= 3 && in_array($labels[$n - 2] . '.' . $labels[$n - 1], $multi, true)) {
+            return implode('.', array_slice($labels, -3));
+        }
+        return implode('.', array_slice($labels, -2));
+    }
+}
+
+if (!function_exists('md_is_shared_host_domain')) {
+    /**
+     * True for registrable domains where many unrelated people own addresses or pages
+     * (webmail, site builders, social platforms). Owning an address or a page there
+     * proves nothing about who runs an organisation.
+     */
+    function md_is_shared_host_domain(string $domain): bool {
+        static $shared = [
+            'gmail.com', 'googlemail.com', 'google.com', 'outlook.com', 'hotmail.com', 'live.com', 'live.nl',
+            'msn.com', 'yahoo.com', 'icloud.com', 'me.com', 'protonmail.com', 'proton.me', 'gmx.com', 'gmx.net',
+            'kpnmail.nl', 'ziggo.nl', 'hetnet.nl', 'planet.nl', 'home.nl', 'xs4all.nl', 'upcmail.nl', 'telfort.nl',
+            'wixsite.com', 'wix.com', 'squarespace.com', 'wordpress.com', 'blogspot.com', 'weebly.com',
+            'webflow.io', 'github.io', 'netlify.app', 'vercel.app', 'pages.dev', 'carrd.co', 'jimdosite.com',
+            'bandcamp.com', 'facebook.com', 'instagram.com', 'linktr.ee', 'soundcloud.com', 'tiktok.com',
+            'x.com', 'twitter.com', 'youtube.com', 'spotify.com',
+        ];
+        return in_array(strtolower($domain), $shared, true);
+    }
+}
+
+if (!function_exists('md_is_public_ip')) {
+    /** True when an IPv4/IPv6 address is publicly routable (not private, loopback, link-local, reserved). */
+    function md_is_public_ip(string $ip): bool {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+        $bin = inet_pton($ip);
+        if ($bin === false) {
+            return false;
+        }
+        if (strlen($bin) === 16) {
+            // IPv4-mapped (::ffff:a.b.c.d) and NAT64 (64:ff9b::/96): judge the embedded IPv4.
+            if (substr($bin, 0, 12) === str_repeat("\0", 10) . "\xff\xff" || substr($bin, 0, 12) === "\x00\x64\xff\x9b" . str_repeat("\0", 8)) {
+                return md_is_public_ip(inet_ntop(substr($bin, 12)));
+            }
+            $first = ord($bin[0]);
+            if ($bin === str_repeat("\0", 15) . "\1" || $bin === str_repeat("\0", 16)) return false; // ::1, ::
+            if (($first & 0xfe) === 0xfc) return false;                                           // fc00::/7 unique local
+            if ($first === 0xfe && (ord($bin[1]) & 0xc0) === 0x80) return false;                   // fe80::/10 link-local
+            if ($first === 0xff) return false;                                                     // ff00::/8 multicast
+            if (substr($bin, 0, 4) === "\x20\x01\x0d\xb8") return false;                           // 2001:db8::/32 docs
+        } else {
+            $long = ip2long($ip);
+            foreach ([['0.0.0.0', 8], ['100.64.0.0', 10], ['169.254.0.0', 16], ['192.0.0.0', 24], ['198.18.0.0', 15], ['224.0.0.0', 4], ['240.0.0.0', 4]] as [$net, $bits]) {
+                $mask = -1 << (32 - $bits);
+                if (($long & $mask) === (ip2long($net) & $mask)) {
+                    return false;
+                }
+            }
+        }
+        return (bool) filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+    }
+}
+
+if (!function_exists('md_http_get_safe')) {
+    /**
+     * GET a URL that came from a user or a third party without letting it reach
+     * internal services.
+     *
+     * Every hop, including each redirect: HTTPS only (unless allow_http), no
+     * credentials in the URL, a hostname rather than an IP literal, default ports only,
+     * every resolved address publicly routable, and the connection pinned to the address
+     * that was checked (defeats DNS rebinding). Redirects are followed manually, at most
+     * max_redirects times. With pin_registrable_domain set, every hop must stay on that
+     * registrable domain. The body is capped at max_bytes.
+     *
+     * $opts: timeout (5), connect_timeout (3), max_redirects (3), max_bytes (1 MiB),
+     *        user_agent, headers (assoc), pin_registrable_domain (''), allow_http (false).
+     *
+     * @return array{ok:bool, code:int, body:string, headers:array<string,string>, final_url:string, error:string, resolved_ip:string}
+     */
+    function md_http_get_safe(string $url, array $opts = []): array {
+        $timeout   = (int) ($opts['timeout'] ?? 5);
+        $max_redir = (int) ($opts['max_redirects'] ?? 3);
+        $max_bytes = (int) ($opts['max_bytes'] ?? 1048576);
+        $pin       = strtolower((string) ($opts['pin_registrable_domain'] ?? ''));
+        $allow_http = !empty($opts['allow_http']);
+        $out = ['ok' => false, 'code' => 0, 'body' => '', 'headers' => [], 'final_url' => $url, 'error' => '', 'resolved_ip' => ''];
+
+        if (!function_exists('curl_init')) {
+            $out['error'] = 'curl_unavailable';
+            return $out;
+        }
+
+        for ($hop = 0; $hop <= $max_redir; $hop++) {
+            $out['final_url'] = $url;
+            $p = parse_url($url);
+            $scheme = strtolower((string) ($p['scheme'] ?? ''));
+            $host = strtolower((string) ($p['host'] ?? ''));
+            if (!in_array($scheme, $allow_http ? ['https', 'http'] : ['https'], true)) {
+                $out['error'] = 'scheme_not_allowed';
+                return $out;
+            }
+            if ($host === '' || isset($p['user']) || isset($p['pass'])) {
+                $out['error'] = 'invalid_url';
+                return $out;
+            }
+            $host = trim($host, '[]');
+            if (filter_var($host, FILTER_VALIDATE_IP) || !filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) || strpos($host, '.') === false) {
+                $out['error'] = 'host_not_allowed';
+                return $out;
+            }
+            $port = isset($p['port']) ? (int) $p['port'] : ($scheme === 'https' ? 443 : 80);
+            if (!in_array($port, [443, 80], true)) {
+                $out['error'] = 'port_not_allowed';
+                return $out;
+            }
+            if ($pin !== '' && md_registrable_domain($host) !== $pin) {
+                $out['error'] = $hop === 0 ? 'domain_mismatch' : 'redirect_off_domain';
+                return $out;
+            }
+
+            $records = @dns_get_record($host, DNS_A + DNS_AAAA) ?: [];
+            $ips = [];
+            foreach ($records as $rec) {
+                if (!empty($rec['ip'])) $ips[] = $rec['ip'];
+                if (!empty($rec['ipv6'])) $ips[] = $rec['ipv6'];
+            }
+            if (!$ips) {
+                $ips = @gethostbynamel($host) ?: [];
+            }
+            if (!$ips) {
+                $out['error'] = 'dns_failed';
+                return $out;
+            }
+            foreach ($ips as $ip) {
+                if (!md_is_public_ip($ip)) {
+                    $out['error'] = 'private_ip';
+                    return $out;
+                }
+            }
+            $v4 = array_values(array_filter($ips, fn($ip) => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)));
+            $ip = $v4[0] ?? $ips[0];
+            $out['resolved_ip'] = $ip;
+
+            $headers = [];
+            $body = '';
+            $too_large = false;
+            $ch = curl_init($url);
+            $header_lines = [];
+            foreach ((array) ($opts['headers'] ?? []) as $k => $v) {
+                if ($v !== null && $v !== '') $header_lines[] = "{$k}: {$v}";
+            }
+            curl_setopt_array($ch, [
+                CURLOPT_RESOLVE        => [$host . ':' . $port . ':' . (strpos($ip, ':') !== false ? '[' . $ip . ']' : $ip)],
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_PROTOCOLS      => $allow_http ? (CURLPROTO_HTTPS | CURLPROTO_HTTP) : CURLPROTO_HTTPS,
+                CURLOPT_CONNECTTIMEOUT => (int) ($opts['connect_timeout'] ?? 3),
+                CURLOPT_TIMEOUT        => $timeout,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_ENCODING       => '',
+                CURLOPT_USERAGENT      => (string) ($opts['user_agent'] ?? 'Modular/1.0'),
+                CURLOPT_HTTPHEADER     => $header_lines,
+                CURLOPT_HEADERFUNCTION => function ($ch, $line) use (&$headers) {
+                    $len = strlen($line);
+                    if (strpos($line, ':') !== false) {
+                        [$k, $v] = explode(':', $line, 2);
+                        $headers[strtolower(trim($k))] = trim($v);
+                    } elseif (preg_match('#^HTTP/#i', $line)) {
+                        $headers = [];
+                    }
+                    return $len;
+                },
+                CURLOPT_WRITEFUNCTION  => function ($ch, $chunk) use (&$body, &$too_large, $max_bytes) {
+                    if (strlen($body) + strlen($chunk) > $max_bytes) {
+                        $too_large = true;
+                        return -1;
+                    }
+                    $body .= $chunk;
+                    return strlen($chunk);
+                },
+            ]);
+            $exec = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            $curl_err = curl_error($ch);
+            curl_close($ch);
+
+            if ($too_large) {
+                $out['error'] = 'too_large';
+                return $out;
+            }
+            if ($exec === false) {
+                $out['error'] = 'fetch_failed: ' . $curl_err;
+                return $out;
+            }
+            $out['code'] = $code;
+            $out['headers'] = $headers;
+
+            if (in_array($code, [301, 302, 303, 307, 308], true) && !empty($headers['location'])) {
+                if ($hop === $max_redir) {
+                    $out['error'] = 'too_many_redirects';
+                    return $out;
+                }
+                $url = md_resolve_relative_url($url, $headers['location']);
+                continue;
+            }
+            $out['body'] = $body;
+            $out['ok'] = ($code >= 200 && $code < 300) || $code === 304;
+            if (!$out['ok']) {
+                $out['error'] = 'http_' . $code;
+            }
+            return $out;
+        }
+        $out['error'] = 'too_many_redirects';
+        return $out;
+    }
+}
+
+if (!function_exists('md_resolve_relative_url')) {
+    /** Resolve a (possibly relative) URL against a base URL. */
+    function md_resolve_relative_url(string $base, string $ref): string {
+        $ref = trim($ref);
+        if ($ref === '') {
+            return $base;
+        }
+        if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $ref)) {
+            return $ref;
+        }
+        $b = parse_url($base);
+        $scheme = ($b['scheme'] ?? 'https');
+        $authority = ($b['host'] ?? '') . (isset($b['port']) ? ':' . $b['port'] : '');
+        if (strpos($ref, '//') === 0) {
+            return $scheme . ':' . $ref;
+        }
+        if ($ref[0] === '?') {
+            return $scheme . '://' . $authority . ($b['path'] ?? '/') . $ref;
+        }
+        if ($ref[0] === '#') {
+            return strtok($base, '#') . $ref;
+        }
+        if ($ref[0] === '/') {
+            $path = $ref;
+        } else {
+            $dir = preg_replace('#/[^/]*$#', '/', $b['path'] ?? '/');
+            $path = $dir . $ref;
+        }
+        $query = '';
+        if (($qpos = strpos($path, '?')) !== false) {
+            $query = substr($path, $qpos);
+            $path = substr($path, 0, $qpos);
+        }
+        $segments = [];
+        foreach (explode('/', $path) as $seg) {
+            if ($seg === '..') {
+                array_pop($segments);
+            } elseif ($seg !== '.') {
+                $segments[] = $seg;
+            }
+        }
+        $path = implode('/', $segments);
+        if ($path === '' || $path[0] !== '/') {
+            $path = '/' . $path;
+        }
+        return $scheme . '://' . $authority . $path . $query;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Error / output helpers
 // ---------------------------------------------------------------------------
 
