@@ -586,9 +586,13 @@ if (!function_exists('md_esc_attr')) {
 }
 
 if (!function_exists('md_esc_url')) {
-    function md_esc_url(string $url): string {
-        $url = strip_tags($url);
-        $url = filter_var($url, FILTER_SANITIZE_URL);
+    /** An href/src value. Only http(s), mailto, tel, relative and fragment URLs come through; anything else is ''. */
+    function md_esc_url(?string $url): string {
+        $url = trim(strip_tags((string) ($url ?? '')));
+        $url = (string) filter_var($url, FILTER_SANITIZE_URL);
+        if ($url !== '' && !preg_match('#^(https?:|mailto:|tel:|/|\#|\?|[A-Za-z0-9_.~-]+(/|$))#i', $url)) {
+            return '';
+        }
         return htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
