@@ -19,6 +19,24 @@ if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_samesite', 'Lax');
     ini_set('session.gc_maxlifetime', 604800); // 7 days
     ini_set('session.use_strict_mode', 1);
+
+    // Own session directory, or the 7 days above are a lie. PHP's garbage collector
+    // deletes every file in session.save_path older than the gc_maxlifetime of
+    // whichever process happens to run it, and MAMP (like most shared setups) points
+    // every site on the machine at one directory. A neighbouring app running the
+    // 1440-second default therefore wipes these sessions after 24 idle minutes, which
+    // takes the CSRF token with it: a form left open longer than that answers
+    // "Security check failed" on submit. Keeping our own path means only our own
+    // gc_maxlifetime applies. Outside the webroot: session files must never be
+    // fetchable over HTTP.
+    $_sessionDir = sys_get_temp_dir() . '/modular-sessions-' . substr(md5(dirname(__DIR__, 2)), 0, 12);
+    if (!is_dir($_sessionDir)) {
+        @mkdir($_sessionDir, 0700, true);
+    }
+    if (is_dir($_sessionDir) && is_writable($_sessionDir)) {
+        ini_set('session.save_path', $_sessionDir);
+    }
+    unset($_sessionDir);
 }
 
 // Define base paths (only if not already set, e.g. when public/index.php is included from root)
