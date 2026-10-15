@@ -6,9 +6,15 @@
  * - Archive: one segment = post type slug → archive-{type}.php or archive.php
  */
 
-// Start session before any output to prevent session_start() warnings from csrf.php
+// Start the session before any output to prevent session_start() warnings from csrf.php. Anonymous GET
+// requests without a session cookie do not start one (no Set-Cookie, so pages stay cacheable);
+// csrf_token() and auth start it on demand.
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    if (isset($_COOKIE[session_name()]) || ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+        session_start();
+    } elseif (!isset($_SESSION)) {
+        $_SESSION = [];
+    }
 }
 
 if (!defined('MODULAR_PATH')) {
@@ -101,6 +107,16 @@ if ($pathInfo === '' && isset($_SERVER['REQUEST_URI'])) {
         $pathInfo = trim(substr($req, strlen($base)), '/');
     } elseif ($base === '' && $req !== '') {
         $pathInfo = trim($req, '/');
+    }
+}
+
+// Early routes: modules may redirect (301) or fully render a path before the fixed routes run.
+// The filter returns an HTML string to send, or null to continue with the normal routing below.
+if (function_exists('apply_filters')) {
+    $_earlyResponse = apply_filters('public_early_route', null, $pathInfo);
+    if (is_string($_earlyResponse)) {
+        echo $_earlyResponse;
+        exit;
     }
 }
 

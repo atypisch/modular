@@ -34,10 +34,20 @@ class URLField implements FieldInterface
 
     public function sanitize($value, array $schema = [])
     {
+        if (is_array($value)) {
+            $value = $value['url'] ?? $value['value'] ?? '';
+        }
         if ($value === null || $value === '') {
             return $schema['default_value'] ?? null;
         }
         $value = trim((string) $value);
+        if ($value === '') {
+            return $schema['default_value'] ?? null;
+        }
+        // Bare hosts (simezu.com) are valid product domains — prepend https for validation.
+        if (!preg_match('#^[a-z][a-z0-9+.-]*:#i', $value)) {
+            $value = 'https://' . ltrim($value, '/');
+        }
         return filter_var($value, FILTER_VALIDATE_URL) !== false ? $value : ($schema['default_value'] ?? null);
     }
 

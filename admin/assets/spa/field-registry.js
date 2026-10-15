@@ -107,7 +107,18 @@
 
   C.MdUrl = base({
     name: 'MdUrl',
-    template: `<div class="inp-group"><span class="affix">https://</span><input class="inp mono" :value="modelValue" @input="set($event.target.value)" placeholder="example.com"></div>`,
+    computed: {
+      // Affix already shows https:// — keep the input as host/path only.
+      host() {
+        return String(this.modelValue || '').trim().replace(/^https?:\/\//i, '').replace(/^\/\//, '');
+      },
+    },
+    methods: {
+      setHost(v) {
+        this.set(String(v || '').trim().replace(/^https?:\/\//i, '').replace(/^\/\//, ''));
+      },
+    },
+    template: `<div class="inp-group"><span class="affix">https://</span><input class="inp mono" :value="host" @input="setHost($event.target.value)" placeholder="example.com"></div>`,
   });
 
   C.MdTextarea = base({

@@ -1,0 +1,12 @@
+a:2:{s:7:"expires";i:1789219728;s:5:"value";a:25:{s:10:"site_title";s:11:"Atypisch QA";s:12:"site_tagline";s:0:"";s:8:"site_url";s:24:"http://localhost/modular";s:8:"timezone";s:3:"UTC";s:8:"language";s:5:"en_US";s:14:"mail_from_name";s:11:"Modular CMS";s:17:"mail_from_address";s:19:"noreply@example.com";s:37:"email_template.password_reset.subject";s:22:"Password Reset Request";s:34:"email_template.password_reset.body";s:259:"Hello,
+
+You have requested to reset your password. Please click the following link to reset it:
+
+{{reset_link}}
+
+This link will expire in 1 hour.
+
+If you did not request this password reset, please ignore this email.
+
+Best regards,
+Modular CMS Team";s:12:"license_tier";s:4:"free";s:11:"license_key";s:0:"";s:16:"dev_mode_enabled";s:1:"1";s:22:"dev_mode_tier_override";s:6:"agency";s:12:"active_theme";s:7:"default";s:13:"headless_mode";s:1:"0";s:14:"site_menu_main";a:3:{i:0;a:6:{s:5:"label";s:4:"Home";s:3:"url";s:13:"/modular/home";s:8:"children";a:0:{}s:4:"type";s:4:"post";s:7:"post_id";i:4;s:9:"post_type";s:4:"page";}i:1;a:6:{s:5:"label";s:11:"testbericht";s:3:"url";s:10:"/modular/t";s:8:"children";a:0:{}s:4:"type";s:4:"post";s:7:"post_id";i:3;s:9:"post_type";s:7:"modular";}i:2;a:6:{s:5:"label";s:4:"Test";s:3:"url";s:13:"/modular/test";s:8:"children";a:0:{}s:4:"type";s:4:"post";s:7:"post_id";i:5;s:9:"post_type";s:4:"page";}}s:19:"permalink_structure";a:3:{s:5:"sdfds";s:7:"/{slug}";s:4:"news";s:7:"/{slug}";s:4:"page";s:7:"/{slug}";}s:12:"theme_tokens";a:0:{}s:9:"admin_spa";s:1:"1";s:18:"allow_registration";s:1:"0";s:19:"simuze_migrations_v";s:3:"009";s:30:"simuze_province_geo_backfilled";s:1:"1";s:29:"simuze_country_geo_backfilled";s:1:"1";s:26:"simuze_city_geo_backfilled";s:1:"1";s:32:"simuze_location_links_backfilled";s:1:"1";}}

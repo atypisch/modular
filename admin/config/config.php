@@ -11,6 +11,9 @@ if (file_exists($configLocalPath)) {
     require_once $configLocalPath;
 }
 
+// Every "today", cap and day window is judged in Amsterdam time (PHP and MySQL agree).
+date_default_timezone_set('Europe/Amsterdam');
+
 // Configure session settings for better persistence
 if (session_status() === PHP_SESSION_NONE) {
     // Set session cookie parameters before starting session
